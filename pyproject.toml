@@ -36,6 +36,12 @@ src = ["src", "tests"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 
+[tool.ruff.lint.per-file-ignores]
+# Mirrors upstream Newclid function bodies with a single line changed, so it stays diffable
+# against the original and easy to drop when upstream fixes the defect. Upstream's idioms are
+# preserved deliberately. Scoped to this file only; behaviour is covered by regression tests.
+"src/geoforge/solvers/_patches.py" = ["UP035", "SIM201", "E501"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -46,7 +52,16 @@ files = ["src/geoforge"]
 module = ["newclid.*", "py_yuclid.*", "sympy.*"]
 ignore_missing_imports = true
 
+# Same rationale as the ruff per-file-ignore above: this module mirrors upstream bodies over
+# untyped sympy internals and rebinds module attributes by design. Kept verbatim rather than
+# re-typed so it stays diffable against upstream.
+[[tool.mypy.overrides]]
+module = ["geoforge.solvers._patches"]
+disallow_untyped_defs = false
+warn_unused_ignores = false
+disable_error_code = ["name-defined", "attr-defined", "no-any-return", "misc"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 addopts = "-q"
