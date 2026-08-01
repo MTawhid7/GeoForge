@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Read-only reference clones (see docs/02 "Reference-clone policy").
+# Cloned locally for study; never dependencies, never modified in place.
+/Newclid/
+/alphageometry/
+/alphageometry2/
+/mathlib4/
+/penrose/
+/sympy/
+/tong-geometry/
+/FGPS/
+/FormalGeo/
+/InterGPS/
+/2d_geometric_constraint_solver/
+
+# Spike outputs (regenerate with the spike scripts)
+/spikes/p0/out/
+
+# Build artifacts
+/banks/
+/web/node_modules/
+/web/dist/

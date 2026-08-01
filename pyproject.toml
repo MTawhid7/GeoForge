@@ -1,0 +1,52 @@
+[project]
+name = "geoforge"
+version = "0.1.0"
+description = "Generator of validated, well-posed geometry puzzles with human-readable solutions"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+
+# Hard pins, deliberately. docs/07 P1a: a pin is what isolates us from upstream churn.
+# Versions match the environment verified in Phase 0 (spikes/p0/REPORT.md).
+dependencies = [
+    "newclid==3.0.1",
+    "py-yuclid==3.0.0",  # C++ backend: primary per docs/03 §3.2
+    "pyyaml==6.0.3",     # BUG-0: newclid 3.0.1's wheel metadata omits this but imports it
+    "numpy==2.5.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.1.1",
+    "mypy>=1.14",
+    "ruff>=0.9",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/geoforge"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/geoforge"]
+# Reference engines ship without type stubs; we type our side of the boundary (the SAL)
+# and treat engine internals as untyped. docs/03 §3.3.
+[[tool.mypy.overrides]]
+module = ["newclid.*", "py_yuclid.*", "sympy.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"

@@ -1,0 +1,1 @@
+"""GeoForge translation package."""
