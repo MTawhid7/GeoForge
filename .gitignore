@@ -29,3 +29,6 @@ __pycache__/
 /banks/
 /web/node_modules/
 /web/dist/
+
+# Personal cross-project assistant defaults (belongs in ~/.claude/, not this repo)
+CLAUDE-global.md
