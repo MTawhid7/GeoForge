@@ -260,6 +260,42 @@ class ProblemSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class RealizedFigure:
+    """A construction instantiated with coordinates, without running deduction.
+
+    Stage 3 (docs/04) rejects degenerate figures *before* paying for a closure, so the SAL
+    exposes instantiation on its own. `points` is empty when the engine could not realize the
+    construction at all, with `error` saying why — that is ordinary attrition, not a bug.
+    """
+
+    points: tuple[tuple[str, float, float], ...]
+    declared: tuple[Fact, ...] = ()
+    """Facts the construction itself contributes. Stage 3 needs these to distinguish
+    *declared* collinearity (legitimate: `on_line`, `midpoint`, `foot` all create it) from
+    *accidental* near-collinearity (rejected, docs/04 Stage 3)."""
+    error: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.error is None and bool(self.points)
+
+    def declared_collinear(self) -> frozenset[frozenset[str]]:
+        """Point sets the construction declared collinear, as unordered triples."""
+        out: set[frozenset[str]] = set()
+        for fact in self.declared:
+            if fact.kind in (FactKind.COLLINEAR, FactKind.MIDPOINT):
+                pts = list(fact.args)
+                for i in range(len(pts)):
+                    for j in range(i + 1, len(pts)):
+                        for k in range(j + 1, len(pts)):
+                            out.add(frozenset((pts[i], pts[j], pts[k])))
+        return frozenset(out)
+
+    def coords(self) -> dict[str, tuple[float, float]]:
+        return {name: (x, y) for name, x, y in self.points}
+
+
+@dataclass(frozen=True, slots=True)
 class SolveOptions:
     seed: int = 42
     backend: str | None = None

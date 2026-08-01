@@ -69,6 +69,26 @@ class GenerationConfig:
     max_given_parameters: int = 3
     """DOC docs/04 Stage 2: how many free angle parameters get concrete values."""
 
+    nice_angle_degrees: dict[str, tuple[int, ...]] = field(
+        default_factory=lambda: {
+            "easy": tuple(range(20, 90, 10)),
+            "medium": tuple(range(15, 90, 5)),
+            "hard": tuple(range(11, 90)),
+            "expert": tuple(range(11, 90)),
+        }
+    )
+    """DOC docs/04 Stage 2 'nice value' palette per band: easy uses multiples of 10, harder
+    bands allow awkward integers. Moves into the quantity-type registry in M3 (docs/04 QTR)."""
+
+    excluded_constructions: frozenset[str] = field(
+        default_factory=lambda: frozenset({"test_r20", "test_r25", "e5128", "2l1c", "3peq", "free"})
+    )
+    """Problem-specific fixtures and bare points rather than general primitives; sampling them
+    produces figures that are either degenerate or tied to one published problem."""
+
+    max_clause_attempts: int = 40
+    """GUESS: how many times to retry picking a usable primitive before giving up on a step."""
+
     max_goals_per_construction: int = 3
     """DOC docs/04 Stage 5."""
 

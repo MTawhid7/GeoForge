@@ -1,0 +1,30 @@
+GeoForge
+Copyright 2026 GeoForge contributors
+
+This product includes software and design work derived from third-party projects.
+Attribution is retained here as required by the Apache License 2.0, Section 4(d).
+
+--------------------------------------------------------------------------------
+AlphaGeometry 2 (DDAR symbolic engine)
+    Copyright Google DeepMind
+    Licensed under the Apache License, Version 2.0
+    Source: https://github.com/google-deepmind/alphageometry2
+    Used in: vendor/ag2_ddar/ (copied verbatim; see vendor/ag2_ddar/PROVENANCE.md)
+
+Newclid (including Yuclid and ncdgen)
+    Copyright the Newclid project; portions contributed by Concordance Inc. dba Harmonic
+    Licensed under the Apache License, Version 2.0
+    Source: https://github.com/Newclid/Newclid
+    Used in:
+      - Pinned runtime dependency (newclid==3.0.1, py-yuclid==3.0.0).
+      - src/geoforge/solvers/_patches.py mirrors upstream function bodies with defect
+        fixes applied; bodies are kept verbatim except for the corrected lines so they
+        remain diffable against the original.
+      - src/geoforge/generator/sampler.py follows the clause-by-clause diagram growth
+        strategy of ncdgen.build_diagram. This is an independent implementation of that
+        approach against GeoForge's own catalogue and configuration, not a code copy.
+
+--------------------------------------------------------------------------------
+Reference clones kept locally for study (never dependencies, never copied from):
+tong-geometry and FormalGeo are GPL-3.0 and are used for ideas only. No code from a
+GPL-licensed project is present in GeoForge (docs/07 P2).

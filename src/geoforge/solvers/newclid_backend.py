@@ -31,6 +31,7 @@ from geoforge.solvers.types import (
     ProblemSpec,
     ProofDAG,
     ProofStep,
+    RealizedFigure,
     SolveOptions,
     SolveResult,
     SolveStats,
@@ -86,6 +87,22 @@ def _fact_from_predicate(predicate: Any) -> Fact:
     # geometric object with different values shares a stable argument tuple.
     args = tokens[:-1] if value is not None and tokens else tokens
     return Fact(kind=kind, args=args, value=value)
+
+
+def _fact_from_construction(construction: Any) -> Fact | None:
+    """Map a `PredicateConstruction` (the un-instantiated form used for a problem's declared
+    assumptions) onto our vocabulary.
+
+    Distinct from `_fact_from_predicate`: constructions expose `predicate_type`/`args` but no
+    `to_tokens`, and carry no numeric value. Returns None for predicates outside our
+    vocabulary — unlike derived facts, an unmapped *declared* assumption is not a soundness
+    risk, it just means Stage 3 has one less exemption to work with.
+    """
+    try:
+        kind = FactKind(str(construction.predicate_type.value))
+    except ValueError:
+        return None
+    return Fact(kind=kind, args=tuple(str(a) for a in construction.args))
 
 
 def _value_of(predicate: Any, kind: FactKind) -> Fraction | None:
@@ -163,6 +180,33 @@ class NewclidBackend:
     """Implements the SolverBackend protocol over Newclid + Yuclid."""
 
     name = ENGINE_NAME
+
+    def realize(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> RealizedFigure:
+        """Instantiate the construction's coordinates without running deduction.
+
+        Stage 3 uses this to reject degenerate figures before paying for a closure. A
+        construction the engine cannot realize (contradictory or over-constrained clauses)
+        returns an error rather than raising: that is expected attrition, and the generator
+        logs it with the seed.
+        """
+        opts = opts or SolveOptions()
+        rng = np.random.default_rng(opts.seed)
+        try:
+            setup = JGEXProblemBuilder(rng=rng).with_problem_from_txt(spec.to_jgex()).build()
+        except Exception as exc:
+            return RealizedFigure(points=(), error=f"{type(exc).__name__}: {exc}")
+        return RealizedFigure(
+            points=tuple(
+                sorted((str(p.name), float(p.num.x), float(p.num.y)) for p in setup.points)
+            ),
+            declared=tuple(
+                sorted(
+                    fact
+                    for fact in (_fact_from_construction(a) for a in setup.assumptions)
+                    if fact is not None
+                )
+            ),
+        )
 
     def solve(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> SolveResult:
         """Run the engine on `spec`.

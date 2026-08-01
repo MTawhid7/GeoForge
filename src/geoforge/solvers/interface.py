@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from geoforge.solvers.types import ProblemSpec, SolveOptions, SolveResult
+from geoforge.solvers.types import ProblemSpec, RealizedFigure, SolveOptions, SolveResult
 
 
 @runtime_checkable
@@ -29,6 +29,8 @@ class SolverBackend(Protocol):
     name: str
 
     def solve(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> SolveResult: ...
+
+    def realize(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> RealizedFigure: ...
 
 
 def get_backend(name: str | None = None) -> SolverBackend:
