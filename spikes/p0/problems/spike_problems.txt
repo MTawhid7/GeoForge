@@ -1,0 +1,77 @@
+# GeoForge Phase 0 spike problem set.
+# Format: two lines per problem (name, JGEX formulation). '#' and blank lines ignored.
+# Sources: [C] curated from Newclid problems_datasets (known-good syntax),
+#          [H] hand-written for this spike. Goal types: aconst / acompute / lcompute / rconst.
+
+# ---------------- Group A: numeric-angle goals, no circle [C] ----------------
+eq_triangle_60
+b c = segment b c; a = eq_triangle a b c ? aconst a b a c 1pi/3
+
+s_angle_supplement
+a b = segment a b; c = s_angle a b c 30o ? aconst b c b a 5pi/6
+
+angle_chain_5
+a b = segment a b; c = s_angle a b c 1o; d = s_angle b c d 1o; e = s_angle c d e 1o; f = s_angle d e f 1o; g = s_angle e f g 1o ? aconst a b f g 5o
+
+triangle_20_deg
+a b = segment a b; c = s_angle a b c 150o, s_angle b a c 30o; d = s_angle c a d 20o, on_line d c b ? aconst a d b c 5pi/9
+
+triangle_20_deg_two_cevians
+a b = segment a b; c = s_angle a b c 150o, s_angle b a c 30o; d = s_angle c a d 20o, on_line d c b; e = s_angle d a e 20o, on_line e c b ? aconst a e b c 4pi/9
+
+eqdistance_120
+b c = segment b c; a = eq_triangle a b c; d = eqdistance d a a b, eqdistance d b b c ? aconst d a a b 2pi/3
+
+# ---------------- Group B: adventitious / Langley-class [C] ----------------
+adventitious_70_120_10_160
+a b = segment a b; o = s_angle b a o 70o, s_angle a b o 120o; c = s_angle o a c 10o, s_angle o b c 160o; d = on_line d o b, on_line d c a; e = on_line e o a, on_line e c b ? aconst d e a e 1pi/9
+
+adventitious_60_130_20_150
+a b = segment a b; o = s_angle b a o 60o, s_angle a b o 130o; c = s_angle o a c 20o, s_angle o b c 150o; d = on_line d o b, on_line d c a; e = on_line e o a, on_line e c b ? aconst d e a e 1pi/6
+
+adventitious_140_60
+a b = segment a b; c = s_angle b a c 140o, s_angle a b c 60o; e = on_tline e c a c, eqdistance e c a c; d = s_angle c e d 40o, on_tline d c c b ? aconst d b a c 11pi/36
+
+adventitious_25_135
+a c = segment a c; d = s_angle c a d 25o, s_angle a c d 135o; b = s_angle c a b 160o, s_angle a c b 20o ? aconst d b b c 5pi/18
+
+# ---------------- Group C: circle-heavy numeric-angle goals [C]/[H] ----------------
+circum_right_angle
+a b = segment a b; c = on_tline c b a b, eqdistance c b a b; d = on_circum d a b c, eqdistance d c a b ? aconst d a a b 1pi/2
+
+pentagon_star_circum
+a b = segment a b; c = s_angle a b c 108o, eqdistance c b a b; d = on_circum d a b c, eqdistance d c b c; e = on_circum e b c d, eqdistance e d c d ? aconst a e b a 3pi/5
+
+hexagon_on_circle
+o a = segment o a; b = eqdistance b a o a, eqdistance b o o a; c = on_circle c o a, eqdistance c b a b; d = on_circum d a b c, eqdistance d c b c; e = on_circum e b c d, eqdistance e d c d; f = on_circum f e d c, eqdistance f e e d ? aconst f a a b 1pi/3
+
+pentagon_108_chain
+a b = segment a b; c = s_angle a b c 108o, eqdistance c b b a; d = s_angle b c d 108o, eqdistance d c c b; e = s_angle c d e 108o, eqdistance e d d c; f = eqdistance f a a b, eqdistance f b a b ? aconst c d f c 7pi/30
+
+thales_semicircle
+a b = segment a b; o = midpoint o a b; c = on_circle c o a ? aconst a c c b 1pi/2
+
+on_dia_right_angle
+a b = segment a b; c = on_dia c a b ? aconst a c c b 1pi/2
+
+central_angle_60
+o = free o; a = lconst a o 1; b = s_angle a o b 60o, on_circle b o a ? acompute o a a b
+
+inscribed_from_prescribed
+a b = segment a b; c = s_angle a b c 50o; o = circle o a b c; d = on_circum d a b c ? acompute a d d c
+
+tangent_chord
+o a = segment o a; b = on_circle b o a; x = lc_tangent x a o ? acompute x a a b
+
+circum_isosceles_bridge
+a b c = triangle a b c; o = circle o a b c; d = on_circum d a b c ? acompute a o o b
+
+# ---------------- Group D: length / ratio goals (wave-2 pricing) [C]/[H] ----------------
+acompute_eq_triangle
+a = free a; b = lconst b a 3; c = eq_triangle c a b ? acompute a b b c; acompute b c a b
+
+lcompute_eq_triangle
+a = free a; b = lconst b a 3; c = eq_triangle c a b ? lcompute a c
+
+rconst_orthocenter_midpoint
+a b = segment a b; c = s_angle b a c 30o; h = orthocenter h a b c; m = midpoint m b c; t = eqdistance t m m h, on_line t h m ? rconst a t b c 2/1
