@@ -112,14 +112,25 @@ absolutely.
    sample whose configuration facts differ from the reference** (a configuration flip is a legitimate
    different figure, not evidence of ill-posedness — and not a bug).
 2. Accept iff the goal's numeric value deviates < ε_wp across all accepted samples.
-2b. **Also check every vertex angle a solution step states** (added M4). Steps are published as human
-   vertex angles, and the directed fact the engine proved allows two of them — θ or 180° − θ — with
-   the configuration deciding. The reference diagram picks one; this gate is what confirms the pick
-   holds across every configuration-matching sample. Checking only the goal would leave a step
-   free to read correctly in the shipped figure and wrongly in an equally legitimate one.
-3. A deviation *within* matching configurations ⇒ discard **and** file a high-priority reproduction case
-   (soundness bug upstream). Deviation across flipped configurations ⇒ normal discard of the sample, not
-   the puzzle.
+2b. **Also check the solution text** (added M4, refined M5). Steps are published as human vertex
+   angles, and the directed fact the engine proved allows two of them — θ or 180° − θ — with the
+   configuration deciding. The check is to **re-render the solution from each resampled figure and
+   require identical text**. Freezing each stated angle's *value*, or its direct/supplement
+   *reading*, are both wrong: a step says "∠CAO = ∠OCA", and as C runs round its circle both angles
+   change and both readings flip together while the sentence stays true. Only what a sentence
+   claims has to be stable, and re-rendering is exactly the test of that.
+3. **Reclassified in M5.** A deviation among configuration-matching samples means the puzzle's stated
+   facts do not pin its answer, so the puzzle is discarded — *this is the gate working*, and it is
+   ordinary attrition (measured: ~1.7% of formed puzzles). It is **not** an upstream soundness bug,
+   as this document previously assumed: that assumption required the recorded configuration facts to
+   pin the figure completely, and they do not. The engine records the numerical checks its *rules*
+   needed, not a full description of the configuration, so an angle-chased `aconst` can depend on the
+   reference diagram in ways nothing we state captures. A reproduction case is still filed for
+   analysis. Recorded as doc 07 T13.
+3b. The one verdict that **does** indict the engine and fails the build: the goal fact proved
+   symbolically is numerically **false in the very diagram it was proved about**. Nothing downstream
+   can compensate, so the batch exits non-zero. Measured across 1,200 constructions: zero.
+   Deviation across flipped configurations ⇒ normal discard of the sample, not the puzzle.
 4. Known residual limit: construction-based sampling explores the construction's parameterization of the
    premise manifold, not the whole manifold. Recorded as accepted risk (doc 07 T3) with the cross-engine
    validation and optional SMT check as compensating controls.

@@ -161,6 +161,18 @@ class TranslationConfig:
     translates was 46% at 3, 55% at 4, 82% at 5, 91% at 7. The gate needs >= 80%, and
     newclid's AR appendix supplies the coefficients needed to narrate a 5-premise step."""
 
+    angle_render_tolerance_degrees: float = 1e-3
+    """PHASE1 M5: tolerance for deciding whether a proved directed angle renders as the vertex
+    angle or its supplement. Deliberately looser than
+    `EXTRACTION.angle_snap_tolerance_degrees` — that one is a *filter* deciding whether a value
+    is nice enough to be an answer, and must be tight; this one only picks between two readings
+    that differ by |180 - 2d|, so anything far below that gap works, and near d = 90 the two
+    readings coincide and the choice cannot go wrong.
+
+    Measured: the reference figure realizes to ~1e-13, but resampled figures land as far as
+    ~1e-6 off. Reusing the extraction tolerance here made the well-posedness gate reject a
+    correct Thales solution on the 51st resample."""
+
     require_full_translation: bool = True
     """DOC docs/03 §3.5: a puzzle ships only if EVERY step of its minimal derivation
     translates. Untranslatable puzzles are discarded, never shipped ugly."""

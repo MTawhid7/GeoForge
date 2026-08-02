@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from geoforge.solvers.types import (
+    Fact,
     PremiseSpec,
     ProblemSpec,
     RealizedFigure,
@@ -46,6 +47,22 @@ class SolverBackend(Protocol):
         ...
 
     def realize(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> RealizedFigure: ...
+
+    def check_facts(
+        self, points: tuple[tuple[str, float, float], ...], facts: tuple[Fact, ...]
+    ) -> tuple[bool, ...]:
+        """Evaluate facts numerically against a set of coordinates (docs/04 Stage 8).
+
+        Verification only — this never derives a fact, it measures whether one holds of a
+        drawing (docs/02 invariant 4). The well-posedness gate uses it to tell a resampled
+        figure in the *same* configuration as the reference from one that has flipped, which is
+        a legitimately different figure rather than evidence of ill-posedness.
+
+        Backends must delegate to their engine's own numeric predicates rather than
+        reimplementing them: `sameclock`, `sameside` and friends have exact conventions, and a
+        near-miss reimplementation would silently accept flipped configurations.
+        """
+        ...
 
 
 def get_backend(name: str | None = None) -> SolverBackend:

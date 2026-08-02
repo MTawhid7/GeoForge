@@ -27,7 +27,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 
-from geoforge.config import EXTRACTION
+from geoforge.config import TRANSLATION
 
 Coords = Mapping[str, tuple[float, float]]
 Line = tuple[str, str]
@@ -123,6 +123,6 @@ def resolve_value(angle: VertexAngle, directed: Fraction, coords: Coords) -> Ver
         return None
     as_degrees = directed * 180
     for candidate in (as_degrees, 180 - as_degrees):
-        if abs(measured - float(candidate)) <= EXTRACTION.angle_snap_tolerance_degrees:
+        if abs(measured - float(candidate)) <= TRANSLATION.angle_render_tolerance_degrees:
             return angle.with_value(candidate)
     return None

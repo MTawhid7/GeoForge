@@ -23,6 +23,9 @@ EN: dict[str, str] = {
     "sas_similarity": "{premises}, so {conclusion} "
     "(two sides in ratio with equal included angles).",
     "sss_similarity": "{premises}, so {conclusion} (three sides in the same ratio).",
+    "congruent_triangles_properties": "Since {premises}, matching parts are equal: {conclusion}.",
+    "angle_bisector": "{premises}, so the bisector divides the opposite side in that ratio: "
+    "{conclusion}.",
     # Circles
     "angles_in_same_arc": "{premises}, and angles subtending the same arc are equal, "
     "so {conclusion}.",
@@ -31,6 +34,7 @@ EN: dict[str, str] = {
     "thales_semicircle": "{premises}, so the angle in a semicircle is a right angle: {conclusion}.",
     # Segments
     "midpoint_halves": "{premises}, so {conclusion}.",
+    "midpoint_definition": "{premises}, so {conclusion}.",
     # Algebraic reasoning (docs/03 §3.5 item 2)
     "combine": "Combining {premises}, we get {conclusion}.",
     "restate": "From {premises} it follows that {conclusion}.",

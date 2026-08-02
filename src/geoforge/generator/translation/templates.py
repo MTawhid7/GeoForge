@@ -44,12 +44,17 @@ TEMPLATES: dict[str, Template] = {
     "r61": Template("sss_similarity", "angle"),  # SSS Similarity (Reverse)
     "r62": Template("sas_similarity", "angle"),  # SAS Similarity (Direct)
     "r63": Template("sas_similarity", "angle"),  # SAS Similarity (Reverse)
+    "r77": Template("congruent_triangles_properties", "angle"),  # Properties of congruent (Direct)
+    "r11": Template("angle_bisector", "angle"),  # Bisector theorem I
+    # --- added in M5 from the discard log, which is what it is for ---
     # --- circles ---------------------------------------------------------------------
     "r03": Template("angles_in_same_arc", "angle"),  # Arc determines internal angles
     "r04": Template("equal_angles_imply_cyclic", "angle"),  # Congruent angles are in a cyclic
     "r72": Template("circle_radii_equal", "angle"),  # Disassembling a circle
+    "r19": Template("thales_semicircle", "angle"),  # Hypotenuse is diameter
     # --- segments --------------------------------------------------------------------
     "r51": Template("midpoint_halves", "angle"),  # Midpoint splits in two
+    "r54": Template("midpoint_definition", "angle"),  # Definition of midpoint
 }
 
 #: Rules whose steps are correct but must not appear in player text.

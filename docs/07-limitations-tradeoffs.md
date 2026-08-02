@@ -163,3 +163,20 @@ chase. Steps instead read "Combining ∠CAO = ∠OCA and ∠CBO = ∠OCB, we get
 checkable, and the standard human presentation. The coefficients remain available if playtesting
 shows these steps read as hand-waving; the premise-count budget (`max_ar_chain`) already keeps them
 short enough to follow. Revisit trigger: playtest feedback that AR steps feel unjustified.
+
+
+**T13 — Configuration facts do not fully pin a figure; underdetermination is attrition, not a bug
+(settled Phase 1 M5; amends doc 04 Stage 8 item 3).** Doc 04 originally treated a goal that moves
+between configuration-matching resamples as an upstream soundness bug, on the assumption that the
+recorded configuration facts describe the figure completely. M5 measured that they do not. The
+engine surfaces the numerical checks its *rules* required, not a full description of the
+configuration, and some are tautologies (`sameclock a f i a f i`) that constrain nothing; separately,
+an angle-chased `aconst` can depend on the reference diagram's angle atoms without any recorded fact
+capturing that dependence. Verified on a concrete case (`tests/generator/test_wellposed.py`
+`UNDERDETERMINED`): every stated premise and every recorded configuration fact holds in a second
+figure where the answer is 15° instead of 75°. Consequence: these puzzles are **discarded as ordinary
+attrition** (~1.7% of formed puzzles) rather than failing the build. Calling each one a soundness bug
+would cry wolf and bury the one failure that genuinely indicts the engine — a fact proved
+symbolically that is false in its own diagram — which is what now fails the build, and which measured
+zero across 1,200 constructions. Revisit if a richer configuration vocabulary (explicit side-of-line
+facts) ever makes the recorded set complete.

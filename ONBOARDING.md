@@ -1,8 +1,8 @@
 # GeoForge — Session Onboarding
 
 **Read this first in every new session.** It is the current state of the project, written from
-what has actually been built and measured — not from plans. Last updated: **2026-08-01**, end of
-Phase 0.
+what has actually been built and measured — not from plans. Last updated: **2026-08-02**, end of
+Phase 1 M5.
 
 ---
 
@@ -51,10 +51,13 @@ evidence in `spikes/p0/REPORT.md`; headline numbers:
 | Generation loop | 6/6 constructions saturated; two runs at one seed are byte-identical |
 | Performance | 95% of wall time is inside the engine ⇒ **no Rust/Go/C++ work justified** |
 
-**Phase 1 progress — M0–M4 done, M5–M6 remaining.** The pipeline runs Stages 1–7 end to end:
-sample → realize → degeneracy → extract goal → traceback → minimize → prune → translate.
-Measured over 300 sampled constructions at seed 42, reproducible across processes: 43 puzzles
-formed, **39 pass the readability gate (91%)**, 257 machine proof steps compress to 186 sentences.
+**Phase 1 — all four acceptance criteria met (M0–M5); M6 cross-engine validation remains.**
+The pipeline runs Stages 1–9 end to end: sample → realize → degeneracy → extract goal → traceback →
+minimize → prune → translate → well-posedness → emit.
+
+Measured, 1,200 constructions at seed 42 (`make bench-batch` runs a faster 200):
+**129 puzzles across 4 bands**, 0 soundness failures, byte-identical across processes, 79 s.
+Attrition: degeneracy 1035, extraction 645, translation 16, well-posedness 20.
 
 | Milestone | State | What landed |
 |---|---|---|
@@ -63,21 +66,20 @@ formed, **39 pass the readability gate (91%)**, 257 machine proof steps compress
 | M2 | done | `construction`, `sampler` (circle-biased), `degeneracy` (Stage 3) |
 | M3 | done | `quantities` (§QTR registry, angle), `extract` (Stage 5), `traceback` (Stage 6) |
 | M4 | done | `translation/` — templates, idiom collapsing, vertex angles, readability gate |
-| M5 | next | well-posedness, provisional banding, batch runner, the four P1 criteria |
-| M6 | | AG2 cross-engine validation (angle-convention calibration is mandatory) |
+| M5 | done | `wellposed`, `scoring/bands` (provisional), `generator/batch` + CLI, P1 criteria |
+| M6 | next | AG2 cross-engine validation (angle-convention calibration is mandatory) |
 
-**What does not exist yet:** `web/`, `banks/`, `src/geoforge/{scoring,bank}/`, `schema.py`.
+**What does not exist yet:** `web/`, `banks/`, `src/geoforge/bank/`, `schema.py`.
+`scoring/bands.py` is **provisional depth-only banding** — written to be replaced by the doc 05
+scorer in Phase 2, not extended.
 
-## 4. What's next — M5, gates and the acceptance criteria
+## 4. What's next — M6, cross-engine validation
 
-Stage 8 well-posedness (resample, discard configuration-flipped samples, require goal invariance —
-**and step vertex-angle invariance**, `docs/04` Stage 8 item 2b), provisional depth banding, and the
-seed-sharded batch runner with its per-stage attrition report. Then the four `docs/09` P1 criteria,
-each with evidence.
-
-**Phase 1 acceptance criteria (all still open, verified in M5):** fixed seed ⇒ byte-identical batch;
-100 validated puzzles across ≥ 2 difficulty bands; every shipped solution passes the readability
-gate; zero soundness failures in a 1,000-construction run.
+Re-derive every accepted puzzle with the vendored AG2 DDAR (`vendor/ag2_ddar/`), an uncorrelated
+codebase, so that generation and validation never share a bug (doc 02 invariant 3). Two hard parts:
+a coordinate exporter (DDAR wants `name@x_y` and asserts premises to ~1e-6, so export the solver's
+exact coordinates), and **mandatory angle-convention calibration** — Phase 0 verified DDAR's directed
+angles run opposite to Newclid's, so an uncalibrated validator reports a failure on every puzzle.
 
 Carry these Phase 0 outputs forward rather than redoing them: the idiom-collapsing insight and the
 spike problem corpus. (The S1b extraction mechanism is already promoted, in `generator/extract.py`.)
@@ -105,7 +107,12 @@ result = backend.solve(ProblemSpec(construction=jgex, goals=(...,)), opts)
 # Fixed coordinates, explicit premises — goal verification and premise minimization:
 result = backend.solve_facts(PremiseSpec(points=figure.points, premises=..., goals=...), opts)
 ```
-Stages 1–7 for one construction:
+Run the whole pipeline:
+```bash
+make bench-batch                                     # 200 constructions + attrition report
+uv run python -m geoforge.generator.batch --n 1200 --seed 42 --report --out run.json
+```
+Exit code is non-zero if any soundness failure is found. Stages 1–9 for one construction:
 ```python
 from geoforge.generator.extract import extract_goals
 from geoforge.generator.traceback import derive, prune_figure
@@ -117,6 +124,7 @@ for goal in extract_goals(backend, figure, opts).goals:
     if not solution.ok:
         continue                                        # attrition; .failures says why
     pruning = prune_figure(construction, d.needed_points() | solution.highlighted_points())
+    verdict = wellposed.check(backend, construction, d, solution, angle, coords, seed)
 ```
 The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSolverBuilder` →
 `.run()` → `.proof()`) lives in `newclid_backend.py` and nowhere else.
@@ -152,6 +160,10 @@ The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSol
    one). Its tolerance is *relative*, so the window widens with the denominator and it snaps almost
    anything — it returned 17/19 for a generic angle. Snap to whole degrees with an absolute
    tolerance instead (`config.EXTRACTION`).
+8b. **Underdetermined puzzles are normal attrition, not bugs** (docs/07 T13). Recorded
+   configuration facts do *not* pin a figure completely — some are tautologies
+   (`sameclock a f i a f i`) that constrain nothing. The only build-failing verdict is the engine
+   proving a fact that is false in its own diagram.
 9. **No area predicate exists in any engine.** Areas need our own verified layer (`docs/03 §3.7`).
 10. **Translation is compression, not 1:1.** Collapse engine idioms (the self-similar-triangle
     triple = "isosceles ⇒ base angles equal") into single human steps.

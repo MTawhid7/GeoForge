@@ -19,7 +19,7 @@ design if trace readability disappoints.
   hybrid fallback (engine finds truths; a thin custom presentation layer re-derives display paths) and
   record it in doc 07 before Phase 1.
 
-## P1 — Generator MVP (≈ 4–6 weeks)
+## P1 — Generator MVP — **DONE** (M0–M5; M6 cross-engine validation pulled forward, still open)
 
 SAL with `newclid` backend + contract tests; typed construction layer over JGEX; sampler (adapted
 `ncdgen`); Stages 1–9 of doc 04 incl. configuration facts, readability gate, well-posedness;
@@ -27,6 +27,21 @@ attrition report per stage/band.
 **AC:** fixed seed ⇒ byte-identical batch; 100 validated puzzles across ≥ 2 bands; every puzzle's
 solution readable per gate; zero soundness failures in a 1,000-construction run (failures found = bugs
 fixed, rerun clean).
+
+**Measured, 1,200 constructions at seed 42**
+(`uv run python -m geoforge.generator.batch --n 1200 --seed 42 --report --out run.json`):
+
+| Criterion | Result |
+|---|---|
+| Fixed seed ⇒ byte-identical batch | **Pass.** Identical puzzle payloads across two runs under different `PYTHONHASHSEED` (0 and 99991) — the weaker same-process check would have missed BUG-4 |
+| ≥ 100 validated puzzles across ≥ 2 bands | **Pass.** 129 puzzles across 4 bands: easy 70, medium 5, hard 52, expert 2 |
+| Every solution passes the readability gate | **Pass.** Enforced structurally (Stage 7 discards otherwise); re-validated independently from the emitted JSON — 0 violations over 129 puzzles, solution length 1–13 steps, median 4 |
+| Zero soundness failures in ≥ 1,000 constructions | **Pass.** 0. Run exits non-zero if any is found |
+
+Attrition: degeneracy 1035, extraction 645 (401 too-shallow, 239 surplus), translation 16 (all
+over-budget AR chains), well-posedness 20. Throughput ≈ 79 s for 1,200 constructions.
+Four rules were added to the whitelist from this run's discard log (r11, r19, r54, r77), which is
+what the discard log is for; unknown-rule discards then went to zero.
 
 ## P2 — Product bank + frontend (≈ 4–6 weeks)
 

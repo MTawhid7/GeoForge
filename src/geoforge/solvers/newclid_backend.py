@@ -20,13 +20,14 @@ from newclid.api import GeometricSolverBuilder, PythonDefault
 from newclid.jgex.problem_builder import JGEXProblemBuilder
 from newclid.numerical.geometries import PointNum
 from newclid.predicate_types import PredicateArgument
+from newclid.predicates import predicate_from_construction
 from newclid.problem import (
     PredicateConstruction,
     ProblemSetup,
     predicate_to_construction,
 )
 from newclid.proof_data import ProofData, ProofId, proof_data_from_state
-from newclid.symbols.points_registry import Point
+from newclid.symbols.points_registry import Point, PointsRegisty
 
 from geoforge.config import SOLVER
 from geoforge.solvers.types import (
@@ -284,6 +285,32 @@ class NewclidBackend:
             declared=tuple(sorted({fact for _, fact in declared if fact is not None})),
             dropped_assumptions=tuple(sorted(str(a) for a, fact in declared if fact is None)),
         )
+
+    def check_facts(
+        self, points: tuple[tuple[str, float, float], ...], facts: tuple[Fact, ...]
+    ) -> tuple[bool, ...]:
+        """Evaluate facts numerically against coordinates, using Newclid's own predicates.
+
+        Delegating rather than reimplementing matters here: `sameclock` and `sameside` have
+        exact orientation conventions, and a near-miss version would quietly accept flipped
+        configurations — precisely the samples Stage 8 exists to reject.
+        """
+        registry = PointsRegisty()
+        for name, x, y in points:
+            registry.add_point(Point(name=PredicateArgument(name), num=PointNum(x=x, y=y)))
+
+        out: list[bool] = []
+        for fact in facts:
+            predicate = predicate_from_construction(
+                _construction_from_fact(fact), points_registry=registry
+            )
+            if predicate is None:
+                raise UnsupportedFactKind(
+                    f"Newclid could not instantiate {fact.fact_id} over the given points. "
+                    "Returning False would make a configuration mismatch look real."
+                )
+            out.append(bool(predicate.check_numerical()))
+        return tuple(out)
 
     def solve(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> SolveResult:
         """Run the engine on `spec`.
