@@ -16,6 +16,7 @@ from geoforge.generator.translation.translate import (
     SolutionStep,
     Translation,
     translate,
+    unspeakable_givens,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "SolutionStep",
     "Translation",
     "translate",
+    "unspeakable_givens",
 ]

@@ -37,7 +37,12 @@ from geoforge.generator.extract import ExtractedGoal, extract_goals
 from geoforge.generator.quantities import get as quantity_type
 from geoforge.generator.sampler import sample_construction
 from geoforge.generator.traceback import Derivation, derive, prune_figure
-from geoforge.generator.translation import SolutionStep, Translation, translate
+from geoforge.generator.translation import (
+    SolutionStep,
+    Translation,
+    translate,
+    unspeakable_givens,
+)
 from geoforge.generator.translation.phrases import angle_of
 from geoforge.generator.translation.vertex_angles import VertexAngle
 from geoforge.scoring.bands import band_for_depth
@@ -262,6 +267,17 @@ def _run_one(
         angle = angle_of(goal.fact, coords)
         if angle is None or angle.degrees is None:
             report.discards.append(Discard("translate", "goal_unreadable", case_seed))
+            continue
+
+        # The givens are gated here rather than inside `translate`, which only sees steps, and
+        # ahead of Stage 8, which costs 64 resamples. A puzzle stating a fact we cannot phrase
+        # is unshippable no matter how well-posed it turns out to be.
+        mute = unspeakable_givens(derivation.premises, coords)
+        if mute:
+            for failure in mute:
+                report.discards.append(
+                    Discard("translate", str(failure.reason), case_seed, failure.detail)
+                )
             continue
 
         if check_wellposed:

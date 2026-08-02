@@ -25,7 +25,9 @@ from geoforge.generator.batch import (
     run,
 )
 from geoforge.generator.sampler import sample_construction
+from geoforge.generator.translation.phrases import describe
 from geoforge.scoring.bands import BAND_ORDER
+from geoforge.solvers.types import fact_from_id
 from tests.translation.test_phrases import HIGHLIGHT_GRAMMAR
 
 #: Small enough to keep the suite fast, large enough that the pipeline reaches Stage 9.
@@ -156,6 +158,20 @@ class TestEmittedPuzzles:
         """A puzzle with no givens is either trivial or lost its premises somewhere."""
         for puzzle in report.puzzles:
             assert puzzle.premises
+
+    def test_every_given_can_be_stated_to_a_player(self, report: BatchReport) -> None:
+        """A given with no phrasing means a puzzle shipped missing a hypothesis.
+
+        Not hypothetical: before this gate existed, gf-000042000213-1 carried
+        `aconst:a:c:d:e=1/9` — a directed angle between two lines sharing no named point, so
+        there is no ∠ABC to write it as. The translation gate only ever inspected steps.
+        """
+        for puzzle in report.puzzles:
+            coords = {name: (x, y) for name, x, y in puzzle.reference_points}
+            for fact_id in puzzle.premises:
+                assert describe(fact_from_id(fact_id), coords) is not None, (
+                    f"{puzzle.id} states {fact_id}, which has no player-facing phrasing"
+                )
 
     def test_bands_are_known(self, report: BatchReport) -> None:
         for puzzle in report.puzzles:

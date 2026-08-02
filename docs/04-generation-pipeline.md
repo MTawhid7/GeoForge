@@ -103,6 +103,15 @@ output. Steps are emitted in **topological order ending at the goal**, not the e
 order, so a reader never meets a step before its premises. The translation also reports which points
 its steps highlight, which Stage 6 pruning must keep.
 
+**The gate covers the givens too (added Phase 2).** It originally inspected only steps, which left
+the hypotheses unchecked: a surviving premise can be a directed angle between two lines that meet at
+no named point, and that has no ∠ABC spelling — the presentation cost doc 07 T1 accepted. Such a
+puzzle is unshippable however readable its proof is, because the player is shown a statement missing
+one of its own hypotheses, and it *was* shipping (`gf-000042000213-1` carried `aconst:a:c:d:e=1/9`).
+The check runs over the **minimized** premise list, since that is what the puzzle states, and ahead
+of Stage 8, whose 64 resamples are wasted on a puzzle that cannot be phrased. Discard reason
+`given_unspeakable`; measured at 1 of 36 formed puzzles at seed 42.
+
 ### Stage 8 — Well-posedness gate (critical correctness gate)
 Stated premises **+ configuration facts** must uniquely determine the goal value. For scale-free
 quantity types the check runs modulo similarity (resampled figures may differ in scale/pose); for

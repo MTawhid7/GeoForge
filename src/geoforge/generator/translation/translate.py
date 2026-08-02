@@ -13,6 +13,7 @@ step is stated after the steps it rests on.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -38,6 +39,10 @@ class FailureReason(StrEnum):
     not meet at a named point, which has no ∠ABC spelling."""
     NO_PREMISES_TO_CITE = "no_premises_to_cite"
     """Every premise was unspeakable, leaving a sentence with nothing to stand on."""
+    UNSPEAKABLE_GIVEN = "given_unspeakable"
+    """A *stated given* has no human phrasing, so the puzzle cannot be put in front of a player
+    at all. Same cause as `UNSPEAKABLE_CONCLUSION` and a worse consequence: an untranslatable
+    step loses a sentence, an untranslatable given loses a hypothesis the solver needs."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,6 +121,26 @@ def translate(subdag: SubDAG, coords: Coords) -> Translation:
         )
 
     return Translation(steps=tuple(steps), failures=tuple(failures), suppressed=suppressed)
+
+
+def unspeakable_givens(premises: Sequence[Fact], coords: Coords) -> tuple[Failure, ...]:
+    """Stated givens with no human phrasing — the half of the gate `translate` cannot see.
+
+    `translate` gates the *steps*; this gates the *hypotheses*. They fail for the same reason
+    (most often a directed angle between two lines meeting at no named point, which has no ∠ABC
+    spelling — the cost docs/07 T1 accepted) and the consequence here is worse: a step that will
+    not translate costs a sentence, a given that will not translate costs the solver a fact the
+    puzzle depends on. Such a puzzle is unshippable however good its proof is.
+
+    Takes the *minimized* premise list rather than the sub-DAG's, because that is what the
+    puzzle states — a leaf minimization dropped is not a given and its phrasing is nobody's
+    problem.
+    """
+    return tuple(
+        Failure(reason=FailureReason.UNSPEAKABLE_GIVEN, detail=fact.fact_id)
+        for fact in premises
+        if phrases.describe(fact, coords) is None
+    )
 
 
 def _render(

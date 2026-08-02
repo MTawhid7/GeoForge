@@ -7,6 +7,7 @@ than a diff nobody looked at.
 
 from __future__ import annotations
 
+import math
 import re
 from fractions import Fraction
 
@@ -14,7 +15,8 @@ import pytest
 
 from geoforge.generator.extract import extract_goals
 from geoforge.generator.traceback import SubDAG, derive
-from geoforge.generator.translation import FailureReason, translate
+from geoforge.generator.translation import FailureReason, translate, unspeakable_givens
+from geoforge.generator.translation.phrases import Phrase, describe
 from geoforge.solvers import ProblemSpec, get_backend
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import (
@@ -198,6 +200,54 @@ class TestTheGate:
         translation = translate(subdag, coords)
         assert not translation.ok
         assert translation.failures[0].reason is FailureReason.UNSPEAKABLE_CONCLUSION
+
+    def test_an_unspeakable_given_fails_the_gate(self) -> None:
+        """The half `translate` cannot see: a *stated given* with no human phrasing.
+
+        `aconst a c d e` is a directed angle between lines AC and DE, which share no named
+        point, so there is no ∠ABC to write. It reached shipped output before Phase 2 —
+        gf-000042000213-1 carried exactly this fact among its givens — because the gate only
+        ever looked at steps. A puzzle missing one of its hypotheses is unshippable however
+        readable its proof is.
+        """
+        mute = Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "c", "d", "e"), value=Fraction(1, 9))
+        coords = {
+            "a": (0.0, 0.0),
+            "c": (1.0, 0.0),
+            "d": (0.0, 1.0),
+            "e": (1.0, 1.6),
+        }
+        failures = unspeakable_givens([mute], coords)
+        assert failures
+        assert failures[0].reason is FailureReason.UNSPEAKABLE_GIVEN
+        assert failures[0].detail == mute.fact_id, "the discard log must name the given"
+
+    def test_a_speakable_given_passes(self) -> None:
+        """The near-miss: same fact kind and same value, on two lines that *do* meet at a named
+        point. Without this the gate could reject every `aconst` and still look correct.
+
+        The coordinates have to realize the stated 20° at C, because the renderer resolves the
+        directed value against the diagram to decide between ∠ACE and its supplement.
+        """
+        spoken = Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "c", "c", "e"), value=Fraction(1, 9))
+        twenty = math.radians(20)
+        coords = {"a": (1.0, 0.0), "c": (0.0, 0.0), "e": (math.cos(twenty), math.sin(twenty))}
+        assert unspeakable_givens([spoken], coords) == ()
+        assert describe(spoken, coords) == Phrase(text="∠ACE = 20°", highlights=("angle:A:C:E",))
+
+    def test_configuration_facts_would_fail_and_must_not_be_passed(self) -> None:
+        """Why the call site passes the minimized premises and not every leaf.
+
+        `is_speakable` refuses configuration facts on purpose — "A, B and C are not collinear"
+        says what the figure already shows. So handing them to this gate flags every one of
+        them, and since nearly every puzzle carries at least one, the batch would empty out.
+        The gate is deliberately not defensive about this: it asks "can this be stated?", and
+        deciding *what the puzzle states* belongs to Stage 6, not here.
+        """
+        config = Fact(kind=FactKind.N_COLLINEAR, args=("a", "b", "c"))
+        assert config.is_configuration
+        coords = {"a": (0.0, 0.0), "b": (1.0, 0.0), "c": (0.0, 1.0)}
+        assert unspeakable_givens([config], coords), "the hazard this test documents"
 
     def test_suppressed_steps_are_not_failures(self, backend: SolverBackend) -> None:
         """Engine bookkeeping is dropped from the text, and the puzzle still ships."""
