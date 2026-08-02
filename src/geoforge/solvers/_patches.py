@@ -35,6 +35,27 @@ BUG-3  newclid.proof_state.ProofState.justify
        premise was needed. Without this, a normal negative answer arrives as a crash.
        Found: M3, on 39 of 60 sampled constructions.
 
+BUG-4  newclid.predicates.congruence.Cong.preparse
+       Canonicalizing `cong` sorts its segments and then immediately discards the sort:
+
+           segs.sort()
+           segs = list(set(segs))
+
+       `set` iteration order over tuples of `str` depends on string hashing, which Python
+       randomizes per process (PYTHONHASHSEED). So the *canonical* form of `cong` is not
+       canonical: the same problem, same seed, same engine version yields `cong a o c o` in one
+       process and `cong c o a o` in the next.
+       Fix: `segs = sorted(set(segs))` — dedupe, then sort, which is what the original two lines
+       were trying to do.
+       Impact: **breaks docs/02 invariant 2** (reproducible from (version, seed)) for anything
+       downstream of a `cong` fact — which is most angle puzzles. Found in M4 because two runs
+       of the same puzzle produced different solution *text* ("AO = CO" vs "CO = AO"). Nothing
+       unsound: the two spellings are the same fact. But puzzle ids, dedupe hashes and batch
+       diffs all rest on stable spelling.
+       Not caught earlier because a determinism test that runs twice in one process shares that
+       process's hash seed. `tests/solvers/test_contract.py::TestCrossProcessDeterminism` now
+       runs the comparison in fresh subprocesses.
+
 Style note
 ----------
 Patched function bodies are kept **verbatim from upstream except for the fixed line**, so
@@ -59,6 +80,7 @@ from newclid.justifications.justify_predicates import justify_predicate
 from newclid.numerical import close_enough
 from newclid.predicate_types import PredicateArgument
 from newclid.predicates._index import PredicateType
+from newclid.predicates.congruence import Cong
 from newclid.problem import PredicateConstruction
 from newclid.proof_state import ProofState
 from newclid.tools import fraction_to_ratio, get_quotient
@@ -111,6 +133,39 @@ def _justify_fixed(self, predicate):
     return justification
 
 
+def _cong_preparse_fixed(args):
+    """Upstream `Cong.preparse` with the sort preserved (`sorted(set(...))`).
+
+    Verbatim apart from that one line.
+    """
+    segs = []
+    if len(args) % 2 != 0:
+        return None
+    for a, b in zip(args[::2], args[1::2]):
+        if a > b:
+            a, b = b, a
+        if a == b:
+            return None
+        segs.append((a, b))
+    segs = sorted(set(segs))
+    points = []
+    if len(segs) == 0:
+        return None
+
+    elif len(segs) == 1:
+        a, b = segs[0]
+        points.append(a)
+        points.append(b)
+        points.append(a)
+        points.append(b)
+
+    else:
+        for a, b in segs:
+            points.append(a)
+            points.append(b)
+    return tuple(points)
+
+
 def apply_all() -> list[str]:
     """Apply every patch. Idempotent. Returns the list of applied patch ids."""
     if _APPLIED:
@@ -126,5 +181,9 @@ def apply_all() -> list[str]:
     # ones built inside the engine where we never see the constructor.
     ProofState.justify = _justify_fixed  # type: ignore[method-assign]
     _APPLIED.append("BUG-3:justify-raises-justification-error")
+
+    # BUG-4. `preparse` is a staticmethod, so rebind it as one.
+    Cong.preparse = staticmethod(_cong_preparse_fixed)  # type: ignore[method-assign]
+    _APPLIED.append("BUG-4:cong-preparse-stable-order")
 
     return _APPLIED

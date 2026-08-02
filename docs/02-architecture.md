@@ -87,8 +87,8 @@ in `src/geoforge/schema.py` + generated TS types are authoritative):
   },
   "solution": [
     { "step": 1, "rule": "isosceles_base_angles",
-      "text": "AB = AC, so ∠ABC = ∠ACB.",
-      "derives": "angle_eq:ABC:ACB", "highlights": ["seg:A:B","seg:A:C"] }
+      "text": "AB = AC, so the base angles are equal: ∠ABC = ∠ACB.",
+      "derives": "eqangle:b:a:b:c:c:a:c:b", "highlights": ["seg:A:B","seg:A:C","angle:A:B:C"] }
   ],
   "provenance": { "generator_version": "…", "engine": "newclid-3.0.1", "seed": 991, "construction": "…" }
 }
@@ -104,7 +104,14 @@ tolerance, exact form revealed after solving. Recorded trade-off: doc 07 T8.
 
 **Highlight ID grammar (normative):** `point:<ID>` · `seg:<ID>:<ID>` · `angle:<P>:<VERTEX>:<P>` ·
 `circle:<CENTER>:<THROUGH>` · `arc:<CENTER>:<P>:<P>` · `region:<ID>`. Nothing else may appear in
-`highlights`.
+`highlights`. Point ids are the player-facing uppercase labels (engine `a1` → `A1`).
+
+**`derives`** carries the canonical engine-neutral **fact id** (`solvers/types.py`: `kind:args[=value]`,
+lowercase engine point names), not a second display-space id grammar. It is a trace handle — it links a
+published step back to the exact node of the proof DAG, which is what makes a shipped puzzle auditable
+against a re-derivation. Only `text`, `display` and `highlights` are player-facing. (Amended M4; the
+pre-implementation sketch showed a display-style `angle_eq:ABC:ACB`, which would have meant inventing
+and maintaining a second identifier scheme for no gain.)
 
 **Localization decision:** `display`/`text` are pre-rendered strings; banks are built per locale from the
 rule→template string table (v1 ships English only). The frontend never composes sentences. Translating

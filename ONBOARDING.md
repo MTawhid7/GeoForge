@@ -51,10 +51,10 @@ evidence in `spikes/p0/REPORT.md`; headline numbers:
 | Generation loop | 6/6 constructions saturated; two runs at one seed are byte-identical |
 | Performance | 95% of wall time is inside the engine ⇒ **no Rust/Go/C++ work justified** |
 
-**Phase 1 progress — M0–M3 done, M4–M6 remaining.** The pipeline runs Stages 1–6 end to end:
-sample → realize → degeneracy → extract goal → traceback → minimize → prune. Measured on 200
-sampled constructions at seed 42, reproducible run to run: 28 survive Stage 3 (14%), 132 goal
-candidates proposed, **29 puzzles formed**, 0.06 s per construction.
+**Phase 1 progress — M0–M4 done, M5–M6 remaining.** The pipeline runs Stages 1–7 end to end:
+sample → realize → degeneracy → extract goal → traceback → minimize → prune → translate.
+Measured over 300 sampled constructions at seed 42, reproducible across processes: 43 puzzles
+formed, **39 pass the readability gate (91%)**, 257 machine proof steps compress to 186 sentences.
 
 | Milestone | State | What landed |
 |---|---|---|
@@ -62,18 +62,18 @@ candidates proposed, **29 puzzles formed**, 0.06 s per construction.
 | M1 | done | SAL: `types`, `interface`, `newclid_backend`, `_patches`; contract suite |
 | M2 | done | `construction`, `sampler` (circle-biased), `degeneracy` (Stage 3) |
 | M3 | done | `quantities` (§QTR registry, angle), `extract` (Stage 5), `traceback` (Stage 6) |
-| M4 | next | translator: templates, idiom collapsing, vertex angles, readability gate |
-| M5 | | well-posedness, provisional banding, batch runner, the four P1 criteria |
+| M4 | done | `translation/` — templates, idiom collapsing, vertex angles, readability gate |
+| M5 | next | well-posedness, provisional banding, batch runner, the four P1 criteria |
 | M6 | | AG2 cross-engine validation (angle-convention calibration is mandatory) |
 
-**What does not exist yet:** `web/`, `banks/`, `src/geoforge/{scoring,bank}/`, translation.
+**What does not exist yet:** `web/`, `banks/`, `src/geoforge/{scoring,bank}/`, `schema.py`.
 
-## 4. What's next — M4, the translator (highest risk in the phase)
+## 4. What's next — M5, gates and the acceptance criteria
 
-Turn the minimal sub-DAG into readable steps: templates keyed by engine rule id (start from the 13
-rules that fired in Phase 0), idiom collapsing, directed→vertex angle conversion using the
-configuration facts M3 now preserves, and the readability gate at `max_ar_chain = 5`. Untranslatable
-puzzles are discarded, never shipped ugly.
+Stage 8 well-posedness (resample, discard configuration-flipped samples, require goal invariance —
+**and step vertex-angle invariance**, `docs/04` Stage 8 item 2b), provisional depth banding, and the
+seed-sharded batch runner with its per-stage attrition report. Then the four `docs/09` P1 criteria,
+each with evidence.
 
 **Phase 1 acceptance criteria (all still open, verified in M5):** fixed seed ⇒ byte-identical batch;
 100 validated puzzles across ≥ 2 difficulty bands; every shipped solution passes the readability
@@ -105,14 +105,18 @@ result = backend.solve(ProblemSpec(construction=jgex, goals=(...,)), opts)
 # Fixed coordinates, explicit premises — goal verification and premise minimization:
 result = backend.solve_facts(PremiseSpec(points=figure.points, premises=..., goals=...), opts)
 ```
-Stages 1–6 for one construction:
+Stages 1–7 for one construction:
 ```python
 from geoforge.generator.extract import extract_goals
 from geoforge.generator.traceback import derive, prune_figure
+from geoforge.generator.translation import translate
 
 for goal in extract_goals(backend, figure, opts).goals:
     d = derive(backend, figure.points, goal.result.proof_dag, goal.fact, opts)
-    pruning = prune_figure(construction, d.needed_points())
+    solution = translate(d.subdag, figure.coords())      # .ok is the readability gate
+    if not solution.ok:
+        continue                                        # attrition; .failures says why
+    pruning = prune_figure(construction, d.needed_points() | solution.highlighted_points())
 ```
 The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSolverBuilder` →
 `.run()` → `.proof()`) lives in `newclid_backend.py` and nowhere else.
@@ -132,6 +136,13 @@ The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSol
 4c. **Never pass the engine's own tautologies back as assumptions.** Yuclid aborts the process
    (`std::logic_error: Trying to re-prove a statement`). Proof leaves come in three kinds —
    premises, configuration facts, trivia — and only the first two are premises.
+4d. **A determinism test that runs twice in one process proves nothing** about reproducibility.
+   Python randomizes string hashing per process, so anything leaking `set`/`dict` order over
+   strings varies between runs while agreeing within a run. That blind spot hid BUG-4 (`cong`
+   canonicalization did `segs.sort()` then `list(set(segs))`, discarding its own sort) through
+   two milestones. Compare across **subprocesses with different `PYTHONHASHSEED`** —
+   `tests/solvers/test_contract.py::TestCrossProcessDeterminism`. Never "fix" a flaky
+   reproducibility check by pinning `PYTHONHASHSEED`; that hides the bug rather than finding it.
 5. **Angles are directed line-to-line, mod π** (`∠(AB,CD)`), *never* human vertex angles.
    All 48/48 angle facts in the Phase 0 corpus were directed. Conversion needs configuration facts.
 6. **AG2 DDAR's angle orientation is inverted vs Newclid.** Calibrate before cross-validating.

@@ -152,3 +152,14 @@ human would call redundant.
   different figure". Monitor via spot checks.
 - **O6 — Upstream engine churn** — Newclid/AG2 release cadence may break adapters; pinned versions +
   contract tests + attrition-diff on upgrade are the guards.
+
+
+**T12 — AR steps are narrated by their premises, not by their arithmetic (settled Phase 1 M4).**
+Newclid does expose the explicit linear-combination coefficients behind an algebraic step (e.g.
+`½·(∠OAC=∠ACO) − ½·(∠OBC=∠BCO) − ½·(AO∥BO) ⟹ ∠ACB = 90°`), and doc 03 §3.5 originally anticipated
+using them to render arithmetic. We do not: coefficient-faithful text reads like linear algebra, not
+geometry, and half-integer multipliers on angle *equalities* are not how anyone writes an angle
+chase. Steps instead read "Combining ∠CAO = ∠OCA and ∠CBO = ∠OCB, we get ∠ACB = 90°", which is true,
+checkable, and the standard human presentation. The coefficients remain available if playtesting
+shows these steps read as hand-waving; the premise-count budget (`max_ar_chain`) already keeps them
+short enough to follow. Revisit trigger: playtest feedback that AR steps feel unjustified.

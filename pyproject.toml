@@ -40,7 +40,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 # Mirrors upstream Newclid function bodies with a single line changed, so it stays diffable
 # against the original and easy to drop when upstream fixes the defect. Upstream's idioms are
 # preserved deliberately. Scoped to this file only; behaviour is covered by regression tests.
-"src/geoforge/solvers/_patches.py" = ["UP035", "SIM201", "E501"]
+"src/geoforge/solvers/_patches.py" = ["UP035", "SIM201", "E501", "B905"]
 
 [tool.mypy]
 python_version = "3.12"

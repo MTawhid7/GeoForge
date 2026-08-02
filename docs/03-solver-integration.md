@@ -128,23 +128,56 @@ Engine proofs are correct but not player-ready. The translator converts a traced
    natural one-sentence readings ("base angles of an isosceles triangle", "angles subtending the same
    arc", "corresponding sides of similar triangles", "Pythagoras in the right triangle ABC").
    Maintained in `src/geoforge/generator/translation/`; templates are organized per quantity family, and
-   enabling a new quantity type (doc 04 §QTR) requires its template set to exist.
+   enabling a new quantity type (doc 04 §QTR) requires its template set to exist. There is
+   deliberately **no generic fallback**: a rule nobody has read is a rule nobody can vouch for the
+   prose of, so an unlisted rule fails the gate.
+   *Rule ids are engine-specific* (M4): the ids that fire come from the 87-rule catalogue in
+   `newclid.all_rules`, not the 58-rule `DEFAULT_RULES`. The whitelist is therefore coupled to the
+   generating backend — harmless today, since the AG2 backend validates and never translates, but it
+   means a backend swap needs a whitelist review, not just an adapter.
+1b. **Suppression, distinct from failure.** A few rules are correct, load-bearing, and unfit to
+   print: `r82 Parallel from collinear` reports two segments of one straight line as parallel, and
+   `r56 Properties of midpoint (coll)` concludes that a midpoint lies on its own segment. Their steps
+   are dropped from the text while their conclusions stay available to later steps. Suppression is
+   narrow and each entry carries a written reason; the default for an unknown rule is to fail.
 2. **AR step shaping:** AR derivations (linear combinations of angle relations) are re-expressed as
    bounded chains of readable arithmetic ("∠1 + ∠2 = 110° and ∠1 = 40°, so ∠2 = 70°"). Chains using
    more than `config.max_ar_chain` premises are deemed unreadable.
    **`max_ar_chain = 5`** (Phase 0 measured sensitivity: budget 3 → 46% of puzzles fully
-   translatable, 4 → 55%, **5 → 82%**, 7 → 91%. The gate needs ≥ 80%, and Newclid's AR appendix
-   supplies the explicit linear-combination coefficients needed to narrate a 5-premise step).
+   translatable, 4 → 55%, **5 → 82%**, 7 → 91%. The gate needs ≥ 80%.)
+   **Re-measured in M4 on generated puzzles**, independently reproducing the curve's shape:
+   3 → 42%, 4 → 81%, **5 → 91%**, 6 → 95%, 7 → 100%. The value 5 stands.
+   AR steps are narrated by listing their premises and conclusion ("Combining X, Y and Z, we get
+   W") rather than by rendering the linear combination itself — recorded trade-off, doc 07 T12.
 2b. **Idiom collapsing (required).** Engine proofs contain fixed multi-step idioms that must map to
    *one* human step, not one each. The dominant one (15 of 95 steps in the Phase 0 corpus): an AR
    ratio restatement → `SAS Similarity (Reverse)` of a triangle **with itself** → `Properties of
    similar triangles` is always just "isosceles ⇒ base angles equal". Translation is therefore
-   compression: a 10-step machine proof of Thales becomes a 4-step human solution.
+   compression: measured in M4, 257 machine steps become 186 sentences, and the 10-step machine
+   proof of Thales becomes 6.
+   **Generalized in M4.** Both measured idioms share one shape — the engine manufactures a
+   *degenerate intermediate* (a statement trivially true and saying nothing) to fit the shape of a
+   general rule. So the implementation keys on **scaffolding facts** rather than on step patterns:
+   a triangle similar to itself; a ratio equal to its own reciprocal (`AO:CO = CO:AO`); a ratio of
+   something to itself (`AJ:AJ = HJ:IJ`, which is the shared-side similarity idiom). Any step
+   consuming one absorbs the derivation behind it and cites that derivation's real inputs.
+   Two traps found while implementing: absorbing must stop at genuine reasoning (an early version
+   recursed through *any* equal-angle premise and swallowed real steps), and the isosceles template
+   may only override a step that concludes an **angle** — `r53` reads ratio consequences out of the
+   same similarity, and "the base angles are equal: AC : AD = AD : CD" is nonsense.
 2c. **Directed→vertex angle conversion (required, universal).** Every angle fact the engines emit is
    a directed line-to-line angle `∠(XY,ZW)` mod π — **48 of 48** in the Phase 0 corpus — never a
    human vertex angle `∠ABC`. `∠(BA,BC) = 40°` renders as ∠ABC = 40° **or** 140° depending on
    configuration, so every published step needs conversion disambiguated by the configuration facts
    of `docs/04` Stage 6. This is the translator's central job, not an edge case.
+   **Mechanism (M4).** The reference diagram is a model of (premises + configuration facts), so the
+   vertex angle is read off it and *checked* to be one of the two values the proved directed fact
+   allows; a measurement matching neither is refused rather than guessed. This is a presentation
+   choice resolved by a model — the mathematical content stays the directed fact the engine proved.
+   Two lines that do not meet at a named point yield no vertex angle at all: that step is
+   untranslatable, and its puzzle is discarded rather than described awkwardly.
+   **This creates a dependency on Stage 8** (`docs/04`, amended): the gate must resample and check
+   the vertex angles of *solution steps*, not only the goal value.
 3. **Readability gate:** a puzzle is accepted **only if every step of its minimal derivation translates**
    via 1–2. Untranslatable puzzles are discarded and logged by offending rule — the discard log is the
    priority queue for extending the whitelist. This converts the readability risk into attrition, never

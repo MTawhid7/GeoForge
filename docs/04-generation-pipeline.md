@@ -97,6 +97,11 @@ filters — single source.
 ### Stage 7 — Readable-steps translation gate
 Translate the sub-DAG per doc 03 §3.5. Untranslatable ⇒ discard, log offending rule. Output: final
 `solution[]` steps.
+Measured in M4 over 300 sampled constructions: **91%** of formed puzzles pass, with every failure an
+over-budget AR chain — no unknown rule, because the whitelist covers every rule that fires on current
+output. Steps are emitted in **topological order ending at the goal**, not the engine's canonical fact
+order, so a reader never meets a step before its premises. The translation also reports which points
+its steps highlight, which Stage 6 pruning must keep.
 
 ### Stage 8 — Well-posedness gate (critical correctness gate)
 Stated premises **+ configuration facts** must uniquely determine the goal value. For scale-free
@@ -107,6 +112,11 @@ absolutely.
    sample whose configuration facts differ from the reference** (a configuration flip is a legitimate
    different figure, not evidence of ill-posedness — and not a bug).
 2. Accept iff the goal's numeric value deviates < ε_wp across all accepted samples.
+2b. **Also check every vertex angle a solution step states** (added M4). Steps are published as human
+   vertex angles, and the directed fact the engine proved allows two of them — θ or 180° − θ — with
+   the configuration deciding. The reference diagram picks one; this gate is what confirms the pick
+   holds across every configuration-matching sample. Checking only the goal would leave a step
+   free to read correctly in the shipped figure and wrongly in an equally legitimate one.
 3. A deviation *within* matching configurations ⇒ discard **and** file a high-priority reproduction case
    (soundness bug upstream). Deviation across flipped configurations ⇒ normal discard of the sample, not
    the puzzle.

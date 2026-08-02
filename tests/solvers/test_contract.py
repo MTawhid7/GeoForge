@@ -229,6 +229,56 @@ class TestBackendResolution:
             get_backend("not-an-engine")
 
 
+class TestCrossProcessDeterminism:
+    """Determinism across *processes*, which same-process comparison cannot test.
+
+    Python randomizes string hashing per process, so anything that leaks `set` or `dict`
+    iteration order over strings into a result varies run to run — while two runs inside one
+    process agree, because they share that process's hash seed. `TestDeterminism` above is
+    therefore blind to an entire class of reproducibility bug, and upstream BUG-4 (`cong`
+    canonicalization discarding its own sort) lived in that blind spot.
+
+    docs/02 invariant 2 is a claim about artifacts, not about a process.
+    """
+
+    SCRIPT = """
+import json, sys
+from geoforge.solvers import get_backend, ProblemSpec
+from geoforge.solvers.types import SolveOptions
+result = get_backend().solve(
+    ProblemSpec(
+        construction="a b = segment a b; o = midpoint o a b; c = on_circle c o a",
+        goals=("aconst a c c b 1pi/2",),
+    ),
+    SolveOptions(seed=42),
+)
+print(json.dumps([f.fact_id for f in result.facts]))
+"""
+
+    def test_facts_are_identical_under_different_hash_seeds(self) -> None:
+        import json
+        import os
+        import subprocess
+        import sys
+
+        outputs = []
+        for hash_seed in ("0", "1", "12345"):
+            env = {**os.environ, "PYTHONHASHSEED": hash_seed}
+            proc = subprocess.run(
+                [sys.executable, "-c", self.SCRIPT],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=True,
+            )
+            outputs.append(json.loads(proc.stdout))
+
+        assert outputs[0] == outputs[1] == outputs[2], (
+            "fact spellings changed with the hash seed: some engine canonicalization is "
+            "leaking set/dict iteration order into results"
+        )
+
+
 class TestFactLevelSolving:
     """`solve_facts`: fixed coordinates, explicit premise set (docs/04 Stages 5 and 6).
 
@@ -331,6 +381,20 @@ class TestPatches:
         from geoforge.solvers import APPLIED_PATCHES
 
         assert "BUG-3:justify-raises-justification-error" in APPLIED_PATCHES
+
+    def test_cong_canonicalization_patch_applied(self) -> None:
+        from geoforge.solvers import APPLIED_PATCHES
+
+        assert "BUG-4:cong-preparse-stable-order" in APPLIED_PATCHES
+
+    def test_cong_canonical_form_is_sorted(self) -> None:
+        """BUG-4 regression, checkable without spawning a process: upstream sorted the segments
+        and then dropped the sort through a `set` round-trip, so the canonical form was whatever
+        the process's string hashing produced."""
+        from newclid.predicates.congruence import Cong
+
+        assert Cong.preparse(("c", "o", "a", "o")) == ("a", "o", "c", "o")
+        assert Cong.preparse(("a", "o", "c", "o")) == ("a", "o", "c", "o")
 
     def test_python_backend_works_on_a_length_problem(self) -> None:
         """Regression for BUG-1: this problem's AR ratio table holds a length constant, which
