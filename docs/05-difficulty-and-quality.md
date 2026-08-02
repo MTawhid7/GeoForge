@@ -27,7 +27,15 @@ band; weight changes must cite a spot-check batch. Replace with solve-time calib
 
 ## 5.2 Hard rejection filters (any hit ⇒ discard)
 
-1. `depth < 3` or `distinct_rules < 2` — trivial.
+1. `depth < 3` or `distinct_rules < 2` — trivial. **Applied twice, over two different graphs
+   (settled Phase 2).** A cheap copy runs at doc 04 Stage 5 over the whole solve, to reject a goal
+   before traceback is paid for; the authoritative copy runs here over the minimal sub-DAG, which is
+   what §5.1 scores. The two are *not* ordered: Stage 6 re-derives the goal from the surviving
+   premises after minimization, so the sub-DAG is a fresh derivation rather than a subgraph of the
+   solve, and a proof with fewer givens to lean on often takes a longer, more varied route
+   (measured at seed 42: of 42 goals, 32 agree, 2 fall, 8 rise — one from 5 rules to 8). The early
+   copy is therefore a proxy that can in principle reject a goal this filter would have kept, which
+   is precisely why this one is re-asserted rather than inherited.
 2. Goal one rule away from a given at the same vertex — "read it off the picture".
 3. One rule > 60% of applications — monotonous.
 4. Figure complexity out of range: < 4 or > 12 visible points; > 2 circles (v1 readability).

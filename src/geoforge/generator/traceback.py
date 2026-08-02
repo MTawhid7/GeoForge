@@ -35,6 +35,7 @@ from geoforge.solvers.types import (
     ProofDAG,
     ProofStep,
     SolveOptions,
+    distinct_rules,
 )
 
 
@@ -67,6 +68,16 @@ class SubDAG:
             proved_goals=(self.goal,),
             unproved_goals=(),
         ).depth()
+
+    @property
+    def distinct_rules(self) -> int:
+        """Conceptual variety of *this* derivation — the number that ships (docs/05 §5.1)."""
+        return distinct_rules(self.steps)
+
+    @property
+    def width(self) -> int:
+        """Total rule applications in the minimal derivation (docs/05 §5.1 `width`)."""
+        return len(self.steps)
 
     def points(self) -> frozenset[str]:
         """Every point any surviving fact mentions."""
@@ -250,6 +261,14 @@ class Derivation:
     @property
     def depth(self) -> int:
         return self.subdag.depth
+
+    @property
+    def distinct_rules(self) -> int:
+        return self.subdag.distinct_rules
+
+    @property
+    def width(self) -> int:
+        return self.subdag.width
 
     def needed_points(self) -> frozenset[str]:
         return frozenset(

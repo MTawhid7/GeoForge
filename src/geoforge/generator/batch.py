@@ -324,7 +324,11 @@ def _emit(
         answer_unit="°",
         solution=translation.steps,
         depth=depth,
-        distinct_rules=goal.distinct_rules,
+        # Both difficulty features must read the same graph: the minimal derivation. Taking
+        # `goal.distinct_rules` here would publish a count over the *whole* solve beside a depth
+        # over the sub-DAG, so a puzzle would advertise conceptual variety its own solution
+        # never shows (docs/05 §5.1).
+        distinct_rules=derivation.distinct_rules,
         band=band_for_depth(depth),
         seed=case_seed,
         provenance={

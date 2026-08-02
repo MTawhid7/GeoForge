@@ -167,6 +167,12 @@ class TestEmittedPuzzles:
         for puzzle in report.puzzles:
             assert puzzle.depth >= GENERATION.min_proof_depth
 
+    def test_distinct_rules_is_bounded_by_the_solution_length(self, report: BatchReport) -> None:
+        """The published count reads the minimal sub-DAG, so it cannot exceed the steps that
+        derived it. A count taken over the whole solve routinely would (docs/05 §5.1)."""
+        for puzzle in report.puzzles:
+            assert 0 < puzzle.distinct_rules <= len(puzzle.solution) + puzzle.depth
+
     def test_highlights_follow_the_normative_grammar(self, report: BatchReport) -> None:
         for puzzle in report.puzzles:
             for step in puzzle.solution:

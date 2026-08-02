@@ -21,6 +21,7 @@ failure on every puzzle (docs/07 O7).
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import StrEnum
 from fractions import Fraction
@@ -207,6 +208,28 @@ class ProofStep:
     conclusion: FactId
     premises: tuple[FactId, ...]
     justification: Justification
+
+
+def distinct_rules(steps: Iterable[ProofStep]) -> int:
+    """How many distinct justifications a set of proof steps uses.
+
+    Algebraic-reasoning steps carry no rule id, so counting rule ids alone would score a proof
+    that AR did all the work for as zero. They count as one pseudo-rule per AR reason ('Angle
+    Chasing', 'Ratio Chasing') instead — AR is a legitimate deduction, just an opaque one, and
+    how readable it is remains the translation gate's business.
+
+    Shared rather than duplicated because the number means different things over different
+    graphs: over a whole solve it is a cheap upper bound for early rejection, over a minimal
+    sub-DAG it is the published difficulty feature (docs/05 §5.1). Two copies of this counter
+    would let those two readings drift apart silently.
+    """
+    return len(
+        {
+            step.justification.rule_id or f"ar:{step.justification.ar_reason}"
+            for step in steps
+            if step.justification.rule_id is not None or step.justification.ar_reason is not None
+        }
+    )
 
 
 @dataclass(frozen=True, slots=True)

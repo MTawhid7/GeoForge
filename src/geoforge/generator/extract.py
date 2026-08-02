@@ -33,6 +33,7 @@ from geoforge.solvers.types import (
     RealizedFigure,
     SolveOptions,
     SolveResult,
+    distinct_rules,
 )
 
 
@@ -61,21 +62,25 @@ class ExtractedGoal:
 
     @property
     def distinct_rules(self) -> int:
-        """How many distinct justifications the proof uses.
+        """Distinct justifications across the **whole solve**, not the minimal derivation.
 
-        Algebraic-reasoning steps carry no rule id, so counting rule ids alone would score a
-        proof that AR did all the work for as zero and discard it. They count as one pseudo-rule
-        per AR reason ('Angle Chasing', 'Ratio Chasing') instead — AR is a legitimate deduction,
-        just an opaque one, and how readable it is remains M4's gate to enforce.
+        A cheap proxy, used only to reject a goal before Stage 6 pays for traceback. The number
+        that ships is `Derivation.distinct_rules`, because docs/05 §5.1 scores the minimal
+        translated sub-DAG.
+
+        **It is not a bound on that number in either direction**, which is easy to assume and
+        wrong. Stage 6 re-derives the goal from the *surviving* premises after minimization, so
+        the sub-DAG is a fresh derivation over a restricted premise set rather than a subgraph
+        of this one — and a proof with fewer givens to lean on often takes a longer, more varied
+        route. Measured over 42 goals at seed 42: 32 agree, 2 come out lower, and 8 come out
+        *higher*, every one of the 8 having dropped at least one premise.
+
+        So this floor can in principle reject a goal whose published count would have passed.
+        At the configured floor against observed counts it does not bind, but that is a fact
+        about the threshold, not a property of the design — which is why docs/05's filter is
+        re-asserted against the sub-DAG downstream rather than trusted from here.
         """
-        return len(
-            {
-                step.justification.rule_id or f"ar:{step.justification.ar_reason}"
-                for step in self.result.proof_dag.steps
-                if step.justification.rule_id is not None
-                or step.justification.ar_reason is not None
-            }
-        )
+        return distinct_rules(self.result.proof_dag.steps)
 
 
 class ExtractionReason(StrEnum):

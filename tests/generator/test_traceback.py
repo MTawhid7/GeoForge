@@ -30,12 +30,22 @@ from geoforge.solvers.types import (
     ProofDAG,
     ProofStep,
     SolveOptions,
+    distinct_rules,
 )
 
 OPTS = SolveOptions(seed=42)
 
 THALES = "a b = segment a b; o = midpoint o a b; c = on_circle c o a"
 INSCRIBED = "a b = segment a b; c = s_angle a b c 50o; o = circle o a b c; d = on_circum d a b c"
+
+#: Regression fixture for `test_the_full_solve_count_does_not_bound_the_published_one`.
+#: Sampled at index 233 of the seed-42 batch; the engine seed matters because the goal is
+#: extracted from that diagram's measurements.
+REDERIVES_WIDER = (
+    "a b c = ieq_triangle a b c; d = mirror d a c; "
+    "e = iso_triangle_vertex_angle e d c; f = parallelogram f b c d"
+)
+OPTS_233 = SolveOptions(seed=42_000_233)
 
 
 @pytest.fixture(scope="module")
@@ -117,6 +127,41 @@ class TestSubDagSelection:
 # ---------------------------------------------------------------------------------------
 
 
+class TestDifficultyFeatures:
+    """`depth`, `width` and `distinct_rules` must all read the minimal sub-DAG (docs/05 §5.1).
+
+    The two-route DAG is the case that separates them: the whole graph fires r01 *and* r02,
+    while the derivation that ships uses only r01. Publishing the full-graph count beside a
+    sub-DAG depth would advertise conceptual variety the solution never shows.
+    """
+
+    def test_features_read_the_minimal_derivation(self) -> None:
+        subdag = minimal_subdag(_dag_with_two_routes(), GOAL.fact_id)
+        assert subdag is not None
+        assert subdag.distinct_rules == 1
+        assert subdag.width == 1
+
+    def test_the_full_graph_would_have_over_counted(self) -> None:
+        """Pins the defect itself: without this the fix is indistinguishable from a no-op."""
+        assert distinct_rules(_dag_with_two_routes().steps) == 2
+
+    def test_ar_steps_count_as_a_pseudo_rule(self) -> None:
+        """A proof AR did all the work for must not score zero rules."""
+        chasing = Justification(kind=JustificationKind.AR_DEDUCTION, ar_reason="Angle Chasing")
+        ratios = Justification(kind=JustificationKind.AR_DEDUCTION, ar_reason="Ratio Chasing")
+        steps = [
+            ProofStep(conclusion=MIDDLE.fact_id, premises=(), justification=chasing),
+            ProofStep(conclusion=GOAL.fact_id, premises=(), justification=chasing),
+            ProofStep(conclusion=GOAL.fact_id, premises=(), justification=ratios),
+        ]
+        assert distinct_rules(steps) == 2
+
+    def test_leaves_count_as_no_rule(self) -> None:
+        assumption = Justification(kind=JustificationKind.ASSUMPTION)
+        step = ProofStep(conclusion=PREMISE.fact_id, premises=(), justification=assumption)
+        assert distinct_rules([step]) == 0
+
+
 class TestPremiseMinimization:
     def test_redundant_premise_is_dropped(self, backend: SolverBackend) -> None:
         """In the inscribed-angle figure, `d` sits on the circle but takes no part in proving
@@ -157,6 +202,34 @@ class TestPremiseMinimization:
         assert derivation is not None
         assert set(derivation.configuration) == set(subdag.configuration)
         assert all(not f.is_configuration for f in outcome.kept)
+
+    def test_the_full_solve_count_does_not_bound_the_published_one(
+        self, backend: SolverBackend
+    ) -> None:
+        """The trap in F-2's fix, pinned by the case that springs it.
+
+        Minimization drops a premise and Stage 6 then re-derives the goal from the survivors,
+        so the shipped sub-DAG is a *fresh* derivation rather than a subgraph of the original
+        solve — and a proof with fewer givens to lean on takes a longer, more varied route.
+        The full-solve rule count therefore looks like a safe upper bound for the published
+        one and is not: here it says 5 while the proof that ships uses 8.
+
+        This is why `extract.py`'s cheap floor is a proxy rather than a conservative bound, and
+        why docs/05's filter must be re-asserted against the sub-DAG downstream instead of
+        trusted from the pre-filter.
+        """
+        figure = backend.realize(ProblemSpec(construction=REDERIVES_WIDER), OPTS_233)
+        goals = [
+            g
+            for g in extract_goals(backend, figure, OPTS_233).goals
+            if g.fact.fact_id == "aconst:a:c:c:f=2/3"
+        ]
+        assert goals, "fixture no longer produces its goal; re-derive it before editing"
+        goal = goals[0]
+        derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, OPTS_233)
+        assert derivation is not None
+        assert derivation.dropped_premises
+        assert derivation.distinct_rules > goal.distinct_rules
 
     def test_minimization_is_deterministic(self, backend: SolverBackend) -> None:
         figure = backend.realize(ProblemSpec(construction=INSCRIBED), OPTS)
