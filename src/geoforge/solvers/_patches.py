@@ -21,6 +21,20 @@ BUG-1  newclid.deductors.sympy_ar.ar_predicates.enumerate_lconsts
        pure-Python path because Yuclid does not support `acompute` goals.
        Verified present in both PyPI 3.0.1 and the git clone at ac65507.
 
+BUG-3  newclid.proof_state.ProofState.justify
+       `proof_justifications._proof_of_predicate` is written to report an unprovable goal by
+       raising, and its caller catches `JustificationError` with the comment "Could not justify
+       this goal, so we skip it" — setting `goal_is_proven[goal] = False`. But the raise it is
+       meant to catch is `ProofState.justify`'s bare `ValueError`, and `JustificationError`
+       derives from `Exception`, not from `ValueError`. The intended path is therefore dead:
+       instead of reporting the goal unproven, `proof_data_from_state` propagates a ValueError.
+       Fix: raise `JustificationError`, the type the caller already expects.
+       Impact: any query about a goal that does *not* follow from the premises — which for us
+       is not an edge case but the single most common answer during premise minimization
+       (docs/04 Stage 6), where "the goal no longer holds" is precisely the signal that the
+       premise was needed. Without this, a normal negative answer arrives as a crash.
+       Found: M3, on 39 of 60 sampled constructions.
+
 Style note
 ----------
 Patched function bodies are kept **verbatim from upstream except for the fixed line**, so
@@ -37,12 +51,16 @@ import logging
 from typing import Iterator, cast
 
 import sympy as sp
+from newclid.deductors.deductor_interface import justify_from_deductors
 from newclid.deductors.sympy_ar import algebraic_manipulator, ar_predicates
 from newclid.deductors.sympy_ar.table_ratios import RatiosTable
+from newclid.justifications._index import JustificationError
+from newclid.justifications.justify_predicates import justify_predicate
 from newclid.numerical import close_enough
 from newclid.predicate_types import PredicateArgument
 from newclid.predicates._index import PredicateType
 from newclid.problem import PredicateConstruction
+from newclid.proof_state import ProofState
 from newclid.tools import fraction_to_ratio, get_quotient
 
 LOGGER = logging.getLogger(__name__)
@@ -74,6 +92,25 @@ def _enumerate_lconsts_fixed(
         yield lconst_construction, lconst_expression
 
 
+def _justify_fixed(self, predicate):
+    """Upstream `ProofState.justify` raising the exception type its caller catches.
+
+    Verbatim apart from the raised type: `JustificationError` instead of `ValueError`.
+    """
+    justification_cached = self.graph.hyper_graph.get(predicate)
+    if justification_cached is not None:
+        return justification_cached
+
+    justification = justify_predicate(predicate, self.deductors, self.symbols)
+    if justification is None:
+        justification = justify_from_deductors(predicate, self.deductors, self.symbols)
+    if justification is None:
+        raise JustificationError(f"Could not justify predicate {predicate}")
+
+    self.apply(justification)
+    return justification
+
+
 def apply_all() -> list[str]:
     """Apply every patch. Idempotent. Returns the list of applied patch ids."""
     if _APPLIED:
@@ -84,5 +121,10 @@ def apply_all() -> list[str]:
     ar_predicates.enumerate_lconsts = _enumerate_lconsts_fixed  # type: ignore[assignment]
     algebraic_manipulator.enumerate_lconsts = _enumerate_lconsts_fixed  # type: ignore[assignment]
     _APPLIED.append("BUG-1:enumerate_lconsts-dict-items")
+
+    # BUG-3. Bound method replacement: every ProofState instance picks this up, including the
+    # ones built inside the engine where we never see the constructor.
+    ProofState.justify = _justify_fixed  # type: ignore[method-assign]
+    _APPLIED.append("BUG-3:justify-raises-justification-error")
 
     return _APPLIED

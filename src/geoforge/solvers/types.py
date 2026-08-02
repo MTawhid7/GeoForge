@@ -260,6 +260,38 @@ class ProblemSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class PremiseSpec:
+    """A problem stated as *facts over a fixed point set*, rather than as a construction.
+
+    The construction-level `ProblemSpec` cannot express Stage 6's "drop a premise and re-run a
+    restricted closure" (docs/04): there is no construction for "the same figure, minus one
+    hypothesis". This spec holds the coordinates fixed and varies the symbolic premise set,
+    which is exactly what premise minimization and goal verification need.
+
+    Holding coordinates fixed matters twice over. It keeps the engine from re-randomizing the
+    figure out from under a candidate goal, and it keeps configuration facts (which the engine
+    checks against coordinates, not against premises) available no matter which premises are
+    dropped — the reason they can never be minimized away.
+    """
+
+    points: tuple[tuple[str, float, float], ...]
+    premises: tuple[Fact, ...]
+    goals: tuple[Fact, ...] = ()
+    """Empty means saturate, as in `ProblemSpec`."""
+
+    @property
+    def description(self) -> str:
+        return (
+            f"{len(self.points)} points; "
+            f"premises {', '.join(f.fact_id for f in self.premises)}; "
+            f"goals {', '.join(f.fact_id for f in self.goals)}"
+        )
+
+    def coords(self) -> dict[str, tuple[float, float]]:
+        return {name: (x, y) for name, x, y in self.points}
+
+
+@dataclass(frozen=True, slots=True)
 class RealizedFigure:
     """A construction instantiated with coordinates, without running deduction.
 
@@ -274,6 +306,11 @@ class RealizedFigure:
     *declared* collinearity (legitimate: `on_line`, `midpoint`, `foot` all create it) from
     *accidental* near-collinearity (rejected, docs/04 Stage 3)."""
     error: str | None = None
+    dropped_assumptions: tuple[str, ...] = ()
+    """Assumptions the adapter could not map into `FactKind`, recorded rather than discarded
+    silently (docs/08 §8.1). Losing one only costs yield — a goal verified from a subset of the
+    construction's hypotheses is still symbolically true — but it must be visible, because a
+    growing count means the fact vocabulary has fallen behind the engine's."""
 
     @property
     def ok(self) -> bool:
@@ -307,7 +344,7 @@ class SolveOptions:
 class SolveResult:
     """What every backend returns. Compare two of these to test determinism."""
 
-    spec: ProblemSpec
+    spec: ProblemSpec | PremiseSpec
     facts: tuple[Fact, ...]
     proof_dag: ProofDAG
     numeric_model: tuple[tuple[str, float, float], ...]

@@ -18,16 +18,25 @@ from typing import Any
 import numpy as np
 from newclid.api import GeometricSolverBuilder, PythonDefault
 from newclid.jgex.problem_builder import JGEXProblemBuilder
-from newclid.problem import predicate_to_construction
+from newclid.numerical.geometries import PointNum
+from newclid.predicate_types import PredicateArgument
+from newclid.problem import (
+    PredicateConstruction,
+    ProblemSetup,
+    predicate_to_construction,
+)
 from newclid.proof_data import ProofData, ProofId, proof_data_from_state
+from newclid.symbols.points_registry import Point
 
 from geoforge.config import SOLVER
 from geoforge.solvers.types import (
+    VALUED_KINDS,
     Fact,
     FactId,
     FactKind,
     Justification,
     JustificationKind,
+    PremiseSpec,
     ProblemSpec,
     ProofDAG,
     ProofStep,
@@ -94,15 +103,85 @@ def _fact_from_construction(construction: Any) -> Fact | None:
     assumptions) onto our vocabulary.
 
     Distinct from `_fact_from_predicate`: constructions expose `predicate_type`/`args` but no
-    `to_tokens`, and carry no numeric value. Returns None for predicates outside our
-    vocabulary — unlike derived facts, an unmapped *declared* assumption is not a soundness
-    risk, it just means Stage 3 has one less exemption to work with.
+    `to_tokens`. Returns None for predicates outside our vocabulary — unlike derived facts, an
+    unmapped *declared* assumption is not a soundness risk (it weakens the premise set, so a
+    goal verified without it is still true), it only costs yield. `realize` records what it
+    dropped so the loss stays visible.
+
+    A valued predicate's value must be lifted out of the argument list here exactly as
+    `_fact_from_predicate` does, or the same geometric fact would get two different fact_ids
+    depending on whether it arrived as a premise or as a derived fact — and premise
+    minimization, which matches premises against DAG leaves, would never find a match.
     """
     try:
         kind = FactKind(str(construction.predicate_type.value))
     except ValueError:
         return None
-    return Fact(kind=kind, args=tuple(str(a) for a in construction.args))
+    args = tuple(str(a) for a in construction.args)
+    if kind in VALUED_KINDS and args:
+        value = _parse_value_token(args[-1])
+        if value is None:
+            return None
+        return Fact(kind=kind, args=args[:-1], value=value)
+    return Fact(kind=kind, args=args)
+
+
+def _parse_value_token(token: str) -> Fraction | None:
+    """Parse a predicate's value token, e.g. '5pi/18' or '3/1'. None if it is not one."""
+    try:
+        return Fraction(token.replace("pi", ""))
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+#: How each valued kind spells its value as a predicate token. Angles carry an explicit `pi`
+#: because the engine's angle atoms are fractions of a half-turn (see types.py).
+_VALUE_TOKEN: dict[FactKind, str] = {
+    FactKind.CONSTANT_ANGLE: "{n}pi/{d}",
+    FactKind.CONSTANT_LENGTH: "{n}/{d}",
+    FactKind.SQUARED_CONSTANT_LENGTH: "{n}/{d}",
+    FactKind.CONSTANT_RATIO: "{n}/{d}",
+    FactKind.SQUARED_CONSTANT_RATIO: "{n}/{d}",
+}
+
+
+def _construction_from_fact(fact: Fact) -> PredicateConstruction:
+    """Render one of our Facts back into an engine predicate — the inverse of
+    `_fact_from_predicate`.
+
+    The engine canonicalizes on construction, so callers may pass any spelling. Verified in
+    M3: canonicalization reorders the points *within* each line of an angle (which leaves a
+    line-to-line angle unchanged) and never silently rewrites the value.
+
+    Raises `UnsupportedFactKind` rather than approximating: this feeds premise minimization,
+    where quietly dropping a premise would report it as unnecessary when it is not.
+    """
+    tokens: tuple[str, ...] = (fact.kind.value, *fact.args)
+    if fact.value is not None:
+        template = _VALUE_TOKEN.get(fact.kind)
+        if template is None:
+            raise UnsupportedFactKind(
+                f"no value spelling registered for valued kind {fact.kind.value!r}"
+            )
+        tokens += (template.format(n=fact.value.numerator, d=fact.value.denominator),)
+    try:
+        return PredicateConstruction.from_tuple(tokens)
+    except Exception as exc:
+        raise UnsupportedFactKind(
+            f"Newclid rejected {' '.join(tokens)!r} as a predicate construction: {exc}"
+        ) from exc
+
+
+def _setup_from_premise_spec(spec: PremiseSpec) -> ProblemSetup:
+    """Build an engine problem over fixed coordinates and an explicit premise set."""
+    return ProblemSetup(
+        points=tuple(
+            Point(name=PredicateArgument(name), num=PointNum(x=x, y=y))
+            for name, x, y in spec.points
+        ),
+        assumptions=tuple(_construction_from_fact(f) for f in spec.premises),
+        goals=tuple(_construction_from_fact(f) for f in spec.goals),
+    )
 
 
 def _value_of(predicate: Any, kind: FactKind) -> Fraction | None:
@@ -195,17 +274,15 @@ class NewclidBackend:
             setup = JGEXProblemBuilder(rng=rng).with_problem_from_txt(spec.to_jgex()).build()
         except Exception as exc:
             return RealizedFigure(points=(), error=f"{type(exc).__name__}: {exc}")
+        declared = [(a, _fact_from_construction(a)) for a in setup.assumptions]
         return RealizedFigure(
             points=tuple(
                 sorted((str(p.name), float(p.num.x), float(p.num.y)) for p in setup.points)
             ),
-            declared=tuple(
-                sorted(
-                    fact
-                    for fact in (_fact_from_construction(a) for a in setup.assumptions)
-                    if fact is not None
-                )
-            ),
+            # Deduplicated: the engine can state the same assumption twice (two clauses both
+            # requiring `ncoll a b c`), and a repeated premise is not a second premise.
+            declared=tuple(sorted({fact for _, fact in declared if fact is not None})),
+            dropped_assumptions=tuple(sorted(str(a) for a, fact in declared if fact is None)),
         )
 
     def solve(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> SolveResult:
@@ -221,11 +298,36 @@ class NewclidBackend:
           Stage 5 picks goals, then re-solves in goal mode to get the trace.
         """
         opts = opts or SolveOptions()
-        backend = opts.backend or SOLVER.backend
         rng = np.random.default_rng(opts.seed)
-
         started = time.perf_counter()
         setup = JGEXProblemBuilder(rng=rng).with_problem_from_txt(spec.to_jgex()).build()
+        return self._run(setup, spec, saturating=not spec.goals, opts=opts, started=started)
+
+    def solve_facts(self, spec: PremiseSpec, opts: SolveOptions | None = None) -> SolveResult:
+        """Solve over fixed coordinates and an explicit premise set (docs/04 Stages 5 and 6).
+
+        Used for goal verification (does the closure of these premises prove this value?) and
+        for premise minimization (does it still, with one premise removed?). Both need the
+        figure held still while the premise set varies, which the construction-level `solve`
+        cannot express.
+        """
+        opts = opts or SolveOptions()
+        started = time.perf_counter()
+        setup = _setup_from_premise_spec(spec)
+        return self._run(setup, spec, saturating=not spec.goals, opts=opts, started=started)
+
+    def _run(
+        self,
+        setup: Any,
+        spec: ProblemSpec | PremiseSpec,
+        *,
+        saturating: bool,
+        opts: SolveOptions,
+        started: float,
+    ) -> SolveResult:
+        """Shared engine run. Both entry points differ only in how `setup` was obtained."""
+        backend = opts.backend or SOLVER.backend
+        rng = np.random.default_rng(opts.seed)
 
         builder = (
             GeometricSolverBuilder(rng=rng, api_default=PythonDefault())
@@ -236,7 +338,6 @@ class NewclidBackend:
         solved = bool(solver.run())
         wall = time.perf_counter() - started
 
-        saturating = not spec.goals
         goal_constructions = [predicate_to_construction(g) for g in solver.proof_state.goals]
         proof_data = proof_data_from_state(
             goals_constructions=goal_constructions, proof_state=solver.proof_state

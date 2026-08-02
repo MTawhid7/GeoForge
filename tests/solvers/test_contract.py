@@ -18,10 +18,16 @@ from geoforge.solvers import (
     FactKind,
     JustificationKind,
     ProblemSpec,
+    RealizedFigure,
     SolveOptions,
 )
 from geoforge.solvers.interface import SolverBackend, get_backend
-from geoforge.solvers.newclid_backend import UnsupportedFactKind, _fact_from_predicate
+from geoforge.solvers.newclid_backend import (
+    UnsupportedFactKind,
+    _construction_from_fact,
+    _fact_from_predicate,
+)
+from geoforge.solvers.types import PremiseSpec
 from tests.solvers.corpus import CORPUS, SATURATION_CORPUS
 
 
@@ -223,12 +229,108 @@ class TestBackendResolution:
             get_backend("not-an-engine")
 
 
+class TestFactLevelSolving:
+    """`solve_facts`: fixed coordinates, explicit premise set (docs/04 Stages 5 and 6).
+
+    Every backend must support it, not just Newclid — premise minimization cannot be expressed
+    through the construction-level interface, and the M6 validator consumes premises and
+    coordinates natively anyway.
+    """
+
+    def _thales(self, backend: SolverBackend) -> tuple[RealizedFigure, Fact]:
+        figure = backend.realize(CORPUS["thales_semicircle"], SolveOptions(seed=42))
+        goal = Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "c", "c", "b"), value=Fraction(1, 2))
+        return figure, goal
+
+    def test_proves_a_goal_from_stated_premises(self, backend: SolverBackend) -> None:
+        figure, goal = self._thales(backend)
+        result = backend.solve_facts(
+            PremiseSpec(points=figure.points, premises=figure.declared, goals=(goal,)),
+            SolveOptions(seed=42),
+        )
+        assert result.solved
+        assert result.proof_dag.steps
+
+    def test_unprovable_goal_returns_unsolved(self, backend: SolverBackend) -> None:
+        """Regression for upstream BUG-3.
+
+        With no premises the right angle does not follow, however plainly the coordinates show
+        it. Newclid signalled this by letting a `ValueError` escape from `proof_data_from_state`
+        — so the ordinary negative answer arrived as a crash. It must come back as a result.
+        """
+        figure, goal = self._thales(backend)
+        result = backend.solve_facts(
+            PremiseSpec(points=figure.points, premises=(), goals=(goal,)),
+            SolveOptions(seed=42),
+        )
+        assert not result.solved
+        assert result.proof_dag.unproved_goals
+
+    def test_is_deterministic(self, backend: SolverBackend) -> None:
+        figure, goal = self._thales(backend)
+        spec = PremiseSpec(points=figure.points, premises=figure.declared, goals=(goal,))
+        first = backend.solve_facts(spec, SolveOptions(seed=42))
+        second = backend.solve_facts(spec, SolveOptions(seed=42))
+        assert first.facts == second.facts
+        assert first.proof_dag == second.proof_dag
+
+    def test_dropping_a_premise_weakens_the_problem(self, backend: SolverBackend) -> None:
+        """The property minimization rests on. If premises did not matter — if the engine read
+        the answer off the coordinates — every minimization would strip every given."""
+        figure, goal = self._thales(backend)
+        essential = tuple(f for f in figure.declared if f.kind is not FactKind.MIDPOINT)
+        result = backend.solve_facts(
+            PremiseSpec(points=figure.points, premises=essential, goals=(goal,)),
+            SolveOptions(seed=42),
+        )
+        assert not result.solved
+
+
+class TestFactRoundTrip:
+    """Facts must survive the trip out to the engine and back (docs/03 §3.3)."""
+
+    def test_valued_premise_keeps_its_value(self, backend: SolverBackend) -> None:
+        """A given angle arrives as an argument token and must be lifted into `value`, exactly
+        as a derived fact is — otherwise one geometric fact gets two ids depending on where it
+        came from, and premise minimization never matches a leaf."""
+        figure = backend.realize(
+            ProblemSpec(construction="a b = segment a b; c = s_angle a b c 50o"),
+            SolveOptions(seed=42),
+        )
+        angles = [f for f in figure.declared if f.kind is FactKind.CONSTANT_ANGLE]
+        assert angles
+        assert angles[0].value == Fraction(5, 18)
+        assert angles[0].degrees() == 50
+        assert "pi" not in angles[0].fact_id.removesuffix(str(angles[0].value))
+
+    def test_unrenderable_fact_raises(self) -> None:
+        """Never silently dropped: a premise that vanishes would make minimization report it as
+        unnecessary when it is not."""
+        bogus = Fact(kind=FactKind.CONSTANT_ANGLE, args=("a",), value=Fraction(1, 2))
+        with pytest.raises(UnsupportedFactKind):
+            _construction_from_fact(bogus)
+
+    def test_canonicalization_preserves_an_angles_value(self) -> None:
+        """The engine reorders the points within each line of an angle. That leaves a
+        line-to-line angle unchanged — a line has no direction — and the value must come
+        through untouched. If it did not, every proposed goal would be a coin flip between an
+        angle and its supplement."""
+        fact = Fact(kind=FactKind.CONSTANT_ANGLE, args=("b", "c", "b", "a"), value=Fraction(13, 18))
+        rendered = str(_construction_from_fact(fact))
+        assert rendered.endswith("13pi/18")
+
+
 class TestPatches:
     def test_upstream_patches_applied_on_import(self) -> None:
         """The pure-Python AR path is broken upstream without this (BUG-1)."""
         from geoforge.solvers import APPLIED_PATCHES
 
         assert "BUG-1:enumerate_lconsts-dict-items" in APPLIED_PATCHES
+
+    def test_justify_patch_applied(self) -> None:
+        from geoforge.solvers import APPLIED_PATCHES
+
+        assert "BUG-3:justify-raises-justification-error" in APPLIED_PATCHES
 
     def test_python_backend_works_on_a_length_problem(self) -> None:
         """Regression for BUG-1: this problem's AR ratio table holds a length constant, which

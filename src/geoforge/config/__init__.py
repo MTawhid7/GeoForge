@@ -8,7 +8,9 @@ rather than superstition. Values marked PHASE0 were measured in spikes/p0/REPORT
 from geoforge.config.thresholds import (
     BANDING,
     DEGENERACY,
+    EXTRACTION,
     GENERATION,
+    MINIMIZATION,
     SOLVER,
     TOLERANCE,
     TRANSLATION,
@@ -18,7 +20,9 @@ from geoforge.config.thresholds import (
 __all__ = [
     "BANDING",
     "DEGENERACY",
+    "EXTRACTION",
     "GENERATION",
+    "MINIMIZATION",
     "SOLVER",
     "TOLERANCE",
     "TRANSLATION",

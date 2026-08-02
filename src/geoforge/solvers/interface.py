@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from geoforge.solvers.types import ProblemSpec, RealizedFigure, SolveOptions, SolveResult
+from geoforge.solvers.types import (
+    PremiseSpec,
+    ProblemSpec,
+    RealizedFigure,
+    SolveOptions,
+    SolveResult,
+)
 
 
 @runtime_checkable
@@ -29,6 +35,15 @@ class SolverBackend(Protocol):
     name: str
 
     def solve(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> SolveResult: ...
+
+    def solve_facts(self, spec: PremiseSpec, opts: SolveOptions | None = None) -> SolveResult:
+        """Solve over a fixed point set and an explicit premise set (docs/04 Stage 5, 6).
+
+        Backends must treat an unrenderable premise as an error, never as a dropped premise:
+        silently solving a *weaker* problem than asked would make premise minimization report a
+        premise as unnecessary when it is not.
+        """
+        ...
 
     def realize(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> RealizedFigure: ...
 

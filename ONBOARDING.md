@@ -51,24 +51,36 @@ evidence in `spikes/p0/REPORT.md`; headline numbers:
 | Generation loop | 6/6 constructions saturated; two runs at one seed are byte-identical |
 | Performance | 95% of wall time is inside the engine ⇒ **no Rust/Go/C++ work justified** |
 
-**What exists in the repo now:** `spikes/p0/` (throwaway spike scripts + measured outputs +
-REPORT.md), `vendor/ag2_ddar/` (cross-validator, Apache-2.0, provenance recorded), `.venv/`,
-`docs/` (updated with Phase 0 amendments), `research/` (frozen pivot research).
-**What does not exist yet:** `src/geoforge/`, `web/`, `banks/`, tests, git repo (not initialised —
-ask before `git init`).
+**Phase 1 progress — M0–M3 done, M4–M6 remaining.** The pipeline runs Stages 1–6 end to end:
+sample → realize → degeneracy → extract goal → traceback → minimize → prune. Measured on 200
+sampled constructions at seed 42, reproducible run to run: 28 survive Stage 3 (14%), 132 goal
+candidates proposed, **29 puzzles formed**, 0.06 s per construction.
 
-## 4. What's next — Phase 1 (Generator MVP)
+| Milestone | State | What landed |
+|---|---|---|
+| M0 | done | git + `pyproject.toml` (hard pins) + `Makefile` + `src/geoforge/config/` |
+| M1 | done | SAL: `types`, `interface`, `newclid_backend`, `_patches`; contract suite |
+| M2 | done | `construction`, `sampler` (circle-biased), `degeneracy` (Stage 3) |
+| M3 | done | `quantities` (§QTR registry, angle), `extract` (Stage 5), `traceback` (Stage 6) |
+| M4 | next | translator: templates, idiom collapsing, vertex angles, readability gate |
+| M5 | | well-posedness, provisional banding, batch runner, the four P1 criteria |
+| M6 | | AG2 cross-engine validation (angle-convention calibration is mandatory) |
 
-Per `docs/09` P1: build the SAL with the Yuclid backend + contract tests; a typed construction
-layer over JGEX; the sampler; and `docs/04` Stages 1–9 including configuration facts, the
-readability gate, and well-posedness.
+**What does not exist yet:** `web/`, `banks/`, `src/geoforge/{scoring,bank}/`, translation.
 
-**Acceptance criteria:** fixed seed ⇒ byte-identical batch; 100 validated puzzles across ≥ 2
-difficulty bands; every shipped solution passes the readability gate; zero soundness failures in
-a 1,000-construction run.
+## 4. What's next — M4, the translator (highest risk in the phase)
 
-Carry these Phase 0 outputs forward rather than redoing them: the S1b extraction mechanism, the
-idiom-collapsing insight, `newclid_patches.py`, and the spike problem corpus.
+Turn the minimal sub-DAG into readable steps: templates keyed by engine rule id (start from the 13
+rules that fired in Phase 0), idiom collapsing, directed→vertex angle conversion using the
+configuration facts M3 now preserves, and the readability gate at `max_ar_chain = 5`. Untranslatable
+puzzles are discarded, never shipped ugly.
+
+**Phase 1 acceptance criteria (all still open, verified in M5):** fixed seed ⇒ byte-identical batch;
+100 validated puzzles across ≥ 2 difficulty bands; every shipped solution passes the readability
+gate; zero soundness failures in a 1,000-construction run.
+
+Carry these Phase 0 outputs forward rather than redoing them: the idiom-collapsing insight and the
+spike problem corpus. (The S1b extraction mechanism is already promoted, in `generator/extract.py`.)
 
 ## 5. How to run things (all verified working)
 
@@ -82,14 +94,28 @@ uv run python s1b_aconst_probe.py                              # goal-extraction
 uv run python s2_traces.py --backend yuclid --max-ar-chain 5   # the readability gate
 uv run python s3_generate.py --seed 42 --n 6 --backend yuclid --out out/a.json
 ```
-Minimal solve path (this is the API that matters):
+Work through the SAL, not the engine — only `src/geoforge/solvers/` may import engine code:
 ```python
-rng = np.random.default_rng(seed)
-setup  = JGEXProblemBuilder(rng=rng).with_problem_from_txt(jgex_str).build()
-solver = GeometricSolverBuilder(rng=rng).build(setup)   # auto-selects Yuclid when installed
-solved = solver.run()
-text   = solver.proof()
+from geoforge.solvers import get_backend, ProblemSpec
+from geoforge.solvers.types import PremiseSpec, SolveOptions
+
+backend, opts = get_backend(), SolveOptions(seed=42)
+figure = backend.realize(ProblemSpec(construction=jgex), opts)   # coordinates, no deduction
+result = backend.solve(ProblemSpec(construction=jgex, goals=(...,)), opts)
+# Fixed coordinates, explicit premises — goal verification and premise minimization:
+result = backend.solve_facts(PremiseSpec(points=figure.points, premises=..., goals=...), opts)
 ```
+Stages 1–6 for one construction:
+```python
+from geoforge.generator.extract import extract_goals
+from geoforge.generator.traceback import derive, prune_figure
+
+for goal in extract_goals(backend, figure, opts).goals:
+    d = derive(backend, figure.points, goal.result.proof_dag, goal.fact, opts)
+    pruning = prune_figure(construction, d.needed_points())
+```
+The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSolverBuilder` →
+`.run()` → `.proof()`) lives in `newclid_backend.py` and nowhere else.
 
 ## 6. Gotchas that cost real time — do not rediscover these
 
@@ -100,12 +126,21 @@ text   = solver.proof()
    BUG-2, the rule matcher choking on numeric constants like `1/2`, is unpatched). Use Yuclid.
    Upstream CI only exercises Yuclid, so the Python path is under-tested — expect more.
 4. **`newclid==3.0.1`'s wheel omits `pyyaml`** — install it explicitly or `import newclid` fails.
+4b. **"Goal is unprovable" arrives as a crash upstream** (BUG-3, patched). `ProofState.justify`
+   raises `ValueError` but its caller catches `JustificationError`, so the intended
+   report-it-as-unproven path is dead code. Affects Yuclid too, not just the Python path.
+4c. **Never pass the engine's own tautologies back as assumptions.** Yuclid aborts the process
+   (`std::logic_error: Trying to re-prove a statement`). Proof leaves come in three kinds —
+   premises, configuration facts, trivia — and only the first two are premises.
 5. **Angles are directed line-to-line, mod π** (`∠(AB,CD)`), *never* human vertex angles.
    All 48/48 angle facts in the Phase 0 corpus were directed. Conversion needs configuration facts.
 6. **AG2 DDAR's angle orientation is inverted vs Newclid.** Calibrate before cross-validating.
 7. **Saturate by building goal-free** (`goals = ()`); `JGEXProblemBuilder.build()` retries until
    stated goals hold numerically, so a placeholder goal makes it spin and fail.
-8. **`get_quotient` raises past denominator 1e6** — that's the free "nice value" filter.
+8. **Do NOT use `get_quotient` as the nice-value filter** (corrected in M3; it was listed here as
+   one). Its tolerance is *relative*, so the window widens with the denominator and it snaps almost
+   anything — it returned 17/19 for a generic angle. Snap to whole degrees with an absolute
+   tolerance instead (`config.EXTRACTION`).
 9. **No area predicate exists in any engine.** Areas need our own verified layer (`docs/03 §3.7`).
 10. **Translation is compression, not 1:1.** Collapse engine idioms (the self-similar-triangle
     triple = "isosceles ⇒ base angles equal") into single human steps.

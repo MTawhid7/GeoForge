@@ -99,6 +99,45 @@ class GenerationConfig:
 
 
 @dataclass(frozen=True)
+class ExtractionConfig:
+    """Stage-5 quantity extraction: numeric proposes, symbolic verifies (docs/03 §3.3a)."""
+
+    angle_snap_tolerance_degrees: float = 1e-6
+    """PHASE1 (measured, not guessed): on realized figures the residual between a genuinely
+    exact angle and its integer-degree value is <= 1e-13, while the median residual of an
+    arbitrary angle is ~1e-2. Anywhere in that eight-order gap works; 1e-6 leaves seven orders
+    of margin against accumulated construction error without admitting junk.
+
+    This replaces `newclid.tools.get_quotient` as the nice-value filter. get_quotient's
+    tolerance is *relative*, so its effective window widens with the denominator and it will
+    snap almost any value given denominators up to 1e6 — Phase 0 saw it return 17/19 for a
+    generic tangent-chord angle. Harmless for soundness (symbolic verification rejected it)
+    but it wastes an engine call per junk candidate."""
+
+    min_goal_degrees: int = 1
+    max_goal_degrees: int = 179
+    """A goal of 0 or 180 degrees is a degenerate figure, not a puzzle."""
+
+    max_candidates_per_construction: int = 24
+    """GUESS: cap on proposals put forward for symbolic verification, per construction. Each
+    costs one engine call; the snap filter usually leaves far fewer."""
+
+    exclude_given_goals: bool = True
+    """DOC docs/04 Stage 5: a goal that is literally one of the construction's stated givens is
+    not a puzzle. Kept as a switch so the attrition report can measure how many are lost."""
+
+
+@dataclass(frozen=True)
+class MinimizationConfig:
+    """Stage-6 traceback and premise minimization (docs/04)."""
+
+    minimize_premises: bool = True
+    max_premise_drop_attempts: int = 32
+    """GUESS: one engine call per attempt; a construction with more stated premises than this
+    is out of scope for Phase 1 anyway (max 9 steps)."""
+
+
+@dataclass(frozen=True)
 class WellPosedConfig:
     """Stage-8 well-posedness gate (docs/04)."""
 
@@ -145,6 +184,8 @@ SOLVER = SolverConfig()
 TOLERANCE = ToleranceConfig()
 DEGENERACY = DegeneracyConfig()
 GENERATION = GenerationConfig()
+EXTRACTION = ExtractionConfig()
+MINIMIZATION = MinimizationConfig()
 WELLPOSED = WellPosedConfig()
 TRANSLATION = TranslationConfig()
 BANDING = BandingConfig()

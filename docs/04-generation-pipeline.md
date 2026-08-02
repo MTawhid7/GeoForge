@@ -57,8 +57,12 @@ reproduction, never skip.
 ### Stage 5 — Goal selection (quantity-goal adapter)
 Candidate goals = facts extracted by the enabled quantity types' `goal_extractor`s (§QTR) with exact
 values, produced by the **numeric-propose / symbolic-verify** sweep of `docs/03 §3.3a` (measure on the
-reference diagram → snap to an exact rational → require symbolic verification). Closure-scanning is a
-secondary source only. Prefer goals whose minimal derivation: depth within the target band; ≥ 3 distinct rules;
+reference diagram → snap to an exact value → require symbolic verification). Closure-scanning is a
+secondary source only. Two rejections that are easy to get wrong (M3): a goal identical to one of the
+construction's **own stated givens** is not a puzzle, and catching it requires comparing *canonical*
+facts — the engine reorders an angle's points, so the proposal's spelling need not match the given's.
+And candidates are **all verified before any is chosen**, then ranked; taking the first N as they
+verify selects on the extractor's enumeration order rather than on the puzzle being any good. Prefer goals whose minimal derivation: depth within the target band; ≥ 3 distinct rules;
 late-introduced element; answer satisfying the type's `answer_policy` exactness class. For dimensional
 goals, verify the scale-pinning given is a *leaf of the goal's derivation* (a length goal whose proof
 never uses the stated unit is a ratio goal in disguise — retype it). Up to N_goals per construction
@@ -75,8 +79,17 @@ filters — single source.
   well-posedness purposes even though no rule consumes them symbolically, and they are what
   disambiguates the directed→vertex angle conversion (`docs/03 §3.5`). *This closes the old design's
   central soundness hole: minimization silently stripping configuration information.*
+- **Three kinds of leaf, not two** (M3): stated premises, configuration facts, and the engine's own
+  *tautologies* (`eqangle a o c o a o c o` and friends, arriving as "trivial predicates"). Tautologies
+  are leaves of the derivation but they are neither givens nor configuration: the puzzle must not state
+  them, and they must never be fed back as assumptions — Yuclid aborts the process with "Trying to
+  re-prove a statement" when asked to assume what it derives as trivially true.
 - **Greedy premise minimization** over stated (non-configuration) leaves only: drop a leaf, re-run a
-  restricted closure, keep dropping while the goal survives. Redundant givens feel sloppy and leak hints.
+  restricted closure over the *same fixed coordinates* (`solve_facts`, doc 03 §3.3), keep dropping while
+  the goal survives. Redundant givens feel sloppy and leak hints. Ordering is canonical, and the result
+  is locally rather than globally minimal — doc 07 T11. After minimization the derivation is **re-derived
+  from the surviving premises**: the recorded proof must be the proof the stated givens support, or a
+  solution step could cite a given the puzzle no longer makes.
 - The surviving leaves + goal define the stated givens **and the drawn figure**; scaffolding no surviving
   fact references is pruned — *plus* any element a translated solution step highlights (steps may
   reference segments their premises only imply).

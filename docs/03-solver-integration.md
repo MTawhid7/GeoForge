@@ -47,13 +47,28 @@ The engines' `*compute` query predicates are **not** used. Instead the SAL repli
 symbolic:
 
 1. Measure the candidate quantity on the reference diagram (numpy over the engine's coordinates).
-2. Snap it to an exact rational (`newclid.tools.get_quotient`; it raises past denominator 1e6,
-   which doubles as the "nice value" filter).
+2. Snap it to an exact value using the quantity type's own nice-value rule (`docs/04 §QTR`). For
+   angles that is **a whole number of degrees within an absolute tolerance**
+   (`config.EXTRACTION.angle_snap_tolerance_degrees`), which is also the type's `answer_policy`.
 3. Ask the engine to **symbolically verify** the explicit `aconst` / `lconst` / `rconst`.
+
+**Amended in Phase 1 M3 — do not use `newclid.tools.get_quotient` as the nice-value filter.** Its
+tolerance is *relative*, so the effective acceptance window grows with the denominator and it will
+snap almost any value given denominators up to 1e6: on the Phase 0 tangent-chord figure it returned
+17/19 for a generic angle. Soundness was never at risk (step 3 rejected it), but every junk
+candidate costs an engine call, and a denominator like 19 is not an answer any human would accept.
+Measured on realized figures: a genuinely exact angle lands within 1e-13 of its integer-degree
+value while an arbitrary one is ~1e-2 away, so an absolute filter separates them with seven orders
+of margin.
 
 Numerics only ever *propose* a candidate; the accepted value is always symbolically derived.
 Validated in Phase 0 (`spikes/p0/s1b_aconst_probe.py`): 6/6 behaviourally correct — 4 verified,
 and 2 correctly rejected because the angle was genuinely underdetermined by the premises.
+
+**Verification runs over fixed coordinates** (`SolverBackend.solve_facts`, §3.3), never by
+re-parsing the construction with the goal attached: `JGEXProblemBuilder.build()` retries until every
+stated goal holds numerically, so handing it an under-determined candidate produces a hang instead
+of a rejection.
 
 Corollary for `docs/04` Stage 5: goal candidates come from this sweep over point tuples.
 Scanning the saturated closure for `aconst` facts is a *secondary* source only — Phase 0 found
@@ -70,7 +85,17 @@ class SolveResult:
     stats: SolveStats         # wall time, fact count, saturation/cap status
 
 def solve(construction: Construction, opts: SolveOptions) -> SolveResult: ...
+def solve_facts(spec: PremiseSpec, opts: SolveOptions) -> SolveResult: ...
+def realize(construction: Construction, opts: SolveOptions) -> RealizedFigure: ...
 ```
+
+`solve_facts` states a problem as **facts over a fixed point set** rather than as a construction
+(added in M3). Stage 6's "drop a premise and re-run a restricted closure" cannot be expressed any
+other way — there is no construction for "the same figure, minus one hypothesis" — and holding the
+coordinates fixed is what keeps configuration facts available to the engine's numerical checks no
+matter which premises are dropped. It suits the M6 validator too: DDAR consumes premises and
+coordinates natively. `realize` instantiates coordinates without running deduction, so Stage 3 can
+reject a degenerate figure before paying for a closure.
 
 Requirements on every backend adapter:
 - **Determinism:** same `(construction, seed, engine_version)` ⇒ identical `SolveResult`. Verified by a

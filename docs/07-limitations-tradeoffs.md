@@ -27,6 +27,12 @@ upstream defects in the pure-Python path. Upstream CI exercises only the Yuclid 
 path is under-tested; the patch module is standing infrastructure, not a stopgap. Escape hatch
 unchanged: newclid is Apache-2.0 and the clone is retained, so full vendoring remains available if
 upstream is abandoned or a deeper patch is needed.
+**Amendment from Phase 1 M3:** the patch module is no longer only about the pure-Python path.
+BUG-3 (`ProofState.justify` raising `ValueError` where its caller catches `JustificationError`,
+making the "goal is unprovable" path dead code) affects *every* backend, Yuclid included. It
+surfaced immediately once we started asking questions whose expected answer is "no" — which is
+what premise minimization does all day. Expect the patch set to keep growing as we use the engine
+in ways its own test suite does not.
 
 **P1b — Performance strategy: no second language.** Phase 0 measured 95% of wall time inside the
 engine and 23–26× speedups from Yuclid's existing C++ core. Our own code is orchestration. A
@@ -116,6 +122,15 @@ olympiad-entry runs through aux-construction hiding (doc 09 P4) — the mechanis
 TongGeometry's competition-selected problems — and the top rung (olympiad-grade via value-guided search
 at scale) is an architected aspiration, not a commitment. Full ladder: doc 01 §Difficulty ambition.
 Bands are never inflated to fake the upper rungs.
+
+**T11 — Premise minimization is greedy, so locally minimal (settled Phase 1 M3).** Premises are
+tried for removal in canonical order and every successful drop is kept, which yields a set with no
+removable member but not necessarily the smallest such set — a different order could find a smaller
+one. Finding the true minimum means searching subsets, exponential in the premise count, and buys
+little: puzzles carry a handful of premises, and "no given is redundant" is the property that
+matters to a solver. What is *not* optional is determinism, so the ordering is canonical rather than
+incidental (doc 02 invariant 2). Revisit only if generated puzzles are observed carrying givens a
+human would call redundant.
 
 ## 7.4 Open risks (monitored, not yet mitigated)
 
