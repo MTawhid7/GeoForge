@@ -4,8 +4,12 @@ Runs the whole pipeline over a seed-sharded range of constructions and emits can
 an attrition report. Two properties matter more than throughput:
 
 **Reproducibility.** The batch is a pure function of `(config, engine_version, master_seed, n)`
-(docs/02 invariant 2). Each construction gets its seed from the master seed and its index, so shard
-boundaries change nothing and a single puzzle can be re-run in isolation.
+(docs/02 invariant 2). Construction *i* is a function of `(master_seed, i)` alone — both the clause
+sampling and the engine seed — so shard boundaries change nothing and a single puzzle can be re-run
+in isolation. That property is what makes the parallel bank build possible, and it is not free: a
+single `Generator` advanced across the loop would make construction *i* depend on every draw before
+it, which reads as deterministic in one process and silently produces a different corpus the moment
+the range is split. Pinned by `test_batch.py::TestShardability`.
 
 **Every discard is accounted for.** Each one records `(stage, reason, seed)`. The per-stage and
 per-band attrition report is the primary regression signal: when a sampler, engine or translator
@@ -180,19 +184,31 @@ def run(
     """
     backend = backend or get_backend()
     report = BatchReport()
-    rng = np.random.default_rng(seed)
     started = time.perf_counter()
 
     for index in range(n):
-        construction, _ = sample_construction(rng)
-        # Derived from the master seed, so a puzzle can be re-run alone and shard boundaries
-        # cannot change what is generated.
-        case_seed = seed * 1_000_000 + index
+        construction, _ = sample_construction(construction_rng(seed, index))
+        case_seed = case_seed_for(seed, index)
         report.constructions += 1
         _run_one(backend, construction, case_seed, report, check_wellposed=check_wellposed)
 
     report.wall_seconds = time.perf_counter() - started
     return report
+
+
+def construction_rng(seed: int, index: int) -> np.random.Generator:
+    """The sampler stream for construction `index` of the batch at `seed`.
+
+    Seeded per index rather than advanced across the loop, so that construction *i* does not
+    depend on the constructions before it. NumPy mixes the pair through `SeedSequence`, so
+    neighbouring indices are uncorrelated despite differing by one.
+    """
+    return np.random.default_rng([seed, index])
+
+
+def case_seed_for(seed: int, index: int) -> int:
+    """The engine seed for construction `index`. Also the id a discard is reproduced from."""
+    return seed * 1_000_000 + index
 
 
 def _run_one(

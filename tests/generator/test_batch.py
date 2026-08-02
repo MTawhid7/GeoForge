@@ -16,7 +16,15 @@ import sys
 
 import pytest
 
-from geoforge.generator.batch import STAGES, BatchReport, main, run
+from geoforge.generator.batch import (
+    STAGES,
+    BatchReport,
+    case_seed_for,
+    construction_rng,
+    main,
+    run,
+)
+from geoforge.generator.sampler import sample_construction
 from geoforge.scoring.bands import BAND_ORDER
 from tests.translation.test_phrases import HIGHLIGHT_GRAMMAR
 
@@ -70,6 +78,40 @@ class TestReproducibility:
         """Reproducibility must not be the trivial kind where the seed does nothing."""
         other = run(BATCH_N, SEED + 1)
         assert [p.id for p in other.puzzles] != [p.id for p in run(BATCH_N, SEED).puzzles]
+
+
+class TestShardability:
+    """Construction *i* depends on `(seed, i)` and on nothing else in the batch.
+
+    This is what makes the parallel bank build possible, and it is the property a single
+    `Generator` advanced across the loop quietly breaks: such a batch is perfectly reproducible
+    in one process and produces a *different corpus* the moment the range is split across
+    workers. Both tests below passed vacuously under that design — they must not be deleted
+    without replacing the guarantee.
+    """
+
+    def test_a_construction_does_not_depend_on_its_predecessors(self) -> None:
+        whole = [sample_construction(construction_rng(SEED, i))[0].to_jgex() for i in range(40)]
+        # The same indices drawn in a different order, as separate shards would draw them.
+        shards = [range(30, 40), range(0, 12), range(12, 30)]
+        rebuilt = {
+            i: sample_construction(construction_rng(SEED, i))[0].to_jgex()
+            for shard in shards
+            for i in shard
+        }
+        assert [rebuilt[i] for i in range(40)] == whole
+
+    def test_neighbouring_indices_are_uncorrelated(self) -> None:
+        """Seeding with a small integer pair must still spread: `SeedSequence` mixing is what
+        keeps index 7 from resembling index 8."""
+        drawn = [sample_construction(construction_rng(SEED, i))[0].to_jgex() for i in range(40)]
+        assert len(set(drawn)) > 36
+
+    def test_case_seeds_are_unique_per_index(self) -> None:
+        """A discard is reproduced from its seed, so two constructions sharing one would make
+        the attrition log ambiguous."""
+        seeds = [case_seed_for(SEED, i) for i in range(500)]
+        assert len(set(seeds)) == len(seeds)
 
 
 class TestAttritionAccounting:

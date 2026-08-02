@@ -185,6 +185,16 @@ Pipeline is a pure function of `(config, engine_version, master_seed)`; seed-sha
 Every discard logs `(stage, reason, seed)`; the attrition report per stage **and per band** is the primary
 regression signal — drift between builds means a sampler/engine/translator change did something.
 
+**Sharding requires per-index seeding, not a per-batch stream (settled Phase 2).** Construction *i*
+must be a function of `(master_seed, i)` alone — both its clause sampling and its engine seed. Until
+Phase 2 this held for the engine seed but not for the sampler, which drew from one `Generator`
+advanced across the loop, making construction *i* depend on every draw before it. Such a batch is
+perfectly reproducible in a single process and produces a **different corpus** the moment the range
+is split across workers, so the defect is invisible to every same-process determinism test. The
+sampler is now seeded `default_rng([master_seed, i])` per construction, and shard-independence is
+pinned by `tests/generator/test_batch.py::TestShardability`. Cost: the fixed-seed corpus changed once,
+at the fix.
+
 ## Failure-mode checklist
 | Failure | Guard |
 |---|---|

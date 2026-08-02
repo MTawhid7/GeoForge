@@ -10,8 +10,7 @@ from __future__ import annotations
 import collections
 import json
 
-import numpy as np
-
+from geoforge.generator.batch import construction_rng
 from geoforge.generator.degeneracy import check_figure
 from geoforge.generator.sampler import sample_construction
 from geoforge.solvers import ProblemSpec, SolveOptions, get_backend
@@ -21,8 +20,8 @@ SEED = 42
 
 
 def _sample_batch(seed: int, n: int) -> list[str]:
-    rng = np.random.default_rng(seed)
-    return [sample_construction(rng)[0].to_jgex() for _ in range(n)]
+    """Seeded exactly as `batch.run` seeds it — per index, not off one advancing stream."""
+    return [sample_construction(construction_rng(seed, i))[0].to_jgex() for i in range(n)]
 
 
 class TestBatchDeterminism:
@@ -53,11 +52,10 @@ class TestPipelineStageAttrition:
 
     def test_stage_attrition_is_reproducible_and_nonzero(self) -> None:
         def run() -> collections.Counter[str]:
-            rng = np.random.default_rng(SEED)
             backend = get_backend()
             counts: collections.Counter[str] = collections.Counter()
             for i in range(25):
-                construction, _ = sample_construction(rng)
+                construction, _ = sample_construction(construction_rng(SEED, i))
                 figure = backend.realize(construction.to_spec(), SolveOptions(seed=1000 + i))
                 verdict = check_figure(figure)
                 counts[str(verdict.reason) if verdict.reason else "accepted"] += 1
