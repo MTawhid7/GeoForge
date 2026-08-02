@@ -142,6 +142,34 @@ class Fact:
         return self.value * 180
 
 
+def fact_from_id(fact_id: FactId | str) -> Fact:
+    """Parse a canonical fact id back into a `Fact` — the inverse of `Fact.fact_id`.
+
+    Needed because the bank validator (docs/04 §V) reads *emitted puzzle JSON*, not the
+    generator's in-memory objects. A validator that had to be handed the generator's own data
+    structures would be re-checking the run rather than re-checking the artifact, and the
+    artifact is what ships.
+
+    Unambiguous by construction: point names never contain `:` or `=`, so the first token is
+    the kind, the last `=` (if any) opens the value.
+    """
+    head, sep, raw_value = str(fact_id).partition("=")
+    tokens = head.split(":")
+    if len(tokens) < 2 or not tokens[0]:
+        raise ValueError(f"not a fact id: {fact_id!r}")
+    try:
+        kind = FactKind(tokens[0])
+    except ValueError as exc:
+        raise ValueError(f"unknown fact kind in {fact_id!r}") from exc
+    value = Fraction(raw_value) if sep else None
+    if (value is not None) != (kind in VALUED_KINDS):
+        raise ValueError(
+            f"{fact_id!r} carries a value iff its kind is valued; "
+            f"{kind.value} is {'valued' if kind in VALUED_KINDS else 'not valued'}"
+        )
+    return Fact(kind=kind, args=tuple(tokens[1:]), value=value)
+
+
 class JustificationKind(StrEnum):
     """Why a fact holds. Mirrors the lineage's justification taxonomy."""
 

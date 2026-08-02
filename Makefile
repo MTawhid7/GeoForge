@@ -1,4 +1,4 @@
-.PHONY: setup lint typecheck test bench-batch bank clean
+.PHONY: setup lint typecheck test bench-batch cross-validate bank clean
 
 # Everything runs inside the project-local .venv via uv. Never install into system Python.
 
@@ -23,7 +23,13 @@ test:
 bench-batch:
 	uv run python -m geoforge.generator.batch --seed 42 --n 200 --report
 
+# Generate, then re-derive every puzzle on the second engine (AG2 DDAR). Any disagreement
+# exits non-zero: two engines differing means one is wrong and we cannot tell which. Wired in M6.
+cross-validate:
+	uv run python -m geoforge.generator.batch --seed 42 --n 400 --validate
+
 # Full bank build + cross-engine validation; fails on any invalid puzzle. Wired in Phase 2.
+# The validation half already exists — see `cross-validate` and `geoforge.bank.validate`.
 bank:
 	uv run python -m geoforge.bank.build
 

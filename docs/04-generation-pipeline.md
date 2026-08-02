@@ -139,12 +139,41 @@ absolutely.
 `CandidatePuzzle` (construction, premises, configuration facts, goal, exact answer, translated steps,
 provenance incl. engine version). Hand to scoring (doc 05).
 
-## §V — Bank-build validation (doc 02 invariant 3)
+## §V — Bank-build validation (doc 02 invariant 3) — implemented M6
 Every accepted puzzle is re-derived from scratch by the **ag2ddar** backend (uncorrelated codebase):
 premises + coordinates in, goal fact must be derivable out, answer must match exactly. Plus: schema
-validation, numeric re-check at bank tolerances, optional SymPy/Gröbner spot-check on a sample, and
-mutation tests (corrupt an answer / drop a premise ⇒ validator must reject — a validator that never fails
-is untested).
+validation, numeric re-check at bank tolerances, optional SymPy/Gröbner spot-check on a sample (still
+open), and mutation tests (corrupt an answer / drop a premise ⇒ validator must reject — a validator that
+never fails is untested).
+
+**The input is the emitted JSON, not the generator's objects.** A validator handed the generator's
+in-memory state re-checks the *run*; this one re-checks the *artifact*, which is what ships, and can be
+pointed at a bank file months later. That is why puzzles carry a `reference_figure.points` block: the
+engine coordinates the puzzle was derived over, build-time data stripped from shipped banks alongside
+`provenance` (doc 02), and distinct from the laid-out display `figure` that Phase 2 produces.
+
+**The reference figure is the *pruned* point set.** A validator handed the scaffolding the drawn figure
+no longer shows could derive the goal through a point the player never sees, and report a pass the
+puzzle has not earned.
+
+**Configuration facts are carried by the coordinates, not asserted.** DDAR has no `sameclock` or
+`sameside` and does not need them: it receives the reference diagram, so the configuration is pinned by
+construction. What this does *not* re-check is the well-posedness argument — whether some *other*
+diagram satisfying the same premises gives a different answer. That is Stage 8's job on the generation
+side; cross-validation certifies the answer over the reference diagram. Recorded as doc 07 T14. Facts
+carried this way are listed in the validation record rather than silently skipped, and a configuration
+fact appearing among the *stated givens* is a hard failure, not a pass.
+
+Five ship-blocking verdicts, all of which fail the build: `not_derivable` (second engine cannot reach
+the goal), `answer_mismatch` (published answer disagrees with the goal fact), `numeric_mismatch` (goal
+false in its own reference diagram), `unsupported` (a premise the validator cannot state — an unchecked
+puzzle and a valid one are different things), `malformed`, `engine_error`.
+
+**Measured (M6, 1,200 constructions at seed 42):** 129/129 puzzles re-derived by DDAR, zero
+disagreements, 2.1 s total (16 ms per puzzle). Mutation tests: 129/129 corrupted answers rejected,
+129/129 lying published answers rejected, and **441/441** single-premise deletions made the goal
+underivable — an independent confirmation of Stage 6 minimality, since a second engine agrees no
+given is redundant.
 
 ## Tolerance policy (single source of truth)
 Exact layer: derived values are exact rationals; equality is exact. Numeric layer: absolute tolerance on

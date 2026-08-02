@@ -2,7 +2,7 @@
 
 **Read this first in every new session.** It is the current state of the project, written from
 what has actually been built and measured — not from plans. Last updated: **2026-08-02**, end of
-Phase 1 M5.
+**Phase 1 (M0–M6 complete)**.
 
 ---
 
@@ -38,7 +38,7 @@ Key design decisions you must not silently reverse (all in `docs/07`):
 - The figure is part of the puzzle statement (configuration facts are first-class).
 - Quantity types are pluggable via a registry (`docs/04 §QTR`); angles ship first.
 
-## 3. Current status — Phase 0 complete, gate PASSED
+## 3. Current status — Phase 0 gate PASSED, Phase 1 COMPLETE
 
 Phase 0 was a decision gate: can imported engines actually carry this product? **Yes.** Full
 evidence in `spikes/p0/REPORT.md`; headline numbers:
@@ -51,12 +51,16 @@ evidence in `spikes/p0/REPORT.md`; headline numbers:
 | Generation loop | 6/6 constructions saturated; two runs at one seed are byte-identical |
 | Performance | 95% of wall time is inside the engine ⇒ **no Rust/Go/C++ work justified** |
 
-**Phase 1 — all four acceptance criteria met (M0–M5); M6 cross-engine validation remains.**
+**Phase 1 is complete — all four acceptance criteria met, plus M6 cross-engine validation.**
 The pipeline runs Stages 1–9 end to end: sample → realize → degeneracy → extract goal → traceback →
-minimize → prune → translate → well-posedness → emit.
+minimize → prune → translate → well-posedness → emit — then a *second engine* re-derives every
+puzzle from its emitted JSON.
 
 Measured, 1,200 constructions at seed 42 (`make bench-batch` runs a faster 200):
-**129 puzzles across 4 bands**, 0 soundness failures, byte-identical across processes, 79 s.
+**129 puzzles across 4 bands**, 0 soundness failures, byte-identical across processes,
+**129/129 independently re-derived by AG2 DDAR with zero disagreements**, 123 s including validation.
+Mutation tests on that bank: 129/129 corrupted answers rejected, 441/441 single-premise deletions
+made the goal underivable — a second engine confirming Stage 6 minimality.
 Attrition: degeneracy 1035, extraction 645, translation 16, well-posedness 20.
 
 | Milestone | State | What landed |
@@ -67,22 +71,25 @@ Attrition: degeneracy 1035, extraction 645, translation 16, well-posedness 20.
 | M3 | done | `quantities` (§QTR registry, angle), `extract` (Stage 5), `traceback` (Stage 6) |
 | M4 | done | `translation/` — templates, idiom collapsing, vertex angles, readability gate |
 | M5 | done | `wellposed`, `scoring/bands` (provisional), `generator/batch` + CLI, P1 criteria |
-| M6 | next | AG2 cross-engine validation (angle-convention calibration is mandatory) |
+| M6 | done | `ag2_backend` (calibrated), `bank/validate` + mutation tests, `--validate` |
 
-**What does not exist yet:** `web/`, `banks/`, `src/geoforge/bank/`, `schema.py`.
+**What does not exist yet:** `web/`, `banks/`, `bank/build.py`, `schema.py`.
 `scoring/bands.py` is **provisional depth-only banding** — written to be replaced by the doc 05
 scorer in Phase 2, not extended.
 
-## 4. What's next — M6, cross-engine validation
+## 4. What's next — Phase 2 (doc 09 P2)
 
-Re-derive every accepted puzzle with the vendored AG2 DDAR (`vendor/ag2_ddar/`), an uncorrelated
-codebase, so that generation and validation never share a bug (doc 02 invariant 3). Two hard parts:
-a coordinate exporter (DDAR wants `name@x_y` and asserts premises to ~1e-6, so export the solver's
-exact coordinates), and **mandatory angle-convention calibration** — Phase 0 verified DDAR's directed
-angles run opposite to Newclid's, so an uncalibrated validator reports a failure on every puzzle.
+Scoring/filters/elegance ratio, isomorphism dedupe, layout + anti-leak, the bank builder, JSON
+Schema → TS types in CI, and frontend v1. Cross-engine validation is **already built** — `make bank`
+wires the existing `bank/validate.py` into the bank build rather than writing it.
 
-Carry these Phase 0 outputs forward rather than redoing them: the idiom-collapsing insight and the
-spike problem corpus. (The S1b extraction mechanism is already promoted, in `generator/extract.py`.)
+Two things to know before touching the validator:
+- It reads the **emitted JSON**, not generator objects, so it can be pointed at a bank file on its
+  own. That is why puzzles carry `reference_figure.points` (engine coordinates for the *pruned*
+  figure — build-time only, stripped from shipped banks, and not the same thing as the laid-out
+  `figure` Phase 2 will add).
+- What it certifies is the answer over the *reference diagram*, not over the whole premise manifold,
+  and the independence is of *codebase*, not of method (doc 07 T14). Well-posedness stays Stage 8's.
 
 ## 5. How to run things (all verified working)
 
@@ -110,9 +117,12 @@ result = backend.solve_facts(PremiseSpec(points=figure.points, premises=..., goa
 Run the whole pipeline:
 ```bash
 make bench-batch                                     # 200 constructions + attrition report
-uv run python -m geoforge.generator.batch --n 1200 --seed 42 --report --out run.json
+make cross-validate                                  # 400 + independent re-derivation on AG2 DDAR
+uv run python -m geoforge.generator.batch --n 1200 --seed 42 --report --validate --out run.json
+uv run python -m geoforge.bank.validate run.json --mutation-test   # validate an existing bank file
 ```
-Exit code is non-zero if any soundness failure is found. Stages 1–9 for one construction:
+Exit code is non-zero on any soundness failure *or* cross-engine disagreement.
+Stages 1–9 for one construction:
 ```python
 from geoforge.generator.extract import extract_goals
 from geoforge.generator.traceback import derive, prune_figure
@@ -153,7 +163,16 @@ The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSol
    reproducibility check by pinning `PYTHONHASHSEED`; that hides the bug rather than finding it.
 5. **Angles are directed line-to-line, mod π** (`∠(AB,CD)`), *never* human vertex angles.
    All 48/48 angle facts in the Phase 0 corpus were directed. Conversion needs configuration facts.
-6. **AG2 DDAR's angle orientation is inverted vs Newclid.** Calibrate before cross-validating.
+6. **AG2 DDAR's angle orientation is inverted vs Newclid** — calibrated in M6 (`docs/03 §3.2a`):
+   the exporter swaps a valued angle's two line pairs. Only `aconst` is affected; `eqangle`/`para`/
+   `perp` are *differences* of directed angles and survive negation. Measured negative control:
+   without the swap, 25 of 129 puzzles validated — exactly the 25 answering 90°, the one angle equal
+   to its own supplement. Never test a directed-angle convention on a right angle.
+6b. **The SAL has two roles.** `ValidatorBackend` (`solve_facts` only) vs `SolverBackend`. DDAR has
+   no construction language and no proof recorder, so `isinstance(validator, SolverBackend)` is
+   deliberately False and it has its own contract suite (`docs/07` T15). Bank validation must run on
+   a different engine than generation — `bank/validate.py` enforces it in code, because a bank
+   "validated" by its own generator passes everything and proves nothing.
 7. **Saturate by building goal-free** (`goals = ()`); `JGEXProblemBuilder.build()` retries until
    stated goals hold numerically, so a placeholder goal makes it spin and fail.
 8. **Do NOT use `get_quotient` as the nice-value filter** (corrected in M3; it was listed here as

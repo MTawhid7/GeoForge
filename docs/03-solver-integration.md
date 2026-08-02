@@ -23,7 +23,7 @@ AG-lineage engines combine:
 |---|---|---|---|
 | `newclid` + **Yuclid** | `newclid==3.0.1` (PyPI, pinned) + `py-yuclid==3.0.0` (prebuilt wheel) | Apache-2.0 | **Primary**: generation-time closure + traced proofs; JGEX and GeoGebra input |
 | `newclid` pure-Python | same package, `api_default=PythonDefault()` | Apache-2.0 | **Debug/fallback only** — see the Phase 0 findings below |
-| `ag2ddar` | vendored at `vendor/ag2_ddar/` | Apache-2.0 | **Validator**: independent re-derivation of banked puzzles; needs problem + coordinates |
+| `ag2ddar` | vendored at `vendor/ag2_ddar/` | Apache-2.0 | **Validator only** (`ValidatorBackend`, M6): independent re-derivation of banked puzzles from premises + coordinates. Angle convention is inverted — calibrate (§3.2a) |
 | (future) | Seed-Geometry if released; homegrown mini-engine as last resort | — | Swap-in via SAL |
 
 **Phase 0 measured findings (see `spikes/p0/REPORT.md`) — these override earlier assumptions:**
@@ -39,6 +39,31 @@ Also in the Newclid monorepo: **`ncdgen`** (Apache-2.0, contributed by Harmonic)
 data generation on top of Newclid, hydra-configured. Our generator (doc 04) starts as an adaptation of
 `ncdgen`'s loop with our goal-selection and gating stages replacing its dataset-oriented output. Study
 `Newclid/ncdgen/src/ncdgen/generation_configuration.py` first.
+
+## 3.2a Cross-engine convention calibration (measured, M6)
+
+DDAR's `aconst p q r s` asserts `dir(pq) − dir(rs) = value`; Newclid's — and therefore GeoForge's
+normative convention (`solvers/types.py`) — asserts `dir(rs) − dir(pq) = value`. Every valued angle
+handed to the validator must therefore have its **two line pairs swapped**. Swapping is preferred to
+rewriting the value as `180 − value`: it is exact on `Fraction`s and needs no mod-180 normalization
+at value 0.
+
+Only *valued* angles need it. `eqangle`, `para` and `perp` reduce to a **difference** of directed
+angles, which inverting the orientation merely negates — and a negated zero is still zero, a negated
+right angle is still a right angle. So exactly one predicate family is affected, which is what makes
+the calibration testable rather than a pervasive sign convention.
+
+**Negative control (the number that makes this real):** validating the 129-puzzle acceptance bank
+*without* the swap accepted 25 of 129 — precisely the 25 whose answer is 90°, the one angle equal to
+its own supplement. An uncalibrated validator would have rejected every non-right-angle puzzle and looked
+exactly like a catastrophic generator soundness bug. This is why `tests/solvers/test_ag2_contract.py`
+pins the convention on an equilateral figure (60° ≠ 120°) from **both** directions: the calibrated
+spelling must be accepted and the uncalibrated one rejected. A right-angled fixture would agree with
+itself either way and prove nothing.
+
+Coordinates must not travel as text. DDAR's `AGProblem.pstring` round-trips points through `name@x_y`
+and asserts premises numerically at ~1e-6, so the adapter builds `AGPoint` objects from float64
+directly; the string form exists only for reproduction cases.
 
 ## 3.3a Quantity extraction: numeric proposes, symbolic verifies
 
@@ -97,7 +122,19 @@ matter which premises are dropped. It suits the M6 validator too: DDAR consumes 
 coordinates natively. `realize` instantiates coordinates without running deduction, so Stage 3 can
 reject a degenerate figure before paying for a closure.
 
-Requirements on every backend adapter:
+**Two roles, two protocols (amended M6).** The SAL is not one interface implemented by every
+engine. `SolverBackend` is the *generation* contract — `solve`, `solve_facts`, `realize`,
+`check_facts`. `ValidatorBackend` is the strictly smaller *validation* contract: `name`,
+`engine_version`, `solve_facts`, and nothing else. AG2 DDAR implements only the second, because it
+genuinely has only that much: no construction language (so no `solve` on JGEX and no `realize`), no
+proof recorder (so `proof_dag.steps` is always empty), and no configuration predicates (so no
+`check_facts`). Declaring it a full `SolverBackend` would have meant three methods that raise and a
+contract suite quietly skipping most of itself, so `isinstance(validator, SolverBackend)` is
+deliberately False and the validator carries its own contract suite
+(`tests/solvers/test_ag2_contract.py`). Re-derivation is all bank validation asks for; the readable
+proof always comes from the generation engine.
+
+Requirements on every **generation** backend adapter:
 - **Determinism:** same `(construction, seed, engine_version)` ⇒ identical `SolveResult`. Verified by a
   contract test that runs each backend twice and diffs.
 - **Fact normalization:** adapter maps engine-native facts into our canonical fact vocabulary (angle
@@ -107,7 +144,12 @@ Requirements on every backend adapter:
 - **Resource caps:** wall-time and fact-count caps surfaced in `stats`; cap hits are generator-level
   discards with logged seeds, never silent.
 
-Contract tests run against **all** backends on a shared fixture corpus (`tests/fixtures/`): classic
+A **validator** backend must additionally raise on any fact it cannot express (`UnsupportedByValidator`)
+rather than dropping it. Dropping a premise hands the second engine a weaker problem than the puzzle
+claims, so its "yes" would certify something the puzzle never stated — the one way cross-validation
+can pass without being a check at all.
+
+Contract tests run against **all** generation backends on a shared fixture corpus: classic
 configurations (isosceles chains, cyclic quadrilaterals, Thales, a Langley-class figure *with its
 auxiliary line included in the construction* — solvable by pure forward chaining in that form).
 

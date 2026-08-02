@@ -19,7 +19,7 @@ design if trace readability disappoints.
   hybrid fallback (engine finds truths; a thin custom presentation layer re-derives display paths) and
   record it in doc 07 before Phase 1.
 
-## P1 — Generator MVP — **DONE** (M0–M5; M6 cross-engine validation pulled forward, still open)
+## P1 — Generator MVP — **DONE** (M0–M6, incl. cross-engine validation pulled forward from P2)
 
 SAL with `newclid` backend + contract tests; typed construction layer over JGEX; sampler (adapted
 `ncdgen`); Stages 1–9 of doc 04 incl. configuration facts, readability gate, well-posedness;
@@ -43,11 +43,27 @@ over-budget AR chains), well-posedness 20. Throughput ≈ 79 s for 1,200 constru
 Four rules were added to the whitelist from this run's discard log (r11, r19, r54, r77), which is
 what the discard log is for; unknown-rule discards then went to zero.
 
+**M6 — cross-engine validation** (`--validate`, doc 04 §V). Every emitted puzzle is re-derived from
+its own JSON by the vendored AG2 DDAR, an uncorrelated codebase. Measured on the same run:
+
+| Check | Result |
+|---|---|
+| Independent re-derivation | **129/129**, zero disagreements, 2.1 s total (16 ms/puzzle) |
+| Mutation: goal value and answer shifted 1° | **129/129 rejected** |
+| Mutation: published answer alone made to lie | **129/129 rejected** |
+| Mutation: any single given dropped | **441/441 rejected** — a second engine independently confirming Stage 6 minimality |
+| Angle-convention calibration | Uncalibrated, **25/129** validate — exactly the 25 answering 90°, the one angle equal to its own supplement (doc 03 §3.2a) |
+
+The run exits non-zero on any disagreement. One real gap surfaced at full scale and was fixed: a
+single puzzle carried a `contri` premise, which the exporter refused (loudly, as designed) rather
+than skipping — congruent and similar triangles now expand to their SSS content.
+
 ## P2 — Product bank + frontend (≈ 4–6 weeks)
 
-Scoring/filters/elegance ratio; isomorphism dedupe; layout + anti-leak; bank builder; **cross-engine
-validation via `ag2ddar` backend**; JSON Schema → TS types in CI. Frontend v1 (player, hints, replay,
-home/daily/practice, localStorage stats) per doc 06.
+Scoring/filters/elegance ratio; isomorphism dedupe; layout + anti-leak; bank builder; JSON Schema → TS
+types in CI. Frontend v1 (player, hints, replay, home/daily/practice, localStorage stats) per doc 06.
+~~Cross-engine validation via `ag2ddar` backend~~ — **landed in P1 M6**; `make bank` wires the existing
+`bank/validate.py` into the bank build rather than building it.
 **AC:** `make bank` ⇒ ≥ 2,000 validated puzzles; mutation tests all caught; 20-figure layout spot check
 clean; e2e happy path green; first-puzzle-interactive < 2 s on a mid-range phone; owner solves 10
 puzzles on a phone without UX blockers.

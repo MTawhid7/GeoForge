@@ -66,6 +66,16 @@ class CandidatePuzzle:
     configuration: tuple[str, ...]
     goal: str
     """Canonical fact id of the goal."""
+    reference_points: tuple[tuple[str, float, float], ...]
+    """The engine's coordinates for the *pruned* figure — the diagram the puzzle was derived
+    over, and the input cross-engine validation needs (docs/04 §V).
+
+    Restricted to the pruned construction's points on purpose. A validator handed the scaffolding
+    the figure no longer shows could derive the goal through a point the player never sees, and
+    report a pass the puzzle has not earned.
+
+    Build-time data, not player-facing: the shipped `figure` with laid-out display coordinates is
+    Phase 2's, and this is stripped from shipped banks alongside `provenance` (docs/02)."""
     question: str
     """Player-facing, e.g. "∠ACB"."""
     answer: str
@@ -88,6 +98,9 @@ class CandidatePuzzle:
             },
             "given": list(self.premises),
             "configuration": list(self.configuration),
+            "reference_figure": {
+                "points": [{"id": n, "x": x, "y": y} for n, x, y in self.reference_points]
+            },
             "goal": {
                 "fact": self.goal,
                 "question": self.question,
@@ -251,7 +264,7 @@ def _run_one(
                 continue
 
         report.puzzles.append(
-            _emit(construction, derivation, translation, goal, angle, case_seed, goal_index)
+            _emit(construction, derivation, translation, goal, angle, coords, case_seed, goal_index)
         )
 
 
@@ -261,6 +274,7 @@ def _emit(
     translation: Translation,
     goal: ExtractedGoal,
     angle: VertexAngle,
+    coords: dict[str, tuple[float, float]],
     case_seed: int,
     goal_index: int,
 ) -> CandidatePuzzle:
@@ -272,6 +286,7 @@ def _emit(
     pruning = prune_figure(
         construction, derivation.needed_points() | translation.highlighted_points()
     )
+    pruned = pruning.construction(construction)
     kind = quantity_type(goal.quantity_type)
     depth = derivation.depth
     return CandidatePuzzle(
@@ -281,10 +296,13 @@ def _emit(
         # byte-identical-batch guarantee (docs/02 invariant 2). Final bank ids are Phase 2's.
         id=f"gf-{case_seed:012d}-{goal_index}",
         quantity_type=goal.quantity_type,
-        construction=pruning.construction(construction).to_jgex(),
+        construction=pruned.to_jgex(),
         premises=tuple(f.fact_id for f in derivation.premises),
         configuration=tuple(f.fact_id for f in derivation.configuration),
         goal=goal.fact.fact_id,
+        reference_points=tuple(
+            sorted((p, coords[p][0], coords[p][1]) for p in pruned.points if p in coords)
+        ),
         question=angle.text,
         answer=kind.format_answer(goal.fact.value) if goal.fact.value is not None else "",
         answer_unit="°",
@@ -314,9 +332,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="skip Stage 8 (attrition sweeps only; output is not shippable)",
     )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="cross-validate every emitted puzzle on the second engine; disagreement fails the run",
+    )
     args = parser.parse_args(argv)
 
     report = run(args.n, args.seed, check_wellposed=not args.no_wellposed)
+
+    disagreements: list[str] = []
+    if args.validate:
+        from geoforge.bank import validate as cross
+
+        validations = cross.validate_all([p.to_json() for p in report.puzzles])
+        print(json.dumps(cross.summary(validations), indent=2, sort_keys=True))
+        disagreements = [f"{v.puzzle_id} [{v.outcome}] {v.detail}" for v in validations if not v.ok]
 
     if args.report:
         print(json.dumps(report.summary(), indent=2, sort_keys=True))
@@ -336,9 +367,13 @@ def main(argv: list[str] | None = None) -> int:
     for case in report.soundness_failures:
         print("SOUNDNESS FAILURE", file=sys.stderr)
         print(case, file=sys.stderr)
+    for case in disagreements:
+        print(f"CROSS-ENGINE DISAGREEMENT {case}", file=sys.stderr)
 
     # A soundness failure fails the run: docs/09 P1 requires zero across 1,000 constructions.
-    return 1 if report.soundness_failures else 0
+    # So does a cross-engine disagreement: two engines differing means one of them is wrong,
+    # and we cannot tell which (docs/04 §V).
+    return 1 if report.soundness_failures or disagreements else 0
 
 
 if __name__ == "__main__":

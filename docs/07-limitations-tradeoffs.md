@@ -138,10 +138,12 @@ human would call redundant.
   proof steps translate; 82% of puzzles translate fully at `max_ar_chain=5`; only 13 distinct engine
   rules fire across the corpus. Gate passed, hybrid fallback not needed. Residual work is the idiom
   collapser and the directed→vertex angle converter (`docs/03 §3.5`), both specified.
-- **O7 — Cross-engine convention mismatch.** AG2 DDAR's directed-angle orientation is *inverted*
-  relative to Newclid (verified). The validator adapter must calibrate (θ vs 180−θ) or it reports a
-  soundness failure on every puzzle. Full cross-validation is deferred to Phase 1 (needs the
-  coordinate exporter).
+- ~~**O7 — Cross-engine convention mismatch.**~~ **RESOLVED by Phase 1 M6 (2026-08-02).** Calibrated:
+  DDAR reads a valued angle's two line pairs in the opposite order, so the exporter swaps them
+  (doc 03 §3.2a). Only `aconst` is affected — `eqangle`/`para`/`perp` are differences of directed
+  angles and survive negation. Negative control: without the swap, 25 of 129 puzzles validated, exactly
+  the 25 answering 90° (its own supplement). Pinned from both directions by a unit test on a
+  non-right-angled figure. Full cross-validation now runs: 129/129 re-derived, zero disagreements.
 - **O2 — Attrition economics per band unknown**, especially expert. Order of response: better early
   rejection → grammar re-weighting → parallel scale-out → only then engine-level work.
 - **O3 — Difficulty calibration vs. human perception** — weights are informed guesses until spot-check
@@ -180,3 +182,36 @@ would cry wolf and bury the one failure that genuinely indicts the engine — a 
 symbolically that is false in its own diagram — which is what now fails the build, and which measured
 zero across 1,200 constructions. Revisit if a richer configuration vocabulary (explicit side-of-line
 facts) ever makes the recorded set complete.
+
+
+**T14 — Cross-validation certifies the answer over the reference diagram, not over the whole premise
+manifold (settled Phase 1 M6).** The second engine is handed the puzzle's premises *and its exact
+coordinates*, and asked whether the goal follows. It is not handed the configuration facts: DDAR has
+no `sameclock` or `sameside` vocabulary, and it does not need one, because the diagram it receives
+already has a configuration. The consequence is a real boundary on what the check buys. It catches a
+wrong answer, a non-following goal, and a corrupted artifact — independently of Newclid, which is the
+point. It does *not* re-run the well-posedness argument: whether some *other* diagram satisfying the
+same premises would give a different answer is Stage 8's question, answered on the generation side by
+resampling, and cross-validation does not second it. Both engines are also diagram-guided in the same
+paradigm (DDAR's similar-triangle search reads orientation off the coordinates exactly as Newclid's
+numerical checks do), so the independence claimed here is *codebase* independence, not independence of
+method. That is still the property that matters — doc 02 invariant 3 exists so a bug in one engine is
+not mirrored in the other — but it should not be over-read. Alternative rejected: reconstructing a
+configuration-free premise set for DDAR to solve from scratch, which would need a betweenness/side-of-
+line vocabulary neither engine exposes, and would test our reconstruction rather than the puzzle.
+Revisit if the optional SMT/Gröbner spot-check (doc 04 §V) lands, since that one *is* method-independent.
+
+
+**T15 — The SAL has two roles, not one (settled Phase 1 M6).** Doc 03 originally specified a single
+backend contract that every engine implements, and the M1 contract suite was written expecting the AG2
+adapter to inherit it unchanged. It cannot: DDAR has no construction language (no `solve` on JGEX, no
+`realize`), no proof recorder (`proof_dag.steps` is permanently empty), and no configuration predicates
+(no `check_facts`). Forcing it into `SolverBackend` would have meant three methods that raise and a
+contract suite silently skipping most of itself — the shape of a test suite that looks green because it
+is not running. So `ValidatorBackend` (`name`, `engine_version`, `solve_facts`) is now a separate,
+smaller protocol, `SolverBackend` extends it, `isinstance(validator, SolverBackend)` is deliberately
+False, and the validator carries its own contract suite. This costs the ability to run one shared
+fixture corpus across both engines, which is a smaller loss than it sounds: the corpus is expressed as
+JGEX constructions, and DDAR could never have consumed those anyway. Revisit if a future validator
+engine (Seed-Geometry?) turns out to record proofs, in which case it can implement the larger protocol
+without changing the smaller one.

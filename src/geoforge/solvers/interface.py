@@ -20,8 +20,42 @@ from geoforge.solvers.types import (
 
 
 @runtime_checkable
-class SolverBackend(Protocol):
-    """Contract every engine adapter must satisfy.
+class ValidatorBackend(Protocol):
+    """The subset of the SAL an *independent validator* has to implement (docs/04 §V).
+
+    Split out in M6, and the split is a finding rather than a convenience. The AG2 DDAR
+    validator has no construction language and no proof recorder: it consumes premises over
+    fixed coordinates and answers "does this follow?". It cannot implement `solve` (there is
+    no JGEX front end) or `realize` (there is nothing to instantiate). Declaring it a full
+    `SolverBackend` would have meant three methods that raise, and a contract suite that
+    quietly skips most of itself — so the roles are two protocols instead, and
+    `isinstance(validator, SolverBackend)` is deliberately False.
+
+    That asymmetry is not a defect in the validator. Re-derivation is all bank validation
+    asks for, and the readable proof always comes from the generation engine.
+    """
+
+    name: str
+
+    @property
+    def engine_version(self) -> str:
+        """The engine build a verdict came from. Read-only: a validation record that cannot
+        name its engine is not evidence of anything."""
+        ...
+
+    def solve_facts(self, spec: PremiseSpec, opts: SolveOptions | None = None) -> SolveResult:
+        """Decide the goals of `spec` from its premises over its fixed coordinates.
+
+        A goal appears in `proof_dag.proved_goals` iff the engine derived it. Backends must
+        raise on a premise they cannot express rather than dropping it: solving a weaker
+        problem than asked would make a validator report success it did not earn.
+        """
+        ...
+
+
+@runtime_checkable
+class SolverBackend(ValidatorBackend, Protocol):
+    """Contract every *generation* engine adapter must satisfy.
 
     Requirements enforced by the contract test suite (`tests/solvers/`):
 
@@ -33,18 +67,7 @@ class SolverBackend(Protocol):
       unsolvable problem.
     """
 
-    name: str
-
     def solve(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> SolveResult: ...
-
-    def solve_facts(self, spec: PremiseSpec, opts: SolveOptions | None = None) -> SolveResult:
-        """Solve over a fixed point set and an explicit premise set (docs/04 Stage 5, 6).
-
-        Backends must treat an unrenderable premise as an error, never as a dropped premise:
-        silently solving a *weaker* problem than asked would make premise minimization report a
-        premise as unnecessary when it is not.
-        """
-        ...
 
     def realize(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> RealizedFigure: ...
 
@@ -75,8 +98,24 @@ def get_backend(name: str | None = None) -> SolverBackend:
         # Both Newclid paths share one adapter; the engine choice rides in SolveOptions.
         return NewclidBackend()
     if resolved == "ag2ddar":
-        raise NotImplementedError(
-            "The AlphaGeometry 2 cross-validation backend lands in M6. Its adapter must "
-            "calibrate the inverted angle convention first (docs/07 O7)."
+        raise ValueError(
+            "ag2ddar is a validator, not a generation backend: it has no construction "
+            "language and records no proof. Use get_validator() (docs/04 §V)."
         )
     raise ValueError(f"unknown solver backend: {resolved!r}")
+
+
+def get_validator(name: str | None = None) -> ValidatorBackend:
+    """Resolve the bank-validation backend. Defaults to `config.VALIDATION.backend`.
+
+    Deliberately a separate entry point from `get_backend`. Bank validation must run on a
+    different engine than generation (docs/02 invariant 3, CLAUDE.md), and one resolver
+    returning either role is how that invariant gets violated by accident.
+    """
+    from geoforge.config import VALIDATION
+    from geoforge.solvers.ag2_backend import AG2DDARBackend
+
+    resolved = name or VALIDATION.backend
+    if resolved == "ag2ddar":
+        return AG2DDARBackend()
+    raise ValueError(f"unknown validator backend: {resolved!r}")

@@ -90,9 +90,22 @@ in `src/geoforge/schema.py` + generated TS types are authoritative):
       "text": "AB = AC, so the base angles are equal: ∠ABC = ∠ACB.",
       "derives": "eqangle:b:a:b:c:c:a:c:b", "highlights": ["seg:A:B","seg:A:C","angle:A:B:C"] }
   ],
+  "reference_figure": {                  // build-time only, stripped from shipped banks
+    "points": [{ "id": "a", "x": 0.31, "y": 0.87 }]
+  },
   "provenance": { "generator_version": "…", "engine": "newclid-3.0.1", "seed": 991, "construction": "…" }
 }
 ```
+
+**`reference_figure` vs `figure` (added M6).** Two different things, deliberately not merged.
+`figure` is player-facing: laid-out display coordinates, produced by Phase 2's layout with anti-leak
+perturbation (doc 06 §6.3), point ids in the uppercase display labels. `reference_figure` is the
+**engine's** diagram — the exact float64 coordinates, in lowercase engine names, over which the goal
+was derived — and exists so cross-engine validation can re-derive the puzzle from the emitted JSON
+alone (doc 04 §V). It is build-time data, stripped from shipped banks alongside `provenance`.
+Perturbing it would break validation; perturbing `figure` is the whole point of `figure`.
+It carries the **pruned** point set: a validator given scaffolding the drawn figure no longer shows
+could reach the goal through a point the player never sees.
 
 **Exact values:** `exact` is a canonical symbolic string in a closed grammar (rationals and
 quadratic-surd forms like `3*sqrt(2)`; grammar owned by `schema.py`, values produced by the exact layer
@@ -160,6 +173,10 @@ is initialized; pin exact versions in `pyproject.toml` / a vendor manifest inste
    seed plumbing is verified by a CI double-run diff.
 3. **Independent validation:** bank validation re-derives every puzzle with a *different engine* than the
    one that generated it. Correlated blind spots are treated as the top failure mode (doc 04 §V).
+   Enforced in code, not by configuration: `bank/validate.py` refuses a validator whose engine is the
+   generating one, because that failure is silent — a bank "validated" by its own generator passes
+   everything and proves nothing. Scope of the guarantee: codebase independence, not method
+   independence (doc 07 T14).
 4. **Numeric verifies, never derives:** all published facts come from symbolic derivations; numerics gate
    and check only.
 5. **LLM boundary:** LLM output never enters `given`, `goal`, `answer_deg`, `derives`, `highlights`, or

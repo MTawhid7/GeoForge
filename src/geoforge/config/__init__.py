@@ -14,6 +14,7 @@ from geoforge.config.thresholds import (
     SOLVER,
     TOLERANCE,
     TRANSLATION,
+    VALIDATION,
     WELLPOSED,
 )
 
@@ -26,5 +27,6 @@ __all__ = [
     "SOLVER",
     "TOLERANCE",
     "TRANSLATION",
+    "VALIDATION",
     "WELLPOSED",
 ]

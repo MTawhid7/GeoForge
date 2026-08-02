@@ -128,7 +128,7 @@ def snap_to_integer_degrees(degrees: float) -> int | None:
     return int(nearest)
 
 
-def _directed_line_angle(
+def directed_line_angle(
     p: tuple[float, float],
     q: tuple[float, float],
     r: tuple[float, float],
@@ -185,7 +185,7 @@ def propose_angles(coords: Mapping[str, tuple[float, float]]) -> tuple[Proposal,
             # Swapping the two lines negates a directed angle mod pi, i.e. sends d to 180 - d.
             # Pick the order whose directed value is the vertex angle rather than its
             # supplement.
-            directed = _directed_line_angle(coords[vertex], coords[u], coords[vertex], coords[v])
+            directed = directed_line_angle(coords[vertex], coords[u], coords[vertex], coords[v])
             keep_order = abs(directed - degrees) <= abs((180.0 - directed) - degrees)
             first, second = (u, v) if keep_order else (v, u)
             out.append(

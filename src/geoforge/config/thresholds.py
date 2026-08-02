@@ -179,6 +179,33 @@ class TranslationConfig:
 
 
 @dataclass(frozen=True)
+class ValidationConfig:
+    """Bank-build cross-engine validation (docs/04 §V, docs/02 invariant 3)."""
+
+    backend: str = "ag2ddar"
+    """The validator engine. Must never equal `SolverConfig.backend`'s engine — validation on
+    the generating engine would only re-confirm its own bugs. `bank/validate.py` enforces it."""
+
+    max_wall_seconds: float = 30.0
+    """PHASE1 M6 (measured): DDAR closed a generated puzzle in 35 ms mean, 82 ms max over the
+    53 puzzles of a 400-construction batch. The cap is three orders above that, so it fires
+    only on a genuine blow-up — pure-Python DDAR searches similar triangles in O(n^3)."""
+
+    numeric_tolerance_degrees: float = 1e-6
+    """PHASE1: the bank-tolerance numeric re-check of docs/04 §V — does the published answer
+    hold in the puzzle's own reference diagram? Measured: an exact angle realizes to within
+    1e-13 of its integer-degree value on a reference figure (this is the reference diagram, not
+    a resampled one, so no extra slack is warranted). Separate from
+    `TRANSLATION.angle_render_tolerance_degrees`, which answers a different question and is
+    deliberately looser."""
+
+    mutation_offset_degrees: int = 1
+    """The corruption a mutation test applies to a published answer. One degree is the
+    smallest that is still a wrong answer under the integer-degree answer policy, so it is the
+    strictest version of "the validator must reject a corrupted answer" (docs/04 §V)."""
+
+
+@dataclass(frozen=True)
 class BandingConfig:
     """PROVISIONAL depth-only banding (Phase 1 only).
 
@@ -200,4 +227,5 @@ EXTRACTION = ExtractionConfig()
 MINIMIZATION = MinimizationConfig()
 WELLPOSED = WellPosedConfig()
 TRANSLATION = TranslationConfig()
+VALIDATION = ValidationConfig()
 BANDING = BandingConfig()

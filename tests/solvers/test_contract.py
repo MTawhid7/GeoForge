@@ -1,9 +1,14 @@
 """SAL contract suite (docs/08 §8.3).
 
-These tests define what "being a GeoForge solver backend" means. They run against whatever
-`get_backend()` returns, so the AG2 adapter (M6) inherits them unchanged — which is the
-point: bank validation must run on a different engine than generation, and both must obey
-one contract.
+These tests define what "being a GeoForge *generation* backend" means. They run against
+whatever `get_backend()` returns.
+
+Amended in M6: the AG2 validator does **not** inherit them, because it is not a
+`SolverBackend`. It has no construction language and no proof recorder, so `solve`, `realize`
+and `check_facts` do not exist for it — see `interface.ValidatorBackend` and
+`test_ag2_contract.py`, which is its own contract suite. Bank validation still runs on a
+different engine than generation (docs/02 invariant 3); what changed is the recognition that
+the two roles need different contracts, not one contract with holes in it.
 """
 
 from __future__ import annotations
@@ -27,7 +32,7 @@ from geoforge.solvers.newclid_backend import (
     _construction_from_fact,
     _fact_from_predicate,
 )
-from geoforge.solvers.types import PremiseSpec
+from geoforge.solvers.types import PremiseSpec, fact_from_id
 from tests.solvers.corpus import CORPUS, SATURATION_CORPUS
 
 
@@ -81,6 +86,29 @@ class TestFactNormalization:
         other = Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "b", "c", "d"), value=Fraction(1, 3))
         assert one.fact_id == two.fact_id
         assert one.fact_id != other.fact_id
+
+    def test_fact_ids_round_trip(
+        self, backend: SolverBackend, corpus_case: tuple[str, ProblemSpec]
+    ) -> None:
+        """`fact_from_id` is the inverse of `Fact.fact_id` (M6).
+
+        The bank validator reads emitted JSON, where facts exist only as their ids, so a
+        parser that loses information would quietly validate a different fact than the one
+        that shipped. Checked over real engine output rather than hand-written ids.
+        """
+        _, spec = corpus_case
+        for fact in backend.solve(spec, SolveOptions(seed=42)).facts:
+            assert fact_from_id(fact.fact_id) == fact
+
+    def test_a_valued_kind_without_a_value_is_rejected(self) -> None:
+        """The two halves of a fact id are not independent: `aconst` without a value, or
+        `coll` with one, is a corrupted id and not a fact."""
+        with pytest.raises(ValueError, match="carries a value iff"):
+            fact_from_id("aconst:a:b:c:d")
+        with pytest.raises(ValueError, match="carries a value iff"):
+            fact_from_id("coll:a:b:c=1/2")
+        with pytest.raises(ValueError, match="unknown fact kind"):
+            fact_from_id("notakind:a:b")
 
     def test_angle_values_are_exact_in_units_of_pi(self, backend: SolverBackend) -> None:
         result = backend.solve(CORPUS["thales_semicircle"], SolveOptions(seed=42))
@@ -220,8 +248,11 @@ class TestBackendResolution:
     def test_backend_satisfies_protocol(self) -> None:
         assert isinstance(get_backend(), SolverBackend)
 
-    def test_ag2_backend_is_deferred_with_a_reason(self) -> None:
-        with pytest.raises(NotImplementedError, match="M6"):
+    def test_the_validator_cannot_be_resolved_as_a_generation_backend(self) -> None:
+        """M6: the two roles are separate protocols. Asking `get_backend` for the validator is
+        a mistake worth catching loudly — it would mean generating with an engine that records
+        no proof."""
+        with pytest.raises(ValueError, match="validator, not a generation backend"):
             get_backend("ag2ddar")
 
     def test_unknown_backend_rejected(self) -> None:

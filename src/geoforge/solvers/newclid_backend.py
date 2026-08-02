@@ -261,6 +261,10 @@ class NewclidBackend:
 
     name = ENGINE_NAME
 
+    @property
+    def engine_version(self) -> str:
+        return _engine_version()
+
     def realize(self, spec: ProblemSpec, opts: SolveOptions | None = None) -> RealizedFigure:
         """Instantiate the construction's coordinates without running deduction.
 
