@@ -45,6 +45,7 @@ TEMPLATES: dict[str, Template] = {
     "r62": Template("sas_similarity", "angle"),  # SAS Similarity (Direct)
     "r63": Template("sas_similarity", "angle"),  # SAS Similarity (Reverse)
     "r77": Template("congruent_triangles_properties", "angle"),  # Properties of congruent (Direct)
+    "r78": Template("congruent_triangles_properties", "angle"),  # Properties of congruent (Reverse)
     "r11": Template("angle_bisector", "angle"),  # Bisector theorem I
     # --- added in M5 from the discard log, which is what it is for ---
     # --- circles ---------------------------------------------------------------------
@@ -73,6 +74,22 @@ SUPPRESSED: dict[str, str] = {
         "Restating the definition is not a solution step."
     ),
 }
+
+
+#: Templates the engine reaches through a *pair* of rules, one per triangle orientation
+#: ("Direct" and "Reverse"). The two rules differ only in the orientation of the matched
+#: triangles, so they say the same sentence — but covering one and not the other means every
+#: puzzle whose figure happens to be traversed the other way is discarded as untranslatable,
+#: with nothing but a discard-log line to say why. Pinned by `TestDirectAndReversePairs`.
+PAIRED_TEMPLATES: frozenset[str] = frozenset(
+    {
+        "similar_triangles_properties",
+        "congruent_triangles_properties",
+        "aa_similarity",
+        "sss_similarity",
+        "sas_similarity",
+    }
+)
 
 
 def template_for(rule_id: str | None) -> Template | None:

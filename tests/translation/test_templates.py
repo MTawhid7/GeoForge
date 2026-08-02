@@ -8,7 +8,12 @@ which raises at bank-build time rather than at review time.
 from __future__ import annotations
 
 from geoforge.generator.translation.strings import EN
-from geoforge.generator.translation.templates import SUPPRESSED, TEMPLATES, template_for
+from geoforge.generator.translation.templates import (
+    PAIRED_TEMPLATES,
+    SUPPRESSED,
+    TEMPLATES,
+    template_for,
+)
 
 
 class TestTablesAgree:
@@ -35,6 +40,28 @@ class TestTablesAgree:
         """Hiding a correct step from the player needs a reason on record, not a bare set."""
         for rule_id, reason in SUPPRESSED.items():
             assert len(reason) > 40, f"{rule_id} is suppressed without an explanation"
+
+
+class TestDirectAndReversePairs:
+    """Both orientations of a paired theorem must be whitelisted, or half its puzzles die.
+
+    r78 ("Properties of congruent triangles (Reverse)") was missing while r77 (Direct) was
+    present, and the only symptom was two `unknown_rule` discards after the Phase 2 sampler
+    change moved the corpus. This test states the invariant so the next missing half fails a
+    test run instead of waiting for a corpus that happens to traverse a triangle the other way.
+    """
+
+    def test_paired_templates_have_both_orientations(self) -> None:
+        for template_id in PAIRED_TEMPLATES:
+            rules = sorted(r for r, t in TEMPLATES.items() if t.template_id == template_id)
+            assert len(rules) == 2, (
+                f"{template_id} is reached by {rules}; a paired theorem needs its Direct and "
+                "Reverse rules both whitelisted"
+            )
+
+    def test_pair_list_names_only_real_templates(self) -> None:
+        known = {t.template_id for t in TEMPLATES.values()}
+        assert known >= PAIRED_TEMPLATES
 
 
 class TestLookup:
