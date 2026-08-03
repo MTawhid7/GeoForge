@@ -7,12 +7,18 @@ which raises at bank-build time rather than at review time.
 
 from __future__ import annotations
 
+import pytest
+
 from geoforge.generator.translation.strings import EN
 from geoforge.generator.translation.templates import (
+    ALGEBRAIC,
+    AR_TEMPLATES,
     PAIRED_TEMPLATES,
     SUPPRESSED,
     TEMPLATES,
+    is_geometric,
     template_for,
+    tier_for,
 )
 
 
@@ -84,3 +90,45 @@ class TestQuantityFamilies:
             assert template.quantity_family == "angle", (
                 "Phase 1 registers the angle family only; a new family arrives with its type"
             )
+
+
+class TestEveryTemplateHasATier:
+    """docs/05 §5.1 scores `tier_max` and `tier_mix`, and tiers are assigned in our whitelist.
+
+    A template with no tier would score as the easiest thing in the table, so its puzzle would
+    be quietly under-banded — the failure is invisible in output and only shows up as a band
+    distribution nobody can explain. Modelled on `test_every_template_has_a_string`, which
+    exists for the same reason one layer up.
+    """
+
+    def test_every_published_template_id_has_a_tier(self) -> None:
+        for template_id in EN:
+            assert tier_for(template_id) in range(1, 5), template_id
+
+    def test_the_ar_templates_are_covered_although_they_have_no_rule_id(self) -> None:
+        """`combine` and `restate` are named by premise count, not by an engine rule, so a tier
+        table keyed only on TEMPLATES would miss them — and `combine` appears in every single
+        puzzle the pipeline makes."""
+        assert set(AR_TEMPLATES) <= set(EN)
+        for template_id in AR_TEMPLATES:
+            assert tier_for(template_id) in range(1, 5)
+
+    def test_an_unknown_template_raises_rather_than_defaulting(self) -> None:
+        with pytest.raises(KeyError, match="no tier"):
+            tier_for("not_a_template")
+
+    def test_tiers_are_ordered_the_way_docs_05_describes(self) -> None:
+        """1 restatement · 2 elementary triangle/angle · 3 similarity and congruence ·
+        4 circle theorems. Spot-checked at each end so a wholesale re-tiering has to be
+        deliberate."""
+        assert tier_for("midpoint_definition") == 1
+        assert tier_for("isosceles_base_angles") == 2
+        assert tier_for("aa_similarity") == 3
+        assert tier_for("thales_semicircle") == 4
+
+    def test_algebra_is_not_geometry(self) -> None:
+        """The distinction docs/05 §5.2's monotony filter turns on."""
+        assert not is_geometric("combine")
+        assert not is_geometric("restate")
+        assert is_geometric("isosceles_base_angles")
+        assert ALGEBRAIC == set(AR_TEMPLATES)
