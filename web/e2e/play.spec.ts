@@ -21,6 +21,18 @@ if (!easyShard) throw new Error("the fixture bank has no easy band");
 const easy = (JSON.parse(readFileSync(resolve(dir, easyShard.file), "utf8")) as Puzzle[])[0];
 if (!easy) throw new Error("the easy shard is empty");
 
+test("the server is serving the fixture bank", async ({ request }) => {
+  // Runs first for a reason. `reuseExistingServer` will happily hand these tests a preview
+  // server someone left running against `banks/v2`, and every assertion below then fails on a
+  // puzzle it was never given — which reads as a renderer bug for as long as it takes to
+  // notice. Checking the manifest turns that into one obvious failure.
+  const served = await (await request.get("/bank/manifest.json")).json();
+  expect(served.puzzles).toBe(manifest.puzzles);
+  expect(served.shards.map((s: { sha256: string }) => s.sha256)).toEqual(
+    manifest.shards.map((s) => s.sha256),
+  );
+});
+
 test("solve a puzzle: wrong answer, hint, correct answer, replay", async ({ page }) => {
   await page.goto("/");
 

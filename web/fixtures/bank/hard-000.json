@@ -3,7 +3,8 @@
     "difficulty": {
       "band": "hard",
       "depth": 7,
-      "distinct_rules": 6
+      "distinct_rules": 6,
+      "score": 5.751
     },
     "figure": {
       "circles": [],
@@ -314,7 +315,8 @@
     "difficulty": {
       "band": "hard",
       "depth": 7,
-      "distinct_rules": 6
+      "distinct_rules": 6,
+      "score": 5.751
     },
     "figure": {
       "circles": [],
@@ -626,7 +628,8 @@
     "difficulty": {
       "band": "hard",
       "depth": 7,
-      "distinct_rules": 6
+      "distinct_rules": 6,
+      "score": 6.473
     },
     "figure": {
       "circles": [],

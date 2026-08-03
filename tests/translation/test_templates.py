@@ -131,4 +131,4 @@ class TestEveryTemplateHasATier:
         assert not is_geometric("combine")
         assert not is_geometric("restate")
         assert is_geometric("isosceles_base_angles")
-        assert ALGEBRAIC == set(AR_TEMPLATES)
+        assert set(AR_TEMPLATES) == ALGEBRAIC

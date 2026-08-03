@@ -156,12 +156,16 @@ class TestFilter5UnusedGiven:
     def test_it_raises_rather_than_returning_a_verdict(self) -> None:
         """A returned verdict would be counted as attrition and disappear into a report line,
         which is the same as not noticing."""
-        derivation = self._derivation(stated=["cong:a:b:a:c", "para:a:b:c:d"], used=["cong:a:b:a:c"])
+        derivation = self._derivation(
+            stated=["cong:a:b:a:c", "para:a:b:c:d"], used=["cong:a:b:a:c"]
+        )
         with pytest.raises(UnusedGivenBug, match="para:a:b:c:d"):
             assert_every_given_is_used(derivation)
 
     def test_it_names_the_offending_given(self) -> None:
-        derivation = self._derivation(stated=["cong:a:b:a:c", "para:a:b:c:d"], used=["cong:a:b:a:c"])
+        derivation = self._derivation(
+            stated=["cong:a:b:a:c", "para:a:b:c:d"], used=["cong:a:b:a:c"]
+        )
         assert unused_givens(derivation) == ("para:a:b:c:d",)
 
     def test_it_stays_quiet_when_every_given_is_used(self) -> None:

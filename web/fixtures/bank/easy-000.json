@@ -3,445 +3,8 @@
     "difficulty": {
       "band": "easy",
       "depth": 4,
-      "distinct_rules": 5
-    },
-    "figure": {
-      "circles": [],
-      "marks": {
-        "angle_arcs": [
-          {
-            "at": [
-              "C",
-              "F",
-              "H"
-            ],
-            "kind": "goal",
-            "label": "?"
-          }
-        ],
-        "equal_segments": [
-          [
-            "B:C",
-            "B:F",
-            "B:H"
-          ]
-        ],
-        "length_labels": [],
-        "parallel": [],
-        "right_angles": []
-      },
-      "points": [
-        {
-          "id": "A",
-          "label_dx": 30,
-          "label_dy": 0,
-          "x": 817.15,
-          "y": 473.15
-        },
-        {
-          "id": "B",
-          "label_dx": -11.48,
-          "label_dy": -27.72,
-          "x": 556.44,
-          "y": 156.49
-        },
-        {
-          "id": "C",
-          "label_dx": -27.72,
-          "label_dy": -11.48,
-          "x": 193.57,
-          "y": 252.98
-        },
-        {
-          "id": "D",
-          "label_dx": -21.21,
-          "label_dy": 21.21,
-          "x": 80.68,
-          "y": 690
-        },
-        {
-          "id": "F",
-          "label_dx": 11.48,
-          "label_dy": 27.72,
-          "x": 663.64,
-          "y": 516.35
-        },
-        {
-          "id": "G",
-          "label_dx": -11.48,
-          "label_dy": -27.72,
-          "x": 186.71,
-          "y": 91.04
-        },
-        {
-          "id": "H",
-          "label_dx": 21.21,
-          "label_dy": -21.21,
-          "x": 919.32,
-          "y": 60
-        }
-      ],
-      "regions": [],
-      "segments": [
-        [
-          "A",
-          "B"
-        ],
-        [
-          "A",
-          "D"
-        ],
-        [
-          "B",
-          "C"
-        ],
-        [
-          "B",
-          "F"
-        ],
-        [
-          "B",
-          "H"
-        ],
-        [
-          "C",
-          "D"
-        ],
-        [
-          "C",
-          "F"
-        ],
-        [
-          "C",
-          "H"
-        ],
-        [
-          "F",
-          "H"
-        ]
-      ]
-    },
-    "given": [
-      {
-        "display": "B, C and H are collinear",
-        "fact": "coll:b:c:h",
-        "form": "relation",
-        "highlights": [
-          "point:B",
-          "point:C",
-          "point:H"
-        ]
-      },
-      {
-        "display": "BC = BF",
-        "fact": "cong:b:c:b:f",
-        "form": "relation",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:F"
-        ]
-      },
-      {
-        "display": "BC = BH",
-        "fact": "cong:b:c:b:h",
-        "form": "relation",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:H"
-        ]
-      }
-    ],
-    "goal": {
-      "answer": {
-        "approx": 90,
-        "display": "90°",
-        "exact": "90"
-      },
-      "fact": "aconst:c:f:f:h=1/2",
-      "input": {
-        "exactness": "integer",
-        "mode": "keypad",
-        "tolerance": null,
-        "unit": "deg"
-      },
-      "quantity": {
-        "at": [
-          "C",
-          "F",
-          "H"
-        ],
-        "kind": "angle"
-      },
-      "question": "∠CFH"
-    },
-    "id": "gf-000042000017-0",
-    "quantity_type": "angle",
-    "schema_version": "2.0",
-    "solution": [
-      {
-        "derives": "eqangle:b:c:c:f:c:f:b:f",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:F",
-          "angle:B:C:F",
-          "angle:C:F:B"
-        ],
-        "rule": "isosceles_base_angles",
-        "step": 1,
-        "text": "BC = BF, so the base angles are equal: ∠BCF = ∠CFB."
-      },
-      {
-        "derives": "eqangle:b:f:f:h:f:h:b:h",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:F",
-          "seg:B:H",
-          "angle:B:F:H",
-          "angle:F:H:B"
-        ],
-        "rule": "isosceles_base_angles",
-        "step": 2,
-        "text": "BC = BF and BC = BH, so the base angles are equal: ∠BFH = ∠FHB."
-      },
-      {
-        "derives": "aconst:c:f:f:h=1/2",
-        "highlights": [
-          "angle:B:C:F",
-          "angle:C:F:B",
-          "angle:B:F:H",
-          "angle:F:H:B",
-          "angle:C:F:H"
-        ],
-        "rule": "combine",
-        "step": 3,
-        "text": "Combining ∠BCF = ∠CFB and ∠BFH = ∠FHB, we get ∠CFH = 90°."
-      }
-    ]
-  },
-  {
-    "difficulty": {
-      "band": "easy",
-      "depth": 4,
-      "distinct_rules": 5
-    },
-    "figure": {
-      "circles": [],
-      "marks": {
-        "angle_arcs": [
-          {
-            "at": [
-              "C",
-              "G",
-              "H"
-            ],
-            "kind": "goal",
-            "label": "?"
-          }
-        ],
-        "equal_segments": [
-          [
-            "B:C",
-            "B:G",
-            "B:H"
-          ]
-        ],
-        "length_labels": [],
-        "parallel": [],
-        "right_angles": []
-      },
-      "points": [
-        {
-          "id": "A",
-          "label_dx": 27.72,
-          "label_dy": 11.48,
-          "x": 817.15,
-          "y": 473.15
-        },
-        {
-          "id": "B",
-          "label_dx": 0,
-          "label_dy": -30,
-          "x": 556.44,
-          "y": 156.49
-        },
-        {
-          "id": "C",
-          "label_dx": -30,
-          "label_dy": 0,
-          "x": 193.57,
-          "y": 252.98
-        },
-        {
-          "id": "D",
-          "label_dx": -11.48,
-          "label_dy": 27.72,
-          "x": 80.68,
-          "y": 690
-        },
-        {
-          "id": "F",
-          "label_dx": -11.48,
-          "label_dy": -27.72,
-          "x": 663.64,
-          "y": 516.35
-        },
-        {
-          "id": "G",
-          "label_dx": -11.48,
-          "label_dy": -27.72,
-          "x": 186.71,
-          "y": 91.04
-        },
-        {
-          "id": "H",
-          "label_dx": 21.21,
-          "label_dy": -21.21,
-          "x": 919.32,
-          "y": 60
-        }
-      ],
-      "regions": [],
-      "segments": [
-        [
-          "A",
-          "B"
-        ],
-        [
-          "A",
-          "D"
-        ],
-        [
-          "B",
-          "C"
-        ],
-        [
-          "B",
-          "G"
-        ],
-        [
-          "B",
-          "H"
-        ],
-        [
-          "C",
-          "D"
-        ],
-        [
-          "C",
-          "G"
-        ],
-        [
-          "C",
-          "H"
-        ],
-        [
-          "G",
-          "H"
-        ]
-      ]
-    },
-    "given": [
-      {
-        "display": "B, C and H are collinear",
-        "fact": "coll:b:c:h",
-        "form": "relation",
-        "highlights": [
-          "point:B",
-          "point:C",
-          "point:H"
-        ]
-      },
-      {
-        "display": "BC = BG",
-        "fact": "cong:b:c:b:g",
-        "form": "relation",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:G"
-        ]
-      },
-      {
-        "display": "BC = BH",
-        "fact": "cong:b:c:b:h",
-        "form": "relation",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:H"
-        ]
-      }
-    ],
-    "goal": {
-      "answer": {
-        "approx": 90,
-        "display": "90°",
-        "exact": "90"
-      },
-      "fact": "aconst:c:g:g:h=1/2",
-      "input": {
-        "exactness": "integer",
-        "mode": "keypad",
-        "tolerance": null,
-        "unit": "deg"
-      },
-      "quantity": {
-        "at": [
-          "C",
-          "G",
-          "H"
-        ],
-        "kind": "angle"
-      },
-      "question": "∠CGH"
-    },
-    "id": "gf-000042000017-1",
-    "quantity_type": "angle",
-    "schema_version": "2.0",
-    "solution": [
-      {
-        "derives": "eqangle:b:c:c:g:c:g:b:g",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:G",
-          "angle:B:C:G",
-          "angle:C:G:B"
-        ],
-        "rule": "isosceles_base_angles",
-        "step": 1,
-        "text": "BC = BG, so the base angles are equal: ∠BCG = ∠CGB."
-      },
-      {
-        "derives": "eqangle:b:g:g:h:g:h:b:h",
-        "highlights": [
-          "seg:B:C",
-          "seg:B:G",
-          "seg:B:H",
-          "angle:B:G:H",
-          "angle:G:H:B"
-        ],
-        "rule": "isosceles_base_angles",
-        "step": 2,
-        "text": "BC = BG and BC = BH, so the base angles are equal: ∠BGH = ∠GHB."
-      },
-      {
-        "derives": "aconst:c:g:g:h=1/2",
-        "highlights": [
-          "angle:B:C:G",
-          "angle:C:G:B",
-          "angle:B:G:H",
-          "angle:G:H:B",
-          "angle:C:G:H"
-        ],
-        "rule": "combine",
-        "step": 3,
-        "text": "Combining ∠BCG = ∠CGB and ∠BGH = ∠GHB, we get ∠CGH = 90°."
-      }
-    ]
-  },
-  {
-    "difficulty": {
-      "band": "easy",
-      "depth": 4,
-      "distinct_rules": 4
+      "distinct_rules": 4,
+      "score": 0.836
     },
     "figure": {
       "circles": [],
@@ -592,6 +155,334 @@
         "rule": "combine",
         "step": 2,
         "text": "Combining ∠CAD = ∠ADC and ∠ACD = 90°, we get ∠CDA = 45°."
+      }
+    ]
+  },
+  {
+    "difficulty": {
+      "band": "easy",
+      "depth": 4,
+      "distinct_rules": 4,
+      "score": 0.836
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "D",
+              "A",
+              "C"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [
+          [
+            "A:C",
+            "C:D"
+          ]
+        ],
+        "length_labels": [],
+        "parallel": [],
+        "right_angles": [
+          "angle:A:C:D"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": 21.21,
+          "label_dy": -21.21,
+          "x": 842.04,
+          "y": 60
+        },
+        {
+          "id": "B",
+          "label_dx": -21.21,
+          "label_dy": -21.21,
+          "x": 157.96,
+          "y": 64.3
+        },
+        {
+          "id": "C",
+          "label_dx": 21.21,
+          "label_dy": 21.21,
+          "x": 822.08,
+          "y": 690
+        },
+        {
+          "id": "D",
+          "label_dx": -21.21,
+          "label_dy": 21.21,
+          "x": 192.08,
+          "y": 670.05
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "C",
+          "D"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "AC = CD",
+        "fact": "cong:a:c:c:d",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D"
+        ]
+      },
+      {
+        "display": "∠ACD = 90°",
+        "fact": "perp:a:c:c:d",
+        "form": "relation",
+        "highlights": [
+          "angle:A:C:D"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 45,
+        "display": "45°",
+        "exact": "45"
+      },
+      "fact": "aconst:a:d:a:c=1/4",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "D",
+          "A",
+          "C"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠DAC"
+    },
+    "id": "gf-000042000073-1",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:c:a:d:a:d:c:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D",
+          "angle:C:A:D",
+          "angle:A:D:C"
+        ],
+        "rule": "isosceles_base_angles",
+        "step": 1,
+        "text": "AC = CD, so the base angles are equal: ∠CAD = ∠ADC."
+      },
+      {
+        "derives": "aconst:a:d:a:c=1/4",
+        "highlights": [
+          "angle:C:A:D",
+          "angle:A:D:C",
+          "angle:A:C:D",
+          "angle:D:A:C"
+        ],
+        "rule": "combine",
+        "step": 2,
+        "text": "Combining ∠CAD = ∠ADC and ∠ACD = 90°, we get ∠DAC = 45°."
+      }
+    ]
+  },
+  {
+    "difficulty": {
+      "band": "easy",
+      "depth": 4,
+      "distinct_rules": 5,
+      "score": 1.677
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "C",
+              "B",
+              "E"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [
+          [
+            "A:B",
+            "A:E"
+          ]
+        ],
+        "length_labels": [],
+        "parallel": [],
+        "right_angles": [
+          "angle:B:A:E"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": -11.48,
+          "label_dy": -27.72,
+          "x": 519.72,
+          "y": 294.9
+        },
+        {
+          "id": "B",
+          "label_dx": 21.21,
+          "label_dy": -21.21,
+          "x": 914.82,
+          "y": 60
+        },
+        {
+          "id": "C",
+          "label_dx": -27.72,
+          "label_dy": 11.48,
+          "x": 85.18,
+          "y": 553.24
+        },
+        {
+          "id": "E",
+          "label_dx": 11.48,
+          "label_dy": 27.72,
+          "x": 754.62,
+          "y": 690
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "E"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "B",
+          "E"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "A, B and C are collinear",
+        "fact": "coll:a:b:c",
+        "form": "relation",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:C"
+        ]
+      },
+      {
+        "display": "AB = AE",
+        "fact": "cong:a:b:a:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:B",
+          "seg:A:E"
+        ]
+      },
+      {
+        "display": "∠BAE = 90°",
+        "fact": "perp:a:b:a:e",
+        "form": "relation",
+        "highlights": [
+          "angle:B:A:E"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 45,
+        "display": "45°",
+        "exact": "45"
+      },
+      "fact": "aconst:b:c:b:e=1/4",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "C",
+          "B",
+          "E"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠CBE"
+    },
+    "id": "gf-000042000122-0",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:b:b:e:b:e:a:e",
+        "highlights": [
+          "seg:A:B",
+          "seg:A:E",
+          "angle:A:B:E",
+          "angle:B:E:A"
+        ],
+        "rule": "isosceles_base_angles",
+        "step": 1,
+        "text": "AB = AE, so the base angles are equal: ∠ABE = ∠BEA."
+      },
+      {
+        "derives": "aconst:b:c:b:e=1/4",
+        "highlights": [
+          "angle:A:B:E",
+          "angle:B:E:A",
+          "angle:B:A:E",
+          "angle:C:B:E"
+        ],
+        "rule": "combine",
+        "step": 2,
+        "text": "Combining ∠ABE = ∠BEA and ∠BAE = 90°, we get ∠CBE = 45°."
       }
     ]
   }

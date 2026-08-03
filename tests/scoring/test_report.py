@@ -67,7 +67,7 @@ class TestSpotCheck:
         assert bands == {"easy", "medium", "hard"}
 
     def test_it_carries_the_evidence_behind_the_band(self) -> None:
-        """"Record the perceived band" needs the features on the page; otherwise disagreeing
+        """ "Record the perceived band" needs the features on the page; otherwise disagreeing
         with a band means re-deriving it by hand."""
         row = spot_check(corpus(), 30, seed=7)[0]
         for key in ("score", "depth", "distinct_rules", "tier_max", "branch_join", "elegance"):
@@ -89,7 +89,7 @@ class TestDistribution:
         assert distribution(corpus())["empty_bands"] == ["expert"]
 
     def test_it_says_how_far_the_best_puzzle_is_from_the_cut_it_missed(self) -> None:
-        """"One point short" and "four points short" call for opposite responses."""
+        """ "One point short" and "four points short" call for opposite responses."""
         headroom = distribution(corpus())["headroom_to_next_cut"]
         assert headroom == {"expert": 1.5}
 

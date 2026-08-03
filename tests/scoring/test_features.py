@@ -65,9 +65,7 @@ class TestAgainstTheCorpus:
         forced the monotony filter to count geometric steps — a rule in every single puzzle
         measures how often the engine did arithmetic, not whether a solution is repetitive."""
         with_algebra = sum(
-            1
-            for c in candidates
-            if any(s.rule in ALGEBRAIC for s in c.translation.steps)
+            1 for c in candidates if any(s.rule in ALGEBRAIC for s in c.translation.steps)
         )
         assert with_algebra == len(candidates)
 
@@ -112,9 +110,7 @@ class TestMeasuredConstants:
     nothing moves.
     """
 
-    def test_goal_given_distance_is_always_zero(
-        self, candidates: list[CandidatePuzzle]
-    ) -> None:
+    def test_goal_given_distance_is_always_zero(self, candidates: list[CandidatePuzzle]) -> None:
         """Cause: figures run 3-8 points and the premises name nearly all of them, so the goal's
         points are always among the givens' points. The feature discriminates on larger figures
         and is kept for them (docs/05 §5.3)."""
@@ -129,9 +125,7 @@ class TestMeasuredConstants:
         tell puzzles apart. It is the same plumbing gap, seen from the other end."""
         assert len({c.features.nice_penalty for c in candidates}) == 1
 
-    def test_no_answer_is_telegraphed_by_a_given(
-        self, candidates: list[CandidatePuzzle]
-    ) -> None:
+    def test_no_answer_is_telegraphed_by_a_given(self, candidates: list[CandidatePuzzle]) -> None:
         """The discriminating half of the penalty. Zero hits, and Stage 5's `already_given`
         rejection is why — but that one compares *facts*, and this compares *values*, so they
         are not the same check and this one is worth keeping."""
@@ -150,9 +144,7 @@ class TestBranchJoins:
         for candidate in candidates:
             assert 0 <= candidate.features.branch_join <= candidate.features.width
 
-    def test_the_corpus_actually_contains_joins(
-        self, candidates: list[CandidatePuzzle]
-    ) -> None:
+    def test_the_corpus_actually_contains_joins(self, candidates: list[CandidatePuzzle]) -> None:
         """A feature that is always zero is a weight doing nothing. MEASURED: 41 of 105 puzzles
         have at least one join, up to 5."""
         assert max(c.features.branch_join for c in candidates) > 0
