@@ -26,7 +26,7 @@ from geoforge.generator.batch import (
 )
 from geoforge.generator.sampler import sample_construction
 from geoforge.generator.translation.phrases import describe
-from geoforge.scoring.bands import BAND_ORDER
+from geoforge.scoring.score import BAND_ORDER
 from geoforge.solvers.types import fact_from_id
 from tests.translation.test_phrases import HIGHLIGHT_GRAMMAR
 

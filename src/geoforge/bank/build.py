@@ -34,7 +34,7 @@ from geoforge.config import BANK, SOLVER, VALIDATION
 from geoforge.generator.batch import generator_version, run
 from geoforge.generator.emit import assemble
 from geoforge.generator.translation.phrases import angle_of
-from geoforge.scoring.bands import BAND_ORDER
+from geoforge.scoring.score import BAND_ORDER
 from geoforge.solvers.interface import SolverBackend, get_backend
 
 #: What a shippable bank still needs (docs/09 P2). Named rather than implied, so the manifest

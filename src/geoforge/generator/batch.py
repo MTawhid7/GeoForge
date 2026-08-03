@@ -47,7 +47,10 @@ from geoforge.generator.translation import (
 from geoforge.generator.translation.phrases import angle_of
 from geoforge.generator.translation.vertex_angles import VertexAngle
 from geoforge.schema import SchemaError
-from geoforge.scoring.bands import band_for_depth
+from geoforge.scoring import filters
+from geoforge.scoring.features import Features, measure
+from geoforge.scoring.filters import UnusedGivenBug
+from geoforge.scoring.score import Score, score
 from geoforge.solvers.interface import SolverBackend, get_backend
 from geoforge.solvers.types import Fact, SolveOptions
 
@@ -60,6 +63,7 @@ STAGES = (
     "traceback",
     "translate",
     "wellposed",
+    "score",
     "emit",
 )
 
@@ -89,6 +93,13 @@ class CandidatePuzzle:
     pruned: Construction
     """The pruned construction — the figure actually drawn. Scoring's elegance denominator."""
     seed: int
+    features: Features
+    """The docs/05 §5.1 measurements. In memory only; `difficulty.score` is what ships."""
+    scored: Score
+    full_depth: int = 0
+    """Depth of the *whole* solve before minimization. Interestingness reads it: a much longer
+    alternate derivation existing in the full DAG means the published short path is an insight
+    (docs/05 §5.3)."""
 
     def to_json(self) -> dict[str, object]:
         return self.puzzle.to_json()
@@ -113,6 +124,10 @@ class CandidatePuzzle:
     @property
     def distinct_rules(self) -> int:
         return self.puzzle.difficulty.distinct_rules
+
+    @property
+    def score(self) -> float:
+        return self.scored.value
 
     @property
     def premises(self) -> tuple[str, ...]:
@@ -165,6 +180,10 @@ class BatchReport:
     """Puzzles whose stated facts do not pin the answer. Ordinary attrition — the well-posedness
     gate catching exactly what it exists to catch (docs/07 T13) — but kept for analysis, because a
     rising rate means the sampler is producing figures whose configuration we cannot express."""
+    bugs: list[str] = field(default_factory=list)
+    """docs/05 §5.2 filter 5 hits: a stated given the minimal solution never uses. Not attrition
+    — minimization and the sub-DAG disagreeing about what the proof needs means one of them is
+    wrong. A run that collects one exits non-zero."""
     constructions: int = 0
     wall_seconds: float = 0.0
 
@@ -189,6 +208,7 @@ class BatchReport:
             "constructions": self.constructions,
             "puzzles": len(self.puzzles),
             "soundness_failures": len(self.soundness_failures),
+            "unused_given_bugs": len(self.bugs),
             "underdetermined": len(self.underdetermined),
             "by_band": self.by_band(),
             "attrition_by_stage": self.by_stage(),
@@ -332,6 +352,28 @@ def _run_one(
                     target.append(wp.reproduction)
                 continue
 
+        # Pruning happens before scoring rather than inside assembly: the pruned construction is
+        # the figure the player sees, so it is what docs/05's figure-complexity filter and the
+        # elegance denominator must both be measured over.
+        pruned = _prune(construction, derivation, translation)
+        features = measure(derivation, translation, pruned)
+
+        # docs/05 §5.2 filter 5. A bug report, not a discard: the run records it and exits
+        # non-zero rather than losing it in an attrition line.
+        try:
+            filters.assert_every_given_is_used(derivation)
+        except UnusedGivenBug as bug:
+            report.bugs.append(str(bug))
+            continue
+
+        filtered = filters.check(features)
+        if not filtered.ok:
+            for rejection in filtered.rejections:
+                report.discards.append(
+                    Discard("score", str(rejection), case_seed, goal.fact.fact_id)
+                )
+            continue
+
         # Assembly is a gate, not just a formatter: the schema refuses a figure whose marks
         # assert something the givens do not, including the case where a mark states the
         # answer outright. Those are attrition with a named reason rather than a crash — but
@@ -340,7 +382,6 @@ def _run_one(
         try:
             report.puzzles.append(
                 _emit(
-                    construction,
                     derivation,
                     translation,
                     goal,
@@ -349,6 +390,10 @@ def _run_one(
                     figure.declared,
                     case_seed,
                     goal_index,
+                    construction,
+                    pruned,
+                    features,
+                    score(features),
                 )
             )
         except SchemaError as exc:
@@ -375,8 +420,21 @@ def _emit_reason(exc: SchemaError) -> str:
     return "schema_error"
 
 
+def _prune(
+    construction: Construction, derivation: Derivation, translation: Translation
+) -> Construction:
+    """The figure actually drawn.
+
+    Takes the union of what the derivation needs and what the *solution steps highlight* — a
+    step may name a segment its premises only imply (docs/04 Stage 6).
+    """
+    pruning = prune_figure(
+        construction, derivation.needed_points() | translation.highlighted_points()
+    )
+    return pruning.construction(construction)
+
+
 def _emit(
-    construction: Construction,
     derivation: Derivation,
     translation: Translation,
     goal: ExtractedGoal,
@@ -385,16 +443,12 @@ def _emit(
     declared: tuple[Fact, ...],
     case_seed: int,
     goal_index: int,
+    construction: Construction,
+    pruned: Construction,
+    features: Features,
+    scored: Score,
 ) -> CandidatePuzzle:
-    """Stage 9: assemble the candidate puzzle.
-
-    Pruning takes the union of what the derivation needs and what the *solution steps highlight* —
-    a step may name a segment its premises only imply (docs/04 Stage 6).
-    """
-    pruning = prune_figure(
-        construction, derivation.needed_points() | translation.highlighted_points()
-    )
-    pruned = pruning.construction(construction)
+    """Stage 9: assemble the candidate puzzle."""
     drawn = set(pruned.points)
     depth = derivation.depth
     puzzle = assemble(
@@ -410,13 +464,14 @@ def _emit(
         goal_angle=angle,
         reference_coords={p: xy for p, xy in coords.items() if p in drawn},
         difficulty=schema.Difficulty(
-            band=band_for_depth(depth),
+            band=scored.band,
             depth=depth,
             # Both difficulty features must read the same graph: the minimal derivation. Taking
             # `goal.distinct_rules` here would publish a count over the *whole* solve beside a
             # depth over the sub-DAG, so a puzzle would advertise conceptual variety its own
             # solution never shows (docs/05 §5.1).
             distinct_rules=derivation.distinct_rules,
+            score=scored.value,
         ),
         declared=declared,
         provenance={
@@ -433,6 +488,9 @@ def _emit(
         translation=translation,
         pruned=pruned,
         seed=case_seed,
+        features=features,
+        scored=scored,
+        full_depth=goal.depth,
     )
 
 
@@ -484,11 +542,14 @@ def main(argv: list[str] | None = None) -> int:
         print(case, file=sys.stderr)
     for case in disagreements:
         print(f"CROSS-ENGINE DISAGREEMENT {case}", file=sys.stderr)
+    for bug in report.bugs:
+        print(f"UNUSED GIVEN {bug}", file=sys.stderr)
 
     # A soundness failure fails the run: docs/09 P1 requires zero across 1,000 constructions.
     # So does a cross-engine disagreement: two engines differing means one of them is wrong,
-    # and we cannot tell which (docs/04 §V).
-    return 1 if report.soundness_failures or disagreements else 0
+    # and we cannot tell which (docs/04 §V). So does an unused given: docs/05 §5.2 filter 5
+    # calls it a bug report, and a bug report nobody is forced to read is a log line.
+    return 1 if report.soundness_failures or disagreements or report.bugs else 0
 
 
 if __name__ == "__main__":

@@ -206,17 +206,150 @@ class ValidationConfig:
 
 
 @dataclass(frozen=True)
-class BandingConfig:
-    """PROVISIONAL depth-only banding (Phase 1 only).
+class ScoringConfig:
+    """The docs/05 §5.1 difficulty model.
 
-    The real multi-feature scorer is Phase 2 (docs/05 §5.1). This exists solely to satisfy the
-    Phase 1 acceptance criterion of '>= 2 bands' and must be replaced, not extended.
+    Every feature is normalized over a *useful range* rather than over [0, cap]: the shippable
+    corpus occupies a narrow slice of each feature's arithmetic range (depth is 3-7, never 0-10),
+    and dividing by the arithmetic range would squash every real puzzle into the bottom fifth of
+    the scale. `lo` is the value at which a puzzle is barely a puzzle — usually the hard filter's
+    own floor — and `hi` is where more stops meaning harder.
+
+    MEASURED over 1,200 constructions at seed 42 (118 puzzles): depth 3-7 (median 4), width
+    3-14 (median 4), distinct_rules 3-8 (median 4), branch joins 0-5 (median 0, 64 of 118 have
+    none). The weights are GUESSes; the ranges are not.
     """
 
-    depth_thresholds: dict[str, int] = field(
-        default_factory=lambda: {"easy": 3, "medium": 5, "hard": 7, "expert": 9}
+    weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "depth": 0.30,
+            "distinct_rules": 0.18,
+            "branch_join": 0.18,
+            "tier_max": 0.14,
+            "tier_mix": 0.10,
+            "width": 0.10,
+        }
     )
-    """GUESS: lower bound on minimal-proof depth for each band."""
+    """GUESS. They sum to 1, so the weighted sum is in [0, 1] before scaling — which is what
+    makes `nice_penalty` expressible as a fraction of the whole scale rather than as a magic
+    number of points. docs/05 says depth is primary and the weights are not the stable contract;
+    the feature structure is. Retune against a spot check, citing the batch."""
+
+    ranges: dict[str, tuple[float, float]] = field(
+        default_factory=lambda: {
+            "depth": (3.0, 10.0),
+            "distinct_rules": (2.0, 8.0),
+            "branch_join": (0.0, 4.0),
+            "tier_max": (1.0, 4.0),
+            "tier_mix": (1.0, 4.0),
+            "width": (3.0, 14.0),
+        }
+    )
+    """(lo, hi) per feature. `lo` matches the corresponding hard filter where one exists, so a
+    puzzle that only just survives filtering scores near zero on that feature rather than
+    collecting points for clearing a bar it was required to clear."""
+
+    nice_penalty_weight: float = 0.15
+    """GUESS: the most a puzzle can lose for being telegraphed — 1.5 points of 10. Subtractive
+    per docs/05 §5.1; enough to move a puzzle down a band, not enough to erase a deep proof."""
+
+    scale: float = 10.0
+    """docs/05 §5.1: the score is reported 0-10."""
+
+    round_answer_degrees: frozenset[int] = field(
+        default_factory=lambda: frozenset({30, 45, 60, 90, 120, 135, 150})
+    )
+    """MEASURED: 45 deg is the answer of 80 of 118 puzzles and 90 deg of 26 — together 90% of
+    the corpus. docs/05's "90/60 everywhere" is real and much stronger than the doc implies,
+    which is why `nice_penalty` charges for it rather than treating it as flavour."""
+
+
+@dataclass(frozen=True)
+class BandingConfig:
+    """Score-to-band cuts (docs/05 §5.1)."""
+
+    cuts: dict[str, float] = field(
+        default_factory=lambda: {"easy": 0.0, "medium": 3.0, "hard": 5.5, "expert": 7.5}
+    )
+    """DOC docs/05 §5.1: easy [0,3) medium [3,5.5) hard [5.5,7.5) expert [7.5,10]. Lower bound
+    per band; the bands must tile [0, scale] with no gap, which `TestBandsTile` asserts."""
+
+
+@dataclass(frozen=True)
+class FilterConfig:
+    """docs/05 §5.2 hard rejection filters. Any hit discards the puzzle."""
+
+    min_depth: int = 3
+    min_distinct_rules: int = 2
+    """DOC docs/05 §5.2 filter 1, over the *minimal sub-DAG*. The same numbers run at Stage 5
+    over the whole solve as a cheap pre-filter; the two are not ordered (docs/05 §5.2)."""
+
+    min_geometric_steps: int = 1
+    """docs/05 §5.2 filter 2, in the form the corpus actually produces. A solution made only of
+    algebraic combination steps is the "read it off the picture" puzzle the doc describes:
+    MEASURED, all 4 such puzzles in 118 are a single `combine` sentence at depth 3."""
+
+    max_rule_share: float = 0.6
+    min_steps_for_share: int = 3
+    """docs/05 §5.2 filter 3, "one rule > 60% of applications". Two calibrations, both MEASURED
+    over the same 118 puzzles, because the doc's wording admits three readings and they differ
+    by two orders of magnitude:
+
+      * over machine steps of the sub-DAG, the observed maximum share is 0.50 — the filter
+        **never fires**, at any threshold the doc could have meant;
+      * over published steps counting the algebraic idiom, it rejects 11 (9.3%) — but `combine`
+        appears in 118 of 118 puzzles, so that number measures how often the engine did
+        arithmetic;
+      * over published *geometric* steps, which is what a reader experiences as repetition, it
+        rejects 8 (6.8%) at 0.6, 2 at 0.7 and 0 at 0.75.
+
+    So: geometric published steps, threshold 0.6. `min_steps_for_share` exists because a share
+    over one or two steps is not evidence of anything — 66 of 118 solutions have exactly one
+    geometric step, and rejecting them for "100% one rule" would delete more than half the
+    corpus for a ratio with no denominator."""
+
+    min_points: int = 4
+    max_points: int = 12
+    max_circles: int = 2
+    """DOC docs/05 §5.2 filter 4 (v1 readability). MEASURED: points run 3-8, so only the lower
+    bound binds and it rejects 1 of 118."""
+
+
+@dataclass(frozen=True)
+class InterestConfig:
+    """docs/05 §5.3 interestingness. Soft: ranks within a band, never rejects on its own."""
+
+    keep_rate: dict[str, float] = field(
+        default_factory=lambda: {"easy": 0.5, "medium": 0.8, "hard": 0.9, "expert": 1.0}
+    )
+    """Per band, deviating from docs/05's flat 40% — recorded in the doc, not applied silently.
+    The flat rate assumes every band is oversupplied. MEASURED at seed 42 the upper bands are
+    filter-limited, not interest-limited, so discarding 60% of expert output would shrink the
+    band the roadmap already flags as thin (docs/07 T10) to nothing. Easy is where the surplus
+    actually is."""
+
+    elegance_floor: float = 0.0
+    """The elegance ratio is a ranking signal, not a gate (docs/05 §5.3: "soft score"). Kept as
+    a config value so the decision to leave it open is visible rather than absent."""
+
+    weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "elegance": 1.0,
+            "insight": 0.3,
+            "goal_given_distance": 0.3,
+            "tier_mix": 0.2,
+            "clutter": -0.3,
+        }
+    )
+    """GUESS. docs/05 §5.3 names elegance as the primary signal and the rest as adjustments,
+    which is what these magnitudes say.
+
+    Two of them are MEASURED to be constant on current output and therefore contribute nothing
+    to the *ranking*, which is all interest is used for: `goal_given_distance` is 0 for all 105
+    puzzles (with 4-8 points every premise touches the goal's points, so there is nowhere for
+    the argument to travel), and `insight` is 0 for all but 2. They are kept rather than deleted
+    because both discriminate on larger figures and both are docs/05 §5.3 terms; the zero is
+    recorded here so nobody reads their presence as evidence they are doing something."""
 
 
 @dataclass(frozen=True)
@@ -344,7 +477,10 @@ MINIMIZATION = MinimizationConfig()
 WELLPOSED = WellPosedConfig()
 TRANSLATION = TranslationConfig()
 VALIDATION = ValidationConfig()
+SCORING = ScoringConfig()
 BANDING = BandingConfig()
+FILTERS = FilterConfig()
+INTEREST = InterestConfig()
 SCHEMA = SchemaConfig()
 LAYOUT = LayoutConfig()
 BANK = BankConfig()
