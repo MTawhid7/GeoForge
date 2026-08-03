@@ -1,0 +1,982 @@
+[
+  {
+    "difficulty": {
+      "band": "expert",
+      "depth": 10,
+      "distinct_rules": 7
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "D",
+              "B",
+              "E"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [
+          [
+            "A:C",
+            "C:D"
+          ]
+        ],
+        "length_labels": [],
+        "parallel": [],
+        "right_angles": [
+          "angle:B:A:C"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": 21.21,
+          "label_dy": -21.21,
+          "x": 849.93,
+          "y": 270.21
+        },
+        {
+          "id": "B",
+          "label_dx": 27.72,
+          "label_dy": 11.48,
+          "x": 919.79,
+          "y": 620.14
+        },
+        {
+          "id": "C",
+          "label_dx": -21.21,
+          "label_dy": 21.21,
+          "x": 500,
+          "y": 340.07
+        },
+        {
+          "id": "D",
+          "label_dx": -11.48,
+          "label_dy": 27.72,
+          "x": 569.86,
+          "y": 690
+        },
+        {
+          "id": "E",
+          "label_dx": -21.21,
+          "label_dy": -21.21,
+          "x": 80.21,
+          "y": 60
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "B",
+          "D"
+        ],
+        [
+          "B",
+          "E"
+        ],
+        [
+          "C",
+          "D"
+        ],
+        [
+          "C",
+          "E"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "B, C and E are collinear",
+        "fact": "coll:b:c:e",
+        "form": "relation",
+        "highlights": [
+          "point:B",
+          "point:C",
+          "point:E"
+        ]
+      },
+      {
+        "display": "AC = CD",
+        "fact": "cong:a:c:c:d",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D"
+        ]
+      },
+      {
+        "display": "∠ABC = ∠BCA",
+        "fact": "eqangle:a:b:b:c:b:c:a:c",
+        "form": "relation",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A"
+        ]
+      },
+      {
+        "display": "∠BAC = 90°",
+        "fact": "perp:a:b:a:c",
+        "form": "relation",
+        "highlights": [
+          "angle:B:A:C"
+        ]
+      },
+      {
+        "display": "AD ⊥ BC",
+        "fact": "perp:a:d:b:c",
+        "form": "relation",
+        "highlights": [
+          "seg:A:D",
+          "seg:B:C"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 45,
+        "display": "45°",
+        "exact": "45"
+      },
+      "fact": "aconst:b:d:b:e=1/4",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "D",
+          "B",
+          "E"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠DBE"
+    },
+    "id": "gf-000042001235-0",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:b:a:d:b:c:a:b",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:B:A:C",
+          "seg:A:D",
+          "seg:B:C",
+          "angle:B:A:D",
+          "angle:C:B:A"
+        ],
+        "rule": "combine",
+        "step": 1,
+        "text": "Combining ∠ABC = ∠BCA, ∠BAC = 90° and AD ⊥ BC, we get ∠BAD = ∠CBA."
+      },
+      {
+        "derives": "eqangle:a:c:a:d:a:d:c:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D",
+          "angle:C:A:D",
+          "angle:A:D:C"
+        ],
+        "rule": "isosceles_base_angles",
+        "step": 2,
+        "text": "AC = CD, so the base angles are equal: ∠CAD = ∠ADC."
+      },
+      {
+        "derives": "eqangle:a:b:a:c:a:c:c:d",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:C:A:D",
+          "angle:A:D:C",
+          "angle:B:A:C",
+          "seg:A:D",
+          "seg:B:C",
+          "angle:A:C:D"
+        ],
+        "rule": "combine",
+        "step": 3,
+        "text": "Combining ∠ABC = ∠BCA, ∠CAD = ∠ADC, ∠BAC = 90° and AD ⊥ BC, we get ∠BAC = ∠ACD."
+      },
+      {
+        "derives": "eqangle:a:c:b:c:c:d:a:d",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:C:A:D",
+          "angle:A:D:C",
+          "angle:B:A:C",
+          "seg:A:D",
+          "seg:B:C",
+          "angle:A:C:B",
+          "angle:C:D:A"
+        ],
+        "rule": "combine",
+        "step": 4,
+        "text": "Combining ∠ABC = ∠BCA, ∠CAD = ∠ADC, ∠BAC = 90° and AD ⊥ BC, we get ∠ACB = ∠CDA."
+      },
+      {
+        "derives": "simtri:a:b:c:c:a:d",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:A:C:D",
+          "angle:A:C:B",
+          "angle:C:D:A",
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D"
+        ],
+        "rule": "aa_similarity",
+        "step": 5,
+        "text": "∠BAC = ∠ACD and ∠ACB = ∠CDA, so triangles ABC and CAD are similar (two pairs of equal angles)."
+      },
+      {
+        "derives": "eqratio:a:c:b:c:c:d:a:d",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D",
+          "seg:A:C",
+          "seg:B:C",
+          "seg:C:D",
+          "seg:A:D"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 6,
+        "text": "Since triangles ABC and CAD are similar, corresponding parts give AC : BC = CD : AD."
+      },
+      {
+        "derives": "simtrir:a:b:c:b:a:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D",
+          "angle:B:A:D",
+          "angle:C:B:A",
+          "seg:B:C",
+          "seg:A:D",
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D"
+        ],
+        "rule": "sas_similarity",
+        "step": 7,
+        "text": "AC = CD, ∠BAD = ∠CBA and AC : BC = CD : AD, so triangles ABC and BAD are similar (two sides in ratio with equal included angles)."
+      },
+      {
+        "derives": "eqangle:a:b:a:c:b:d:a:b",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D",
+          "angle:B:A:C",
+          "angle:D:B:A"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 8,
+        "text": "Since triangles ABC and BAD are similar, corresponding parts give ∠BAC = ∠DBA."
+      },
+      {
+        "derives": "aconst:b:d:b:e=1/4",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:D:B:A",
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:D:B:E"
+        ],
+        "rule": "combine",
+        "step": 9,
+        "text": "Combining ∠BAC = ∠DBA, ∠ABC = ∠BCA and ∠BAC = 90°, we get ∠DBE = 45°."
+      }
+    ]
+  },
+  {
+    "difficulty": {
+      "band": "expert",
+      "depth": 10,
+      "distinct_rules": 6
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "A",
+              "B",
+              "D"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [
+          [
+            "A:C",
+            "C:D"
+          ]
+        ],
+        "length_labels": [],
+        "parallel": [],
+        "right_angles": [
+          "angle:B:A:C"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": -21.21,
+          "label_dy": 21.21,
+          "x": 185,
+          "y": 689.96
+        },
+        {
+          "id": "B",
+          "label_dx": 21.21,
+          "label_dy": 21.21,
+          "x": 814.96,
+          "y": 690
+        },
+        {
+          "id": "C",
+          "label_dx": -21.21,
+          "label_dy": -21.21,
+          "x": 185.04,
+          "y": 60
+        },
+        {
+          "id": "D",
+          "label_dx": 21.21,
+          "label_dy": -21.21,
+          "x": 815,
+          "y": 60.04
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "B",
+          "D"
+        ],
+        [
+          "C",
+          "D"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "AC = CD",
+        "fact": "cong:a:c:c:d",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D"
+        ]
+      },
+      {
+        "display": "∠ABC = ∠BCA",
+        "fact": "eqangle:a:b:b:c:b:c:a:c",
+        "form": "relation",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A"
+        ]
+      },
+      {
+        "display": "∠BAC = 90°",
+        "fact": "perp:a:b:a:c",
+        "form": "relation",
+        "highlights": [
+          "angle:B:A:C"
+        ]
+      },
+      {
+        "display": "AD ⊥ BC",
+        "fact": "perp:a:d:b:c",
+        "form": "relation",
+        "highlights": [
+          "seg:A:D",
+          "seg:B:C"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 90,
+        "display": "90°",
+        "exact": "90"
+      },
+      "fact": "aconst:a:b:b:d=1/2",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "A",
+          "B",
+          "D"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠ABD"
+    },
+    "id": "gf-000042001235-2",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:b:a:d:b:c:a:b",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:B:A:C",
+          "seg:A:D",
+          "seg:B:C",
+          "angle:B:A:D",
+          "angle:C:B:A"
+        ],
+        "rule": "combine",
+        "step": 1,
+        "text": "Combining ∠ABC = ∠BCA, ∠BAC = 90° and AD ⊥ BC, we get ∠BAD = ∠CBA."
+      },
+      {
+        "derives": "eqangle:a:c:a:d:a:d:c:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D",
+          "angle:C:A:D",
+          "angle:A:D:C"
+        ],
+        "rule": "isosceles_base_angles",
+        "step": 2,
+        "text": "AC = CD, so the base angles are equal: ∠CAD = ∠ADC."
+      },
+      {
+        "derives": "eqangle:a:b:a:c:a:c:c:d",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:C:A:D",
+          "angle:A:D:C",
+          "angle:B:A:C",
+          "seg:A:D",
+          "seg:B:C",
+          "angle:A:C:D"
+        ],
+        "rule": "combine",
+        "step": 3,
+        "text": "Combining ∠ABC = ∠BCA, ∠CAD = ∠ADC, ∠BAC = 90° and AD ⊥ BC, we get ∠BAC = ∠ACD."
+      },
+      {
+        "derives": "eqangle:a:c:b:c:c:d:a:d",
+        "highlights": [
+          "angle:A:B:C",
+          "angle:B:C:A",
+          "angle:C:A:D",
+          "angle:A:D:C",
+          "angle:B:A:C",
+          "seg:A:D",
+          "seg:B:C",
+          "angle:A:C:B",
+          "angle:C:D:A"
+        ],
+        "rule": "combine",
+        "step": 4,
+        "text": "Combining ∠ABC = ∠BCA, ∠CAD = ∠ADC, ∠BAC = 90° and AD ⊥ BC, we get ∠ACB = ∠CDA."
+      },
+      {
+        "derives": "simtri:a:b:c:c:a:d",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:A:C:D",
+          "angle:A:C:B",
+          "angle:C:D:A",
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D"
+        ],
+        "rule": "aa_similarity",
+        "step": 5,
+        "text": "∠BAC = ∠ACD and ∠ACB = ∠CDA, so triangles ABC and CAD are similar (two pairs of equal angles)."
+      },
+      {
+        "derives": "eqratio:a:c:b:c:c:d:a:d",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D",
+          "seg:A:C",
+          "seg:B:C",
+          "seg:C:D",
+          "seg:A:D"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 6,
+        "text": "Since triangles ABC and CAD are similar, corresponding parts give AC : BC = CD : AD."
+      },
+      {
+        "derives": "simtrir:a:b:c:b:a:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:C:D",
+          "angle:B:A:D",
+          "angle:C:B:A",
+          "seg:B:C",
+          "seg:A:D",
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D"
+        ],
+        "rule": "sas_similarity",
+        "step": 7,
+        "text": "AC = CD, ∠BAD = ∠CBA and AC : BC = CD : AD, so triangles ABC and BAD are similar (two sides in ratio with equal included angles)."
+      },
+      {
+        "derives": "eqangle:a:b:a:c:b:d:a:b",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:C",
+          "point:D",
+          "angle:B:A:C",
+          "angle:D:B:A"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 8,
+        "text": "Since triangles ABC and BAD are similar, corresponding parts give ∠BAC = ∠DBA."
+      },
+      {
+        "derives": "aconst:a:b:b:d=1/2",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:D:B:A",
+          "angle:A:B:D"
+        ],
+        "rule": "combine",
+        "step": 9,
+        "text": "Combining ∠BAC = ∠DBA and ∠BAC = 90°, we get ∠ABD = 90°."
+      }
+    ]
+  },
+  {
+    "difficulty": {
+      "band": "expert",
+      "depth": 9,
+      "distinct_rules": 9
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "A",
+              "C",
+              "E"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [
+          [
+            "A:B",
+            "D:E"
+          ],
+          [
+            "A:D",
+            "B:E"
+          ]
+        ],
+        "length_labels": [],
+        "parallel": [],
+        "right_angles": []
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": 30,
+          "label_dy": 0,
+          "x": 863.72,
+          "y": 60
+        },
+        {
+          "id": "B",
+          "label_dx": 21.21,
+          "label_dy": 21.21,
+          "x": 500.01,
+          "y": 689.99
+        },
+        {
+          "id": "C",
+          "label_dx": -27.72,
+          "label_dy": -11.48,
+          "x": 136.28,
+          "y": 60.01
+        },
+        {
+          "id": "D",
+          "label_dx": 0,
+          "label_dy": -30,
+          "x": 500,
+          "y": 60.01
+        },
+        {
+          "id": "E",
+          "label_dx": -27.72,
+          "label_dy": 11.48,
+          "x": 136.29,
+          "y": 690
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "A",
+          "E"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "B",
+          "D"
+        ],
+        [
+          "B",
+          "E"
+        ],
+        [
+          "C",
+          "E"
+        ],
+        [
+          "D",
+          "E"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "AB = DE",
+        "fact": "cong:a:b:d:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:B",
+          "seg:D:E"
+        ]
+      },
+      {
+        "display": "AD = BE",
+        "fact": "cong:a:d:b:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:D",
+          "seg:B:E"
+        ]
+      },
+      {
+        "display": "∠BAC = ∠ACB",
+        "fact": "eqangle:a:b:a:c:a:c:b:c",
+        "form": "relation",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:A:C:B"
+        ]
+      },
+      {
+        "display": "AC ⊥ BD",
+        "fact": "perp:a:c:b:d",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:B:D"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 90,
+        "display": "90°",
+        "exact": "90"
+      },
+      "fact": "aconst:a:c:c:e=1/2",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "A",
+          "C",
+          "E"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠ACE"
+    },
+    "id": "gf-000042001711-0",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqratio:a:b:b:e:d:e:a:d",
+        "highlights": [
+          "seg:A:B",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:B:E"
+        ],
+        "rule": "combine",
+        "step": 1,
+        "text": "Combining AB = DE and AD = BE, we get AB : BE = DE : AD."
+      },
+      {
+        "derives": "eqratio:a:d:a:e:b:e:a:e",
+        "highlights": [
+          "seg:A:D",
+          "seg:B:E",
+          "seg:A:E"
+        ],
+        "rule": "restate",
+        "step": 2,
+        "text": "From AD = BE it follows that AD : AE = BE : AE."
+      },
+      {
+        "derives": "simtri:a:b:e:e:d:a",
+        "highlights": [
+          "seg:A:B",
+          "seg:B:E",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:A:E",
+          "point:A",
+          "point:B",
+          "point:E",
+          "point:D"
+        ],
+        "rule": "sss_similarity",
+        "step": 3,
+        "text": "AB : BE = DE : AD and AD : AE = BE : AE, so triangles ABE and EDA are similar (three sides in the same ratio)."
+      },
+      {
+        "derives": "eqangle:a:b:a:e:d:e:a:e",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:E",
+          "point:D",
+          "angle:B:A:E",
+          "angle:D:E:A"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 4,
+        "text": "Since triangles ABE and EDA are similar, corresponding parts give ∠BAE = ∠DEA."
+      },
+      {
+        "derives": "eqangle:a:b:b:e:d:e:a:d",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:E",
+          "point:D",
+          "angle:A:B:E",
+          "angle:E:D:A"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 5,
+        "text": "Since triangles ABE and EDA are similar, corresponding parts give ∠ABE = ∠EDA."
+      },
+      {
+        "derives": "eqangle:a:b:b:d:b:d:b:c",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:A:C:B",
+          "seg:A:C",
+          "seg:B:D",
+          "angle:A:B:D",
+          "angle:D:B:C"
+        ],
+        "rule": "combine",
+        "step": 6,
+        "text": "Combining ∠BAC = ∠ACB and AC ⊥ BD, we get ∠ABD = ∠DBC."
+      },
+      {
+        "derives": "eqratio:a:b:a:c:b:c:a:c",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:A:C:B",
+          "seg:A:B",
+          "seg:A:C",
+          "seg:B:C"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 7,
+        "text": "Since ∠BAC = ∠ACB, corresponding parts give AB : AC = BC : AC."
+      },
+      {
+        "derives": "simtrir:a:b:d:c:b:d",
+        "highlights": [
+          "angle:A:B:D",
+          "angle:D:B:C",
+          "seg:A:B",
+          "seg:A:C",
+          "seg:B:C",
+          "point:A",
+          "point:B",
+          "point:D",
+          "point:C"
+        ],
+        "rule": "sas_similarity",
+        "step": 8,
+        "text": "∠ABD = ∠DBC and AB : AC = BC : AC, so triangles ABD and CBD are similar (two sides in ratio with equal included angles)."
+      },
+      {
+        "derives": "eqangle:a:d:b:d:b:d:c:d",
+        "highlights": [
+          "point:A",
+          "point:B",
+          "point:D",
+          "point:C",
+          "angle:A:D:B",
+          "angle:B:D:C"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 9,
+        "text": "Since triangles ABD and CBD are similar, corresponding parts give ∠ADB = ∠BDC."
+      },
+      {
+        "derives": "eqangle:b:c:b:e:c:d:d:e",
+        "highlights": [
+          "angle:B:A:C",
+          "angle:A:C:B",
+          "angle:B:A:E",
+          "angle:D:E:A",
+          "angle:A:B:E",
+          "angle:E:D:A",
+          "angle:A:D:B",
+          "angle:B:D:C",
+          "seg:A:C",
+          "seg:B:D",
+          "angle:C:B:E",
+          "angle:C:D:E"
+        ],
+        "rule": "combine",
+        "step": 10,
+        "text": "Combining ∠BAC = ∠ACB, ∠BAE = ∠DEA, ∠ABE = ∠EDA, ∠ADB = ∠BDC and AC ⊥ BD, we get ∠CBE = ∠CDE."
+      },
+      {
+        "derives": "cyclic:b:c:d:e",
+        "highlights": [
+          "angle:C:B:E",
+          "angle:C:D:E",
+          "point:B",
+          "point:C",
+          "point:D",
+          "point:E"
+        ],
+        "rule": "equal_angles_imply_cyclic",
+        "step": 11,
+        "text": "∠CBE = ∠CDE, so the four points are concyclic: B, C, D and E lie on a circle."
+      },
+      {
+        "derives": "eqangle:b:d:b:e:c:d:c:e",
+        "highlights": [
+          "point:B",
+          "point:C",
+          "point:D",
+          "point:E",
+          "angle:D:B:E",
+          "angle:D:C:E"
+        ],
+        "rule": "angles_in_same_arc",
+        "step": 12,
+        "text": "B, C, D and E lie on a circle, and angles subtending the same arc are equal, so ∠DBE = ∠DCE."
+      },
+      {
+        "derives": "aconst:a:c:c:e=1/2",
+        "highlights": [
+          "angle:B:A:E",
+          "angle:D:E:A",
+          "angle:A:B:E",
+          "angle:E:D:A",
+          "angle:A:D:B",
+          "angle:B:D:C",
+          "angle:D:B:E",
+          "angle:D:C:E",
+          "seg:A:C",
+          "seg:B:D",
+          "angle:A:C:E"
+        ],
+        "rule": "combine",
+        "step": 13,
+        "text": "Combining ∠BAE = ∠DEA, ∠ABE = ∠EDA, ∠ADB = ∠BDC, ∠DBE = ∠DCE and AC ⊥ BD, we get ∠ACE = 90°."
+      }
+    ]
+  }
+]

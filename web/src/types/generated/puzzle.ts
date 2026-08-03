@@ -5,6 +5,11 @@
 
 export const SCHEMA_VERSION = "2.0";
 
+// The coordinate system every figure is laid out in. Emitted rather than agreed by
+// convention: the frontend needs it for the SVG viewBox, and deriving it from the
+// points instead would put framing — a layout decision (docs/06 §6.3) — in the client.
+export const VIEWBOX = {"width": 1000.0, "height": 750.0};
+
 export interface DisplayPoint {
   id: string;
   x: number;
@@ -115,4 +120,24 @@ export interface Puzzle {
   configuration?: string[];
   reference_figure?: ReferenceFigure | null;
   provenance?: Record<string, unknown> | null;
+}
+
+export interface Shard {
+  file: string;
+  band: string;
+  puzzles: number;
+  sha256: string;
+}
+
+export interface Manifest {
+  schema_version: string;
+  generator_version: string;
+  generation_engine: string;
+  validator_engine: string;
+  seed: number;
+  puzzles: number;
+  by_band: Record<string, number>;
+  shards: Shard[];
+  shippable: boolean;
+  missing_for_shippable: string[];
 }

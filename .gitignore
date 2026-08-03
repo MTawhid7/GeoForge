@@ -32,6 +32,12 @@ __pycache__/
 !/banks/schema/
 /web/node_modules/
 /web/dist/
+# The bank the app serves is a copy of a build artifact (`npm run bank:dev`). The *fixture*
+# bank under web/fixtures/ is committed on purpose — see web/scripts/make-fixture-bank.mjs.
+/web/public/bank/
+/web/test-results/
+/web/playwright-report/
+/web/.vite/
 
 # Personal cross-project assistant defaults (belongs in ~/.claude/, not this repo)
 CLAUDE-global.md

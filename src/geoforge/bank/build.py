@@ -164,7 +164,7 @@ def _write(report: BuildReport, out_dir: Path, *, seed: int, strict: bool) -> No
         )
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    shards: list[dict[str, Any]] = []
+    shards: list[schema.Shard] = []
     for band in BAND_ORDER:
         in_band = [p for p in report.puzzles if p.difficulty.band == band]
         for index in range(0, len(in_band), BANK.shard_size):
@@ -173,27 +173,27 @@ def _write(report: BuildReport, out_dir: Path, *, seed: int, strict: bool) -> No
             payload = json.dumps([p.stripped().to_json() for p in chunk], indent=2, sort_keys=True)
             (out_dir / name).write_text(payload)
             shards.append(
-                {
-                    "file": name,
-                    "band": band,
-                    "puzzles": len(chunk),
-                    "sha256": hashlib.sha256(payload.encode()).hexdigest(),
-                }
+                schema.Shard(
+                    file=name,
+                    band=band,
+                    puzzles=len(chunk),
+                    sha256=hashlib.sha256(payload.encode()).hexdigest(),
+                )
             )
 
-    manifest = {
-        "schema_version": schema.SCHEMA_VERSION,
-        "generator_version": generator_version(),
-        "generation_engine": SOLVER.backend,
-        "validator_engine": VALIDATION.backend,
-        "seed": seed,
-        "puzzles": len(report.puzzles),
-        "by_band": report.by_band(),
-        "shards": shards,
+    manifest = schema.Manifest(
+        schema_version=schema.SCHEMA_VERSION,
+        generator_version=generator_version(),
+        generation_engine=SOLVER.backend,
+        validator_engine=VALIDATION.backend,
+        seed=seed,
+        puzzles=len(report.puzzles),
+        by_band=report.by_band(),
+        shards=tuple(shards),
         # Loud rather than implied: everything downstream should treat this bank as a preview.
-        "shippable": not MISSING_FOR_SHIPPABLE,
-        "missing_for_shippable": list(MISSING_FOR_SHIPPABLE),
-    }
+        shippable=not MISSING_FOR_SHIPPABLE,
+        missing_for_shippable=MISSING_FOR_SHIPPABLE,
+    ).to_json()
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True))
 
     archive_dir = out_dir.parent / BANK.archive_dirname

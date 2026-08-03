@@ -170,6 +170,12 @@ and maintaining a second identifier scheme for no gain.)
 rule→template string table (v1 ships English only). The frontend never composes sentences. Translating
 the app means rebuilding banks — recorded trade-off, doc 07 T4.
 
+**Bank manifest.** `schema.Manifest` (+ `Shard`) is a dataclass in `schema.py` like everything else,
+emitted as its own document (`banks/schema/bank-<v>.schema.json`) rather than as more `$defs` in the
+puzzle schema — `puzzle-<v>.schema.json` is published as *the shape of a puzzle*, and a manifest
+definition reachable from nothing inside it would be a contract saying something it does not mean.
+Both land in the one generated TypeScript file, which is what the frontend imports.
+
 Schema rules: additive change ⇒ minor bump; breaking ⇒ major bump + frontend migration. `provenance` is
 stripped from shipped banks, kept in the build archive.
 

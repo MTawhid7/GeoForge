@@ -346,3 +346,63 @@ class TestEmittedFigures:
                 ratio_ref = math.dist(reference[names[0]], reference[other]) / base_ref
                 ratio_dis = math.dist(display[names[0]], display[other]) / base_dis
                 assert ratio_dis == pytest.approx(ratio_ref, rel=1e-3), raw["id"]
+
+
+class TestManifest:
+    """The bank index parses as strictly as a puzzle does.
+
+    It is the first thing the frontend fetches, so a manifest that is wrong in a way nothing
+    catches is a blank app with no error to read.
+    """
+
+    def _manifest(self) -> schema.Manifest:
+        return schema.Manifest(
+            schema_version=schema.SCHEMA_VERSION,
+            generator_version="0.1.0",
+            generation_engine="yuclid",
+            validator_engine="ag2ddar",
+            seed=42,
+            puzzles=3,
+            by_band={"easy": 3},
+            shards=(schema.Shard(file="easy-000.json", band="easy", puzzles=3, sha256="ab"),),
+            shippable=False,
+            missing_for_shippable=("difficulty_scoring",),
+        )
+
+    def test_round_trip(self) -> None:
+        original = self._manifest()
+        assert schema.Manifest.from_json(original.to_json()) == original
+
+    def test_a_real_build_manifest_parses(self, tmp_path: Any) -> None:
+        from geoforge.bank.build import build
+
+        build(40, 42, tmp_path / "v2")
+        raw = json.loads((tmp_path / "v2" / "manifest.json").read_text())
+        parsed = schema.Manifest.from_json(raw)
+        assert parsed.puzzles == sum(s.puzzles for s in parsed.shards)
+        assert parsed.shippable is False
+        assert parsed.missing_for_shippable
+
+    def test_an_unknown_key_is_refused(self) -> None:
+        raw = self._manifest().to_json()
+        raw["total"] = 3
+        with pytest.raises(SchemaError, match="unknown manifest key"):
+            schema.Manifest.from_json(raw)
+
+    def test_a_missing_key_is_refused(self) -> None:
+        raw = self._manifest().to_json()
+        del raw["shards"]
+        with pytest.raises(SchemaError, match="shards"):
+            schema.Manifest.from_json(raw)
+
+    def test_a_future_major_version_is_refused(self) -> None:
+        raw = self._manifest().to_json()
+        raw["schema_version"] = "3.0"
+        with pytest.raises(SchemaError, match="major"):
+            schema.Manifest.from_json(raw)
+
+    def test_a_malformed_shard_is_refused(self) -> None:
+        raw = self._manifest().to_json()
+        raw["shards"] = ["easy-000.json"]
+        with pytest.raises(SchemaError, match="shards entry"):
+            schema.Manifest.from_json(raw)

@@ -25,6 +25,7 @@ The two never mix in one field. `reference_figure` is the engine's, `figure` is 
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import re
 from collections.abc import Mapping, Sequence
@@ -318,6 +319,97 @@ class ReferenceFigure:
     """The engine's diagram, in engine names, over which the goal was derived (docs/04 §V)."""
 
     points: tuple[ReferencePoint, ...]
+
+
+# --------------------------------------------------------------------------------------
+# Bank manifest
+# --------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Shard:
+    """One band's puzzles, as a file the frontend can fetch on its own."""
+
+    file: str
+    band: str
+    puzzles: int
+    sha256: str
+    """Of the shard's bytes as written. The frontend does not verify it — the point is that a
+    bank served from a CDN can be audited after the fact without rebuilding it."""
+
+
+@dataclass(frozen=True, slots=True)
+class Manifest:
+    """The bank's index: what is in it, what built it, and what it is still missing.
+
+    Lives here rather than as a dict in `bank/build.py` for the same reason `Puzzle` does. The
+    frontend reads it before anything else, so it is part of the data contract, and a contract
+    with one definition cannot drift from the type the frontend compiles against.
+    """
+
+    schema_version: str
+    generator_version: str
+    generation_engine: str
+    validator_engine: str
+    """docs/02 invariant 3: a reader must be able to see the two were different engines."""
+    seed: int
+    puzzles: int
+    by_band: Mapping[str, int]
+    shards: tuple[Shard, ...]
+    shippable: bool
+    missing_for_shippable: tuple[str, ...]
+    """Named, not implied. 'Not shippable' with no reason is a flag nobody can act on, and the
+    frontend shows the list rather than deciding for itself what a preview bank is missing."""
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "generator_version": self.generator_version,
+            "generation_engine": self.generation_engine,
+            "validator_engine": self.validator_engine,
+            "seed": self.seed,
+            "puzzles": self.puzzles,
+            "by_band": dict(self.by_band),
+            "shards": [
+                {"file": s.file, "band": s.band, "puzzles": s.puzzles, "sha256": s.sha256}
+                for s in self.shards
+            ],
+            "shippable": self.shippable,
+            "missing_for_shippable": list(self.missing_for_shippable),
+        }
+
+    @classmethod
+    def from_json(cls, raw: Mapping[str, Any]) -> Manifest:
+        _reject_unknown(raw, set(_MANIFEST_KEYS), "manifest")
+        _check_major(_require(raw, "schema_version", str, "manifest"))
+        shards = _require(raw, "shards", list, "manifest")
+        return cls(
+            schema_version=raw["schema_version"],
+            generator_version=_require(raw, "generator_version", str, "manifest"),
+            generation_engine=_require(raw, "generation_engine", str, "manifest"),
+            validator_engine=_require(raw, "validator_engine", str, "manifest"),
+            seed=_require(raw, "seed", int, "manifest"),
+            puzzles=_require(raw, "puzzles", int, "manifest"),
+            by_band=dict(_require(raw, "by_band", dict, "manifest")),
+            shards=tuple(_shard_from(s) for s in shards),
+            shippable=_require(raw, "shippable", bool, "manifest"),
+            missing_for_shippable=tuple(_require(raw, "missing_for_shippable", list, "manifest")),
+        )
+
+
+_MANIFEST_KEYS = tuple(f.name for f in dataclasses.fields(Manifest))
+
+
+def _shard_from(raw: Any) -> Shard:
+    if not isinstance(raw, Mapping):
+        raise SchemaError(f"manifest.shards entry should be an object, got {type(raw).__name__}")
+    _reject_unknown(raw, {"file", "band", "puzzles", "sha256"}, "shard")
+    return Shard(
+        file=_require(raw, "file", str, "shard"),
+        band=_require(raw, "band", str, "shard"),
+        puzzles=_require(raw, "puzzles", int, "shard"),
+        sha256=_require(raw, "sha256", str, "shard"),
+    )
 
 
 # --------------------------------------------------------------------------------------

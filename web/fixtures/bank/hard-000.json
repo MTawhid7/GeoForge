@@ -1,0 +1,951 @@
+[
+  {
+    "difficulty": {
+      "band": "hard",
+      "depth": 7,
+      "distinct_rules": 6
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "A",
+              "C",
+              "D"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [],
+        "length_labels": [],
+        "parallel": [
+          [
+            "A:C",
+            "D:E"
+          ],
+          [
+            "A:D",
+            "C:E"
+          ]
+        ],
+        "right_angles": [
+          "angle:C:A:D"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": -21.21,
+          "label_dy": 21.21,
+          "x": 292.66,
+          "y": 469.13
+        },
+        {
+          "id": "B",
+          "label_dx": -27.72,
+          "label_dy": -11.48,
+          "x": 83.57,
+          "y": 60
+        },
+        {
+          "id": "C",
+          "label_dx": 11.48,
+          "label_dy": -27.72,
+          "x": 513.53,
+          "y": 66.23
+        },
+        {
+          "id": "D",
+          "label_dx": 11.48,
+          "label_dy": 27.72,
+          "x": 695.56,
+          "y": 690
+        },
+        {
+          "id": "E",
+          "label_dx": 30,
+          "label_dy": 0,
+          "x": 916.43,
+          "y": 287.1
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "A",
+          "E"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "C",
+          "D"
+        ],
+        [
+          "C",
+          "E"
+        ],
+        [
+          "D",
+          "E"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "AC ∥ DE",
+        "fact": "para:a:c:d:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E"
+        ]
+      },
+      {
+        "display": "AD ∥ CE",
+        "fact": "para:a:d:c:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:D",
+          "seg:C:E"
+        ]
+      },
+      {
+        "display": "∠CAD = 90°",
+        "fact": "perp:a:c:a:d",
+        "form": "relation",
+        "highlights": [
+          "angle:C:A:D"
+        ]
+      },
+      {
+        "display": "AE ⊥ CD",
+        "fact": "perp:a:e:c:d",
+        "form": "relation",
+        "highlights": [
+          "seg:A:E",
+          "seg:C:D"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 45,
+        "display": "45°",
+        "exact": "45"
+      },
+      "fact": "aconst:a:c:c:d=1/4",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "A",
+          "C",
+          "D"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠ACD"
+    },
+    "id": "gf-000042000234-0",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:d:d:e:d:e:c:e",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:C:A:D",
+          "angle:A:D:E",
+          "angle:D:E:C"
+        ],
+        "rule": "combine",
+        "step": 1,
+        "text": "Combining AC ∥ DE, AD ∥ CE and ∠CAD = 90°, we get ∠ADE = ∠DEC."
+      },
+      {
+        "derives": "eqangle:a:c:a:e:d:e:a:e",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "angle:C:A:E",
+          "angle:D:E:A"
+        ],
+        "rule": "restate",
+        "step": 2,
+        "text": "From AC ∥ DE it follows that ∠CAE = ∠DEA."
+      },
+      {
+        "derives": "eqangle:a:c:c:e:d:e:a:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:A:C:E",
+          "angle:E:D:A"
+        ],
+        "rule": "combine",
+        "step": 3,
+        "text": "Combining AC ∥ DE and AD ∥ CE, we get ∠ACE = ∠EDA."
+      },
+      {
+        "derives": "simtri:a:c:e:e:d:a",
+        "highlights": [
+          "angle:C:A:E",
+          "angle:D:E:A",
+          "angle:A:C:E",
+          "angle:E:D:A",
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D"
+        ],
+        "rule": "aa_similarity",
+        "step": 4,
+        "text": "∠CAE = ∠DEA and ∠ACE = ∠EDA, so triangles ACE and EDA are similar (two pairs of equal angles)."
+      },
+      {
+        "derives": "eqratio:a:c:a:e:d:e:a:e",
+        "highlights": [
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D",
+          "seg:A:C",
+          "seg:A:E",
+          "seg:D:E"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 5,
+        "text": "Since triangles ACE and EDA are similar, corresponding parts give AC : AE = DE : AE."
+      },
+      {
+        "derives": "eqratio:a:c:c:e:d:e:a:d",
+        "highlights": [
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D",
+          "seg:A:C",
+          "seg:C:E",
+          "seg:D:E",
+          "seg:A:D"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 6,
+        "text": "Since triangles ACE and EDA are similar, corresponding parts give AC : CE = DE : AD."
+      },
+      {
+        "derives": "simtrir:a:d:e:c:e:d",
+        "highlights": [
+          "angle:A:D:E",
+          "angle:D:E:C",
+          "seg:A:C",
+          "seg:A:E",
+          "seg:D:E",
+          "seg:C:E",
+          "seg:A:D",
+          "point:A",
+          "point:D",
+          "point:E",
+          "point:C"
+        ],
+        "rule": "sas_similarity",
+        "step": 7,
+        "text": "∠ADE = ∠DEC, AC : AE = DE : AE and AC : CE = DE : AD, so triangles ADE and CED are similar (two sides in ratio with equal included angles)."
+      },
+      {
+        "derives": "eqangle:a:e:d:e:d:e:c:d",
+        "highlights": [
+          "point:A",
+          "point:D",
+          "point:E",
+          "point:C",
+          "angle:A:E:D",
+          "angle:E:D:C"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 8,
+        "text": "Since triangles ADE and CED are similar, corresponding parts give ∠AED = ∠EDC."
+      },
+      {
+        "derives": "aconst:a:c:c:d=1/4",
+        "highlights": [
+          "angle:A:E:D",
+          "angle:E:D:C",
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:E",
+          "seg:C:D",
+          "angle:A:C:D"
+        ],
+        "rule": "combine",
+        "step": 9,
+        "text": "Combining ∠AED = ∠EDC, AC ∥ DE and AE ⊥ CD, we get ∠ACD = 45°."
+      }
+    ]
+  },
+  {
+    "difficulty": {
+      "band": "hard",
+      "depth": 7,
+      "distinct_rules": 6
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "C",
+              "D",
+              "A"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [],
+        "length_labels": [],
+        "parallel": [
+          [
+            "A:C",
+            "D:E"
+          ],
+          [
+            "A:D",
+            "C:E"
+          ]
+        ],
+        "right_angles": [
+          "angle:C:A:D"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": -21.21,
+          "label_dy": 21.21,
+          "x": 292.66,
+          "y": 469.13
+        },
+        {
+          "id": "B",
+          "label_dx": -27.72,
+          "label_dy": -11.48,
+          "x": 83.57,
+          "y": 60
+        },
+        {
+          "id": "C",
+          "label_dx": 11.48,
+          "label_dy": -27.72,
+          "x": 513.53,
+          "y": 66.23
+        },
+        {
+          "id": "D",
+          "label_dx": 11.48,
+          "label_dy": 27.72,
+          "x": 695.56,
+          "y": 690
+        },
+        {
+          "id": "E",
+          "label_dx": 30,
+          "label_dy": 0,
+          "x": 916.43,
+          "y": 287.1
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "A",
+          "E"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "C",
+          "D"
+        ],
+        [
+          "C",
+          "E"
+        ],
+        [
+          "D",
+          "E"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "AC ∥ DE",
+        "fact": "para:a:c:d:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E"
+        ]
+      },
+      {
+        "display": "AD ∥ CE",
+        "fact": "para:a:d:c:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:D",
+          "seg:C:E"
+        ]
+      },
+      {
+        "display": "∠CAD = 90°",
+        "fact": "perp:a:c:a:d",
+        "form": "relation",
+        "highlights": [
+          "angle:C:A:D"
+        ]
+      },
+      {
+        "display": "AE ⊥ CD",
+        "fact": "perp:a:e:c:d",
+        "form": "relation",
+        "highlights": [
+          "seg:A:E",
+          "seg:C:D"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 45,
+        "display": "45°",
+        "exact": "45"
+      },
+      "fact": "aconst:c:d:a:d=1/4",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "C",
+          "D",
+          "A"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠CDA"
+    },
+    "id": "gf-000042000234-1",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:d:d:e:d:e:c:e",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:C:A:D",
+          "angle:A:D:E",
+          "angle:D:E:C"
+        ],
+        "rule": "combine",
+        "step": 1,
+        "text": "Combining AC ∥ DE, AD ∥ CE and ∠CAD = 90°, we get ∠ADE = ∠DEC."
+      },
+      {
+        "derives": "eqangle:a:c:a:e:d:e:a:e",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "angle:C:A:E",
+          "angle:D:E:A"
+        ],
+        "rule": "restate",
+        "step": 2,
+        "text": "From AC ∥ DE it follows that ∠CAE = ∠DEA."
+      },
+      {
+        "derives": "eqangle:a:c:c:e:d:e:a:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:A:C:E",
+          "angle:E:D:A"
+        ],
+        "rule": "combine",
+        "step": 3,
+        "text": "Combining AC ∥ DE and AD ∥ CE, we get ∠ACE = ∠EDA."
+      },
+      {
+        "derives": "simtri:a:c:e:e:d:a",
+        "highlights": [
+          "angle:C:A:E",
+          "angle:D:E:A",
+          "angle:A:C:E",
+          "angle:E:D:A",
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D"
+        ],
+        "rule": "aa_similarity",
+        "step": 4,
+        "text": "∠CAE = ∠DEA and ∠ACE = ∠EDA, so triangles ACE and EDA are similar (two pairs of equal angles)."
+      },
+      {
+        "derives": "eqratio:a:c:a:e:d:e:a:e",
+        "highlights": [
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D",
+          "seg:A:C",
+          "seg:A:E",
+          "seg:D:E"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 5,
+        "text": "Since triangles ACE and EDA are similar, corresponding parts give AC : AE = DE : AE."
+      },
+      {
+        "derives": "eqratio:a:c:c:e:d:e:a:d",
+        "highlights": [
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D",
+          "seg:A:C",
+          "seg:C:E",
+          "seg:D:E",
+          "seg:A:D"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 6,
+        "text": "Since triangles ACE and EDA are similar, corresponding parts give AC : CE = DE : AD."
+      },
+      {
+        "derives": "simtrir:a:d:e:c:e:d",
+        "highlights": [
+          "angle:A:D:E",
+          "angle:D:E:C",
+          "seg:A:C",
+          "seg:A:E",
+          "seg:D:E",
+          "seg:C:E",
+          "seg:A:D",
+          "point:A",
+          "point:D",
+          "point:E",
+          "point:C"
+        ],
+        "rule": "sas_similarity",
+        "step": 7,
+        "text": "∠ADE = ∠DEC, AC : AE = DE : AE and AC : CE = DE : AD, so triangles ADE and CED are similar (two sides in ratio with equal included angles)."
+      },
+      {
+        "derives": "eqangle:a:e:d:e:d:e:c:d",
+        "highlights": [
+          "point:A",
+          "point:D",
+          "point:E",
+          "point:C",
+          "angle:A:E:D",
+          "angle:E:D:C"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 8,
+        "text": "Since triangles ADE and CED are similar, corresponding parts give ∠AED = ∠EDC."
+      },
+      {
+        "derives": "aconst:c:d:a:d=1/4",
+        "highlights": [
+          "angle:A:E:D",
+          "angle:E:D:C",
+          "seg:A:C",
+          "seg:D:E",
+          "angle:C:A:D",
+          "seg:A:E",
+          "seg:C:D",
+          "angle:C:D:A"
+        ],
+        "rule": "combine",
+        "step": 9,
+        "text": "Combining ∠AED = ∠EDC, AC ∥ DE, ∠CAD = 90° and AE ⊥ CD, we get ∠CDA = 45°."
+      }
+    ]
+  },
+  {
+    "difficulty": {
+      "band": "hard",
+      "depth": 7,
+      "distinct_rules": 6
+    },
+    "figure": {
+      "circles": [],
+      "marks": {
+        "angle_arcs": [
+          {
+            "at": [
+              "C",
+              "E",
+              "A"
+            ],
+            "kind": "goal",
+            "label": "?"
+          }
+        ],
+        "equal_segments": [
+          [
+            "C:E",
+            "D:E"
+          ]
+        ],
+        "length_labels": [],
+        "parallel": [
+          [
+            "A:C",
+            "D:E"
+          ],
+          [
+            "A:D",
+            "C:E"
+          ]
+        ],
+        "right_angles": [
+          "angle:C:A:D"
+        ]
+      },
+      "points": [
+        {
+          "id": "A",
+          "label_dx": -21.21,
+          "label_dy": 21.21,
+          "x": 292.66,
+          "y": 469.13
+        },
+        {
+          "id": "B",
+          "label_dx": -27.72,
+          "label_dy": -11.48,
+          "x": 83.57,
+          "y": 60
+        },
+        {
+          "id": "C",
+          "label_dx": 11.48,
+          "label_dy": -27.72,
+          "x": 513.53,
+          "y": 66.23
+        },
+        {
+          "id": "D",
+          "label_dx": 11.48,
+          "label_dy": 27.72,
+          "x": 695.56,
+          "y": 690
+        },
+        {
+          "id": "E",
+          "label_dx": 30,
+          "label_dy": 0,
+          "x": 916.43,
+          "y": 287.1
+        }
+      ],
+      "regions": [],
+      "segments": [
+        [
+          "A",
+          "B"
+        ],
+        [
+          "A",
+          "C"
+        ],
+        [
+          "A",
+          "D"
+        ],
+        [
+          "A",
+          "E"
+        ],
+        [
+          "B",
+          "C"
+        ],
+        [
+          "C",
+          "E"
+        ],
+        [
+          "D",
+          "E"
+        ]
+      ]
+    },
+    "given": [
+      {
+        "display": "CE = DE",
+        "fact": "cong:c:e:d:e",
+        "form": "relation",
+        "highlights": [
+          "seg:C:E",
+          "seg:D:E"
+        ]
+      },
+      {
+        "display": "AC ∥ DE",
+        "fact": "para:a:c:d:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E"
+        ]
+      },
+      {
+        "display": "AD ∥ CE",
+        "fact": "para:a:d:c:e",
+        "form": "relation",
+        "highlights": [
+          "seg:A:D",
+          "seg:C:E"
+        ]
+      },
+      {
+        "display": "∠CAD = 90°",
+        "fact": "perp:a:c:a:d",
+        "form": "relation",
+        "highlights": [
+          "angle:C:A:D"
+        ]
+      }
+    ],
+    "goal": {
+      "answer": {
+        "approx": 45,
+        "display": "45°",
+        "exact": "45"
+      },
+      "fact": "aconst:c:e:a:e=1/4",
+      "input": {
+        "exactness": "integer",
+        "mode": "keypad",
+        "tolerance": null,
+        "unit": "deg"
+      },
+      "quantity": {
+        "at": [
+          "C",
+          "E",
+          "A"
+        ],
+        "kind": "angle"
+      },
+      "question": "∠CEA"
+    },
+    "id": "gf-000042000234-2",
+    "quantity_type": "angle",
+    "schema_version": "2.0",
+    "solution": [
+      {
+        "derives": "eqangle:a:d:d:e:d:e:c:e",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:C:A:D",
+          "angle:A:D:E",
+          "angle:D:E:C"
+        ],
+        "rule": "combine",
+        "step": 1,
+        "text": "Combining AC ∥ DE, AD ∥ CE and ∠CAD = 90°, we get ∠ADE = ∠DEC."
+      },
+      {
+        "derives": "eqangle:a:c:a:e:d:e:a:e",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "angle:C:A:E",
+          "angle:D:E:A"
+        ],
+        "rule": "restate",
+        "step": 2,
+        "text": "From AC ∥ DE it follows that ∠CAE = ∠DEA."
+      },
+      {
+        "derives": "eqangle:a:c:c:e:d:e:a:d",
+        "highlights": [
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:A:C:E",
+          "angle:E:D:A"
+        ],
+        "rule": "combine",
+        "step": 3,
+        "text": "Combining AC ∥ DE and AD ∥ CE, we get ∠ACE = ∠EDA."
+      },
+      {
+        "derives": "simtri:a:c:e:e:d:a",
+        "highlights": [
+          "angle:C:A:E",
+          "angle:D:E:A",
+          "angle:A:C:E",
+          "angle:E:D:A",
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D"
+        ],
+        "rule": "aa_similarity",
+        "step": 4,
+        "text": "∠CAE = ∠DEA and ∠ACE = ∠EDA, so triangles ACE and EDA are similar (two pairs of equal angles)."
+      },
+      {
+        "derives": "eqratio:a:c:a:e:d:e:a:e",
+        "highlights": [
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D",
+          "seg:A:C",
+          "seg:A:E",
+          "seg:D:E"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 5,
+        "text": "Since triangles ACE and EDA are similar, corresponding parts give AC : AE = DE : AE."
+      },
+      {
+        "derives": "eqratio:a:c:c:e:d:e:a:d",
+        "highlights": [
+          "point:A",
+          "point:C",
+          "point:E",
+          "point:D",
+          "seg:A:C",
+          "seg:C:E",
+          "seg:D:E",
+          "seg:A:D"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 6,
+        "text": "Since triangles ACE and EDA are similar, corresponding parts give AC : CE = DE : AD."
+      },
+      {
+        "derives": "simtrir:a:d:e:c:e:d",
+        "highlights": [
+          "angle:A:D:E",
+          "angle:D:E:C",
+          "seg:A:C",
+          "seg:A:E",
+          "seg:D:E",
+          "seg:C:E",
+          "seg:A:D",
+          "point:A",
+          "point:D",
+          "point:E",
+          "point:C"
+        ],
+        "rule": "sas_similarity",
+        "step": 7,
+        "text": "∠ADE = ∠DEC, AC : AE = DE : AE and AC : CE = DE : AD, so triangles ADE and CED are similar (two sides in ratio with equal included angles)."
+      },
+      {
+        "derives": "eqangle:a:e:d:e:d:e:c:d",
+        "highlights": [
+          "point:A",
+          "point:D",
+          "point:E",
+          "point:C",
+          "angle:A:E:D",
+          "angle:E:D:C"
+        ],
+        "rule": "similar_triangles_properties",
+        "step": 8,
+        "text": "Since triangles ADE and CED are similar, corresponding parts give ∠AED = ∠EDC."
+      },
+      {
+        "derives": "eqangle:c:d:c:e:d:e:c:d",
+        "highlights": [
+          "seg:C:E",
+          "seg:D:E",
+          "angle:D:C:E",
+          "angle:E:D:C"
+        ],
+        "rule": "isosceles_base_angles",
+        "step": 9,
+        "text": "CE = DE, so the base angles are equal: ∠DCE = ∠EDC."
+      },
+      {
+        "derives": "aconst:c:e:a:e=1/4",
+        "highlights": [
+          "angle:A:E:D",
+          "angle:E:D:C",
+          "angle:D:C:E",
+          "seg:A:C",
+          "seg:D:E",
+          "seg:A:D",
+          "seg:C:E",
+          "angle:C:A:D",
+          "angle:C:E:A"
+        ],
+        "rule": "combine",
+        "step": 10,
+        "text": "Combining ∠AED = ∠EDC, ∠DCE = ∠EDC, AC ∥ DE, AD ∥ CE and ∠CAD = 90°, we get ∠CEA = 45°."
+      }
+    ]
+  }
+]

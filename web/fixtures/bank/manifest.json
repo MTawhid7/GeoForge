@@ -1,0 +1,48 @@
+{
+  "by_band": {
+    "easy": 3,
+    "medium": 3,
+    "hard": 3,
+    "expert": 3
+  },
+  "generation_engine": "yuclid",
+  "generator_version": "0.1.0",
+  "missing_for_shippable": [
+    "difficulty_scoring",
+    "hard_filters",
+    "isomorphism_dedupe",
+    "interestingness_ranking",
+    "anti_leak_layout"
+  ],
+  "puzzles": 12,
+  "schema_version": "2.0",
+  "seed": 42,
+  "shards": [
+    {
+      "band": "easy",
+      "file": "easy-000.json",
+      "puzzles": 3,
+      "sha256": "fc7376132a60072408a251e77755608c578b092cb5fb6a9536883269f38663ec"
+    },
+    {
+      "band": "medium",
+      "file": "medium-000.json",
+      "puzzles": 3,
+      "sha256": "3a73b1a6913c8fa3d1b4003a34d5b7f067e9c9a5e6767071ca7004f882d49d51"
+    },
+    {
+      "band": "hard",
+      "file": "hard-000.json",
+      "puzzles": 3,
+      "sha256": "899a6b35952b133f1cce7859099b12ae62323792fae1cba368948c02edf663f1"
+    },
+    {
+      "band": "expert",
+      "file": "expert-000.json",
+      "puzzles": 3,
+      "sha256": "33db0b9e00846517d3957dbdab5b91afefb0296a5f1f829e96c28a8b5e205dc8"
+    }
+  ],
+  "shippable": false,
+  "validator_engine": "ag2ddar"
+}

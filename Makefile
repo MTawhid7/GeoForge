@@ -1,13 +1,16 @@
-.PHONY: setup lint typecheck test schema bench-batch cross-validate bank bank-strict clean
+.PHONY: setup lint typecheck test schema bench-batch cross-validate bank bank-strict \
+        web-setup web-dev web-build web-test web-e2e web-fixtures clean
 
 # Everything runs inside the project-local .venv via uv. Never install into system Python.
 
 setup:
 	uv sync
+	cd web && npm install
 
 lint:
 	uv run ruff check src tests
 	uv run ruff format --check src tests
+	cd web && npx eslint .
 
 format:
 	uv run ruff format src tests
@@ -16,6 +19,7 @@ format:
 typecheck:
 	uv run mypy
 	uv run python -m geoforge.schema_emit --check
+	cd web && npx tsc -b
 
 # Regenerate the TypeScript types and JSON Schema from src/geoforge/schema.py.
 schema:
@@ -23,6 +27,7 @@ schema:
 
 test:
 	uv run pytest
+	cd web && npm run test
 
 # Fixed-seed pipeline run + attrition report diff (per stage and band). Wired in M5.
 bench-batch:
@@ -45,3 +50,27 @@ bank-strict:
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
 	find src tests -name __pycache__ -type d -exec rm -rf {} +
+
+# ---------------------------------------------------------------- frontend
+
+web-setup:
+	cd web && npm install && npx playwright install chromium
+
+# Copies the bank built by `make bank` into web/public/ and starts the dev server.
+web-dev:
+	cd web && npm run dev
+
+web-build:
+	cd web && npm run build
+
+web-test:
+	cd web && npm run test
+
+# Real-browser happy path. Serves the committed fixture bank, not `banks/v2` — a happy path
+# that changes meaning when the generator's corpus moves is not a test.
+web-e2e:
+	cd web && npm run e2e
+
+# Re-cut the committed fixture bank from the current build. Run after a schema change.
+web-fixtures:
+	cd web && node scripts/make-fixture-bank.mjs
