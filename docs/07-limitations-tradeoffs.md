@@ -150,6 +150,11 @@ human would call redundant.
   data accumulates; the contract is the feature set, not the weights.
 - **O4 — Layout quality plateau** — automated layout may stall at "acceptable, not beautiful"; budget a
   dedicated iteration before adding puzzle types if spot checks flag it.
+  *First eyeball check (Phase 2 M2, figures rendered on a phone): readable, and one concrete defect.*
+  The §6.3 objective rewards spreading points apart but nothing penalises a single **outlier point
+  dominating the bounding box** — an expert figure with a far-off `E` compresses the quadrilateral
+  that carries the whole proof into about 40% of the frame. Every point is separated, and the figure
+  is still bad. Fix belongs with M5's layout pass: score the *used* area, not the point spread.
 - **O5 — Dedup misses semantic duplicates** — isomorphism hashing catches relabelings, not "same idea,
   different figure". Monitor via spot checks.
 - **O6 — Upstream engine churn** — Newclid/AG2 release cadence may break adapters; pinned versions +

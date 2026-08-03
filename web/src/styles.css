@@ -1,0 +1,772 @@
+/* Clean and quiet: the figure is the hero, text is minimal (docs/06 preamble).
+   Mobile-first — every size below is chosen at 360 px and allowed to grow, never the reverse. */
+
+:root {
+  --ink: #16181d;
+  --ink-soft: #5b616e;
+  --paper: #fbfbfa;
+  --card: #ffffff;
+  --rule: #e3e3df;
+  --accent: #1668c1;
+  --accent-soft: #e6effa;
+  --goal: #c2410c;
+  --danger: #a4262c;
+  --radius: 12px;
+  --figure-max: 34rem;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink: #eceef2;
+    --ink-soft: #9aa1af;
+    --paper: #14161a;
+    --card: #1c1f25;
+    --rule: #2c313a;
+    --accent: #6aa9f0;
+    --accent-soft: #1d2a3c;
+    --goal: #f19056;
+    --danger: #e2707a;
+  }
+}
+
+:root[data-theme="light"] {
+  --ink: #16181d;
+  --ink-soft: #5b616e;
+  --paper: #fbfbfa;
+  --card: #ffffff;
+  --rule: #e3e3df;
+  --accent: #1668c1;
+  --accent-soft: #e6effa;
+  --goal: #c2410c;
+  --danger: #a4262c;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --ink: #eceef2;
+  --ink-soft: #9aa1af;
+  --paper: #14161a;
+  --card: #1c1f25;
+  --rule: #2c313a;
+  --accent: #6aa9f0;
+  --accent-soft: #1d2a3c;
+  --goal: #f19056;
+  --danger: #e2707a;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  max-width: 44rem;
+  margin: 0 auto;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.status {
+  padding: 3rem 1.25rem;
+  text-align: center;
+}
+
+.muted {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+/* ---------------------------------------------------------------- top bar */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  z-index: 2;
+}
+
+.bar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.bar-brand {
+  text-align: left;
+  padding-left: 0.75rem;
+  font-weight: 650;
+  font-size: 1.05rem;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.bar-button {
+  background: none;
+  border: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  color: var(--accent);
+  min-height: 44px;
+}
+
+.bar-button:hover {
+  background: var(--accent-soft);
+}
+
+.bar-spacer {
+  width: 4.5rem;
+}
+
+/* ---------------------------------------------------------------- figure */
+
+/* The figure stays pinned while the page scrolls to the keypad.
+   Measured: on a 390x844 phone the givens, the entry field and four keypad rows put "Check"
+   about 150 px below the fold, and no arrangement of them fits a 360x640 screen at all. So
+   rather than shrink the figure until it is unreadable, it follows you down — which is what
+   you want anyway, since the figure is what you are reasoning about while typing. */
+.figure-frame {
+  padding: 0.5rem 0.75rem 0;
+  background: var(--paper);
+  position: sticky;
+  top: 3.5rem;
+  z-index: 1;
+}
+
+.figure {
+  display: block;
+  width: 100%;
+  max-width: var(--figure-max);
+  /* A 4:3 figure at full phone width is 585 px of an 844 px screen, which puts the keypad
+     below the fold and makes every attempt a scroll. Capping the height keeps the figure, the
+     goal and the keypad on one screen; `preserveAspectRatio` letterboxes the width to match. */
+  max-height: 32vh;
+  margin: 0 auto;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* On the complete screen nothing is being typed, so the figure gets the room back. */
+.complete-screen .figure {
+  max-height: 52vh;
+}
+
+.fig-seg-base,
+.fig-circle {
+  stroke: var(--ink);
+  stroke-width: 5;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.fig-circle {
+  stroke-width: 5;
+}
+
+/* Highlight = colour + width + dash, never colour alone (docs/06 §6.4). The base line stays
+   visible under the dashed overlay, so the change reads even in greyscale. */
+.fig-seg.is-on .fig-seg-base,
+.fig-circle.is-on {
+  stroke: var(--accent);
+  stroke-width: 9;
+}
+
+.fig-seg-halo {
+  stroke: var(--accent);
+  stroke-width: 13;
+  stroke-dasharray: 26 20;
+  stroke-linecap: round;
+  opacity: 0.55;
+  fill: none;
+}
+
+.fig-hit {
+  stroke: transparent;
+  stroke-width: 44;
+  fill: none;
+  cursor: pointer;
+}
+
+.fig-point {
+  fill: var(--ink);
+  stroke: var(--paper);
+  stroke-width: 3;
+  cursor: pointer;
+}
+
+.fig-point.is-on {
+  fill: var(--accent);
+  r: 15;
+}
+
+.fig-label {
+  fill: var(--ink);
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 7;
+  stroke-linejoin: round;
+}
+
+.fig-label.is-on {
+  fill: var(--accent);
+}
+
+.fig-tick,
+.fig-chevron,
+.fig-right {
+  stroke: var(--ink);
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.fig-right.is-on {
+  stroke: var(--accent);
+  stroke-width: 8;
+}
+
+.fig-arc-path {
+  stroke: var(--ink);
+  stroke-width: 5.5;
+  fill: none;
+}
+
+.fig-arc-label {
+  fill: var(--ink);
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--paper);
+  stroke-width: 6;
+  stroke-linejoin: round;
+}
+
+.fig-arc.is-on .fig-arc-path {
+  stroke: var(--accent);
+  stroke-width: 8;
+}
+
+.fig-arc.is-on .fig-arc-label {
+  fill: var(--accent);
+}
+
+/* The goal: its own hue, a heavier stroke and a dashed arc — three channels again, because
+   "which angle am I being asked for" is the one thing that must never be ambiguous. */
+.fig-arc.is-goal .fig-arc-path {
+  stroke: var(--goal);
+  stroke-width: 8;
+  stroke-dasharray: 16 12;
+}
+
+.fig-arc.is-goal .fig-arc-label {
+  fill: var(--goal);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------------------- player */
+
+.player-body,
+.complete-body,
+.settings-body,
+.home-body {
+  flex: 1;
+  padding: 1rem 1.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.player-body {
+  gap: 0.9rem;
+  padding-top: 0.75rem;
+}
+
+.section-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.goal {
+  text-align: center;
+}
+
+.goal-question {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.given-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.given-chip {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  min-height: 44px;
+  font-size: 1rem;
+}
+
+.given-chip.is-focused {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.entry {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: 3.4rem;
+  border: 2px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 2.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry.is-wrong {
+  border-color: var(--danger);
+  animation: shake 0.32s ease-in-out;
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  50% {
+    transform: translateX(7px);
+  }
+  80% {
+    transform: translateX(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry.is-wrong {
+    animation: none;
+  }
+}
+
+.entry-message {
+  margin: 0.4rem 0 0;
+  min-height: 1.4rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--danger);
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+/* 48 px still clears the 44 px touch-target floor, and the four rows saved 40 px — enough to
+   put the entry field, every key and Check on one screen under the pinned figure. */
+.key {
+  min-height: 48px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+  font-size: 1.4rem;
+  font-weight: 500;
+}
+
+.key:active {
+  background: var(--accent-soft);
+}
+
+.key:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.key-secondary {
+  color: var(--ink-soft);
+}
+
+.key-submit {
+  grid-column: span 3;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 600;
+  min-height: 50px;
+}
+
+.assist {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.assist-button {
+  flex: 1;
+  min-height: 44px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: transparent;
+  font-size: 0.95rem;
+}
+
+.assist-quiet {
+  color: var(--ink-soft);
+}
+
+.assist-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.attempts {
+  margin: 0.6rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------- solution */
+
+.solution {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  counter-reset: step;
+}
+
+.solution-button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  width: 100%;
+  text-align: left;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.solution-step.is-focused .solution-button {
+  border-color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.solution-index {
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding-top: 0.2rem;
+  white-space: nowrap;
+}
+
+.solution-text {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+.primary,
+.secondary,
+.danger {
+  min-height: 50px;
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
+  padding: 0 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--card);
+}
+
+.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+/* ---------------------------------------------------------------- home */
+
+.streaks {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.9rem 0.5rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.stat-value {
+  font-size: 1.7rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.card-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.daily-card {
+  padding: 1.1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+
+.daily-line {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.band-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.band-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 56px;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.band-name {
+  font-weight: 600;
+  border-left: 4px solid currentColor;
+  padding-left: 0.7rem;
+}
+
+.band-easy {
+  color: #2f8a4c;
+}
+.band-medium {
+  color: #b07d12;
+}
+.band-hard {
+  color: #c2410c;
+}
+.band-expert {
+  color: #8b2fb0;
+}
+
+.band-progress {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-note {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+/* ---------------------------------------------------------------- complete + settings */
+
+.finish-answer {
+  margin: 0;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.tally,
+.about {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.about {
+  grid-template-columns: 1fr;
+}
+
+.tally div,
+.about div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.tally dt,
+.about dt {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.tally dd,
+.about dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.setting {
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.setting legend,
+.setting h2 {
+  padding: 0;
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.choice-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.choice {
+  flex: 1;
+  min-height: 48px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.choice.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- wide screens */
+
+@media (min-width: 48rem) {
+  .player-screen .player-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .player-screen .goal,
+  .player-screen .solution {
+    grid-column: 1 / -1;
+  }
+
+  :root {
+    --figure-max: 40rem;
+  }
+
+  /* Wide enough that everything fits without help; pinning would only waste height. */
+  .figure-frame {
+    position: static;
+  }
+
+  .figure,
+  .complete-screen .figure {
+    max-height: none;
+  }
+}
