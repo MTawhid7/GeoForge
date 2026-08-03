@@ -3,8 +3,8 @@
 Turns a generation run into a bank on disk: lay out each puzzle, validate every one against
 the independent engine, strip the build-time blocks, and write per-band shards plus a manifest.
 
-**A dev bank is not a shippable bank, and says so.** Scoring, dedupe, interestingness ranking
-and anti-leak perturbation are later milestones; until they land the manifest carries
+**A dev bank is not a shippable bank, and says so.** Dedupe and anti-leak perturbation are later
+milestones; until they land the manifest carries
 `shippable: false` and names what is missing. That is the same discipline as `--no-wellposed`
 on the batch runner: a reduced build is fine to look at and must never be mistaken for the
 real thing. `--strict` refuses to build at all while anything is missing, which is what CI
@@ -34,16 +34,14 @@ from geoforge.config import BANK, SOLVER, VALIDATION
 from geoforge.generator.batch import generator_version, run
 from geoforge.generator.emit import assemble
 from geoforge.generator.translation.phrases import angle_of
+from geoforge.scoring import filters, interest
 from geoforge.scoring.score import BAND_ORDER
 from geoforge.solvers.interface import SolverBackend, get_backend
 
 #: What a shippable bank still needs (docs/09 P2). Named rather than implied, so the manifest
 #: says *why* it is not shippable instead of just that it is not.
 MISSING_FOR_SHIPPABLE: tuple[str, ...] = (
-    "difficulty_scoring",
-    "hard_filters",
     "isomorphism_dedupe",
-    "interestingness_ranking",
     "anti_leak_layout",
 )
 
@@ -56,6 +54,10 @@ class BuildReport:
     generation: dict[str, Any] = field(default_factory=dict)
     layout_considered: int = 0
     layout_admissible: int = 0
+    generated: int = 0
+    """Candidates that survived generation and the docs/05 §5.2 hard filters, before
+    interestingness selection."""
+    dropped_by_interest: int = 0
     wall_seconds: float = 0.0
 
     def by_band(self) -> dict[str, int]:
@@ -68,6 +70,8 @@ class BuildReport:
         return {
             "puzzles": len(self.puzzles),
             "by_band": self.by_band(),
+            "generated": self.generated,
+            "dropped_by_interest": self.dropped_by_interest,
             "layout_failures": len(self.layout_failures),
             "validation_failures": len(self.validation_failures),
             "layout_admissible_per_puzzle": (
@@ -92,8 +96,19 @@ def build(
 
     batch = run(n, seed, backend)
     report.generation = dict(batch.summary())
+    # docs/05 §5.2 filter 5 is a bug report, not attrition: a build must not quietly ship
+    # around it. The batch runner exits non-zero for the same reason.
+    if batch.bugs:
+        raise filters.UnusedGivenBug("; ".join(batch.bugs))
 
-    for candidate in batch.puzzles:
+    # Interestingness runs before layout, not after: laying out a puzzle costs 25 engine calls
+    # and the point of the keep rate is to not pay them for puzzles nobody will see.
+    report.generated = len(batch.puzzles)
+    collinear = {c.id: interest.collinear_count(c.derivation.premises) for c in batch.puzzles}
+    selected = interest.select(batch.puzzles, collinear)
+    report.dropped_by_interest = len(batch.puzzles) - len(selected)
+
+    for candidate in selected:
         laid = _laid_out(backend, candidate)
         if laid is None:
             report.layout_failures.append(candidate.id)

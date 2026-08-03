@@ -1,4 +1,4 @@
-.PHONY: setup lint typecheck test schema bench-batch cross-validate bank bank-strict \
+.PHONY: setup lint typecheck test schema bench-batch calibrate cross-validate bank bank-strict \
         web-setup web-dev web-build web-test web-e2e web-fixtures clean
 
 # Everything runs inside the project-local .venv via uv. Never install into system Python.
@@ -29,9 +29,14 @@ test:
 	uv run pytest
 	cd web && npm run test
 
-# Fixed-seed pipeline run + attrition report diff (per stage and band). Wired in M5.
+# Fixed-seed pipeline run + attrition report diff (per stage and band).
 bench-batch:
 	uv run python -m geoforge.generator.batch --seed 42 --n 200 --report
+
+# docs/05 §5.1 calibration protocol: stratified spot check + batch distribution. A weight
+# change has to cite one of these, which is why it is a command and not a paragraph.
+calibrate:
+	uv run python -m geoforge.scoring.report --n 400 --seed 42 --sample 50
 
 # Generate, then re-derive every puzzle on the second engine (AG2 DDAR). Any disagreement
 # exits non-zero: two engines differing means one is wrong and we cannot tell which. Wired in M6.
