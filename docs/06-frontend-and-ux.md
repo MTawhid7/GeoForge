@@ -23,8 +23,17 @@ non-native English speakers — symbols and highlighting over prose).
   the puzzle's tolerance, exact form (`3√2`) shown on solve (lengths/areas). Wrong answers shake +
   increment attempt counter; no reveal until solved or give-up.
 - **Interaction:** tap element to highlight; pinch-zoom/pan; no point dragging (static figure in v1).
+  Pan and zoom are the browser's own — the viewport meta deliberately does not disable user scaling,
+  so no gesture code is carried for something the platform already does correctly.
+- **Layout (settled Phase 2 M2):** the figure is **sticky** on narrow screens. Measured on the built
+  app: the givens, the entry field and four keypad rows put *Check* about 150 px below the fold on a
+  390×844 phone and do not fit a 360×640 screen at any size. Shrinking the figure until everything
+  fits makes the figure unreadable, so instead it follows the page down — which is what you want
+  anyway, since the figure is what you are reasoning about while typing. Above 48 rem it is static.
 - **Hints:** reveal solution steps one at a time (text + element highlights, derivation order). All hints
-  taken ⇒ marked "assisted", not solved.
+  taken ⇒ marked "assisted", not solved. Read literally: *all*, so two hints out of five and then a
+  correct answer is a solve. `hintsShown` is stored alongside the outcome either way, so a stricter
+  rule can be adopted later without rewriting what past results meant.
 - **Solution replay:** steps from the JSON verbatim (`derives`, `highlights` — grammar in doc 02); the
   frontend never re-derives or re-orders anything.
 
@@ -41,7 +50,10 @@ non-native English speakers — symbols and highlighting over prose).
    failure is not evidence of forcedness). **Never perturb declared facts**: figures are always metrically
    consistent with all premises; no "not to scale" figures (consequence: doc 07 T5).
 3. **Label placement:** repulsion pass for point labels; angle labels inside the arc where wide enough,
-   leader lines otherwise.
+   leader lines otherwise. The offset *direction* is chosen here and shipped in the JSON; its
+   *magnitude* (`LAYOUT.label_radius`) is calibrated against the renderer's font size, because only
+   the renderer knows how big a label is. It was 16 viewbox units against a 34-unit glyph until the
+   frontend was first drawn — the label sat on top of its own point.
 4. Output: final coordinates + label offsets in the JSON. The frontend does no layout beyond viewport
    scaling.
 
@@ -55,7 +67,15 @@ non-native English speakers — symbols and highlighting over prose).
 ## 6.5 Frontend engineering constraints
 
 - React + TypeScript + Vite; SVG via plain JSX; no geometry/chart libraries.
-- Puzzle JSON types **generated** from the schema (CI drift check).
+- **Where "no geometry logic" ends.** The renderer reads coordinates and emits path data — an arc
+  mark at `at: [P, V, Q]` cannot be drawn without knowing which way the two rays point, exactly as a
+  segment cannot be drawn without reading two points. What it never does is decide, derive, check or
+  reorder a geometric fact: every fact the figure shows was settled offline and arrives in the JSON.
+- Puzzle JSON types **generated** from the schema (CI drift check). The bank *manifest* is
+  generated too (`schema.Manifest` → `bank-<v>.schema.json` + the same TS file): the frontend
+  reads it before anything else, so it is part of the contract. The layout viewbox ships as a
+  generated `VIEWBOX` constant rather than being agreed by convention — deriving it from the
+  points in the client would put framing, a §6.3 layout decision, back in the client.
 - State: component state + thin localStorage module (`stats`, `settings`, `seenPuzzles`); no state
   library without documented need.
 - Bank ships as per-band lazy-loaded shards + manifest; first puzzle interactive < 2 s on a mid-range

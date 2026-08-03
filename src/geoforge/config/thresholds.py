@@ -295,8 +295,17 @@ class LayoutConfig:
     readable, clearance stands in for label-collision risk, and aspect is a mild preference
     rather than a constraint. Retune against the spot check, not by intuition."""
 
-    label_radius: float = 16.0
-    """GUESS: label offset in viewbox units."""
+    label_radius: float = 30.0
+    """Label offset in viewbox units, measured to the glyph's centre.
+
+    Calibrated against the renderer rather than guessed: `web/src/render/style.ts` draws point
+    labels at 34 units and point dots at radius 9, so an offset of 30 leaves roughly half a
+    glyph of clear space between the dot and the text. At the narrowest supported width — 360
+    px for a 1000-unit viewbox — that is a 12 px label sitting 11 px off its point.
+
+    It is the *magnitude* only; which of the 16 directions each label takes is chosen by
+    `place_labels` and shipped in the JSON, because docs/06 §6.3 puts label placement offline
+    and leaves the frontend nothing to do but draw at the stated offset."""
 
     label_directions: int = 16
     """GUESS: compass directions a label may take. Discrete because the choice is coupled only
