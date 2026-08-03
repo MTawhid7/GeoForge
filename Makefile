@@ -1,4 +1,4 @@
-.PHONY: setup lint typecheck test schema bench-batch cross-validate bank clean
+.PHONY: setup lint typecheck test schema bench-batch cross-validate bank bank-strict clean
 
 # Everything runs inside the project-local .venv via uv. Never install into system Python.
 
@@ -33,10 +33,14 @@ bench-batch:
 cross-validate:
 	uv run python -m geoforge.generator.batch --seed 42 --n 400 --validate
 
-# Full bank build + cross-engine validation; fails on any invalid puzzle. Wired in Phase 2.
-# The validation half already exists — see `cross-validate` and `geoforge.bank.validate`.
+# Bank build + cross-engine validation; fails the build on any invalid puzzle.
+# NOT YET SHIPPABLE: scoring, dedupe, interestingness and anti-leak layout are still to land,
+# and the manifest says so. `--strict` refuses to build until they do.
 bank:
-	uv run python -m geoforge.bank.build
+	uv run python -m geoforge.bank.build --seed 42
+
+bank-strict:
+	uv run python -m geoforge.bank.build --seed 42 --strict
 
 clean:
 	rm -rf .pytest_cache .mypy_cache .ruff_cache

@@ -58,16 +58,18 @@ Coords = Mapping[str, tuple[float, float]]
 def frame(coords: Coords) -> dict[str, tuple[float, float]]:
     """Fit a figure into the viewbox by a **similarity transform only**.
 
-    Uniform scale, translation, and a y-flip from maths convention (y up) to SVG convention
-    (y down). No rotation choice and no reflection: a reflection reverses orientation, which
-    flips every `sameclock` the puzzle's configuration facts pin, so the drawn figure would
-    contradict the sentences the solution states. The y-flip is applied to *every* point, which
-    is a reflection of the whole plane — the figure and its solution text are re-derived under
-    it nowhere, so it must not be combined with any orientation-sensitive choice. That is why
-    the flip lives here, once, rather than in a renderer that might apply it twice.
+    Uniform scale, translation, and a y-flip from maths convention (y up) to SVG's (y down).
+    Choosing the pose is `bank.layout`'s job; this only fits the result to the box.
 
-    Only similarity transforms are allowed at all, because every premise is a metric statement
-    about this point set and anything else would break one (docs/06 §6.3, docs/07 T5).
+    The y-flip is a reflection, and that is safe: everything the puzzle publishes is
+    *undirected* — vertex angles, distances, congruences — all of which a mirror preserves.
+    What a reflection does negate is a directed line-to-line angle, and those appear only in
+    `derives` and `goal.fact`, which are trace handles over the **reference** figure. Cross-
+    engine validation reads `reference_figure` and never this one (docs/04 §V), so nothing
+    downstream sees the flip.
+
+    What is *not* optional is that the transform be a similarity. Every premise is a metric
+    statement about this point set, so anything else breaks one (docs/06 §6.3, docs/07 T5).
     """
     if not coords:
         raise SchemaError("cannot frame an empty figure")
@@ -334,6 +336,7 @@ def assemble(
     difficulty: schema.Difficulty,
     *,
     display_coords: Coords | None = None,
+    label_offsets: Mapping[str, tuple[float, float]] | None = None,
     declared: Sequence[Fact] = (),
     provenance: Mapping[str, object] | None = None,
 ) -> schema.Puzzle:
@@ -342,6 +345,10 @@ def assemble(
     `reference_coords` are the engine's, and every *sentence* is rendered against them: they
     are the diagram Stage 8 certified the wording over. `display_coords` are what gets drawn,
     and default to the reference figure framed into the viewbox.
+
+    Keeping those two separate is what lets `bank.layout` choose a better drawing without any
+    risk of changing what the puzzle says: it supplies coordinates and label offsets, and the
+    text is rendered from the reference figure either way.
     """
     kind = quantities.get(quantity_type)
     drawn = frame(display_coords if display_coords is not None else reference_coords)
@@ -359,8 +366,15 @@ def assemble(
         h for s in steps for h in s.highlights
     ]
 
+    offsets = label_offsets or {}
     points = tuple(
-        DisplayPoint(id=schema.display_label(name), x=drawn[name][0], y=drawn[name][1])
+        DisplayPoint(
+            id=schema.display_label(name),
+            x=drawn[name][0],
+            y=drawn[name][1],
+            label_dx=offsets.get(name, (0.0, 0.0))[0],
+            label_dy=offsets.get(name, (0.0, 0.0))[1],
+        )
         for name in sorted(drawn)
     )
     schema.display_labels(sorted(drawn))

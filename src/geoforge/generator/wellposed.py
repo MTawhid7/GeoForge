@@ -196,7 +196,7 @@ def check(
             continue
 
         coords = figure.coords()
-        if not _same_configuration(backend, figure.points, configuration):
+        if not same_configuration(backend, figure.points, configuration):
             rejected += 1
             continue
 
@@ -293,12 +293,17 @@ def _as_points(coords: dict[str, tuple[float, float]]) -> tuple[tuple[str, float
     return tuple(sorted((name, x, y) for name, (x, y) in coords.items()))
 
 
-def _same_configuration(
+def same_configuration(
     backend: SolverBackend,
     points: tuple[tuple[str, float, float], ...],
     configuration: tuple[Fact, ...],
 ) -> bool:
-    """Whether a resampled figure sits in the same configuration as the reference."""
+    """Whether a resampled figure sits in the same configuration as the reference.
+
+    Shared with `bank.layout`, which must not draw a figure in a flipped configuration: the
+    solution's vertex angles are read off the reference diagram, so a display figure in the
+    other configuration would show angles contradicting the sentences it ships with.
+    """
     if not configuration:
         return True
     try:

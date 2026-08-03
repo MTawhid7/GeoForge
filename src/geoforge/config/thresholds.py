@@ -266,6 +266,65 @@ class LayoutConfig:
     margin_fraction: float = 0.08
     """GUESS: keeps point labels off the viewbox edge at 360 px width."""
 
+    instantiation_samples: int = 24
+    """GUESS: how many fresh instantiations to consider besides the reference figure. Each
+    costs one `realize` (a few ms). The reference is always a candidate, so the layout can
+    only improve on what Stage 9 would have drawn."""
+
+    seed_offset: int = 7_000_003
+    """Keeps layout candidates clear of WELLPOSED's resample seeds (1_000_003), so a drawing is
+    never silently the same figure Stage 8 used to confirm the puzzle."""
+
+    rotation_grid_degrees: float = 2.0
+    """GUESS: the pose is chosen by scanning this grid over 180 deg. A grid rather than a local
+    optimizer because the objective is periodic; 2 deg is well below what an eye reads as tilt."""
+
+    goal_render_tolerance_degrees: float = 1e-3
+    """Matches TRANSLATION.angle_render_tolerance_degrees, and for the same reason: a candidate
+    drawing is accepted only if the goal still measures what the puzzle publishes."""
+
+    weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "separation": 1.0,
+            "feature_angle": 1.0,
+            "clearance": 0.6,
+            "aspect": 0.3,
+        }
+    )
+    """GUESS (docs/06 §6.3 item 1): separation and feature angle are what make a figure
+    readable, clearance stands in for label-collision risk, and aspect is a mild preference
+    rather than a constraint. Retune against the spot check, not by intuition."""
+
+    label_radius: float = 16.0
+    """GUESS: label offset in viewbox units."""
+
+    label_directions: int = 16
+    """GUESS: compass directions a label may take. Discrete because the choice is coupled only
+    through label-label collisions, which a few relaxation passes settle."""
+
+    label_relaxation_passes: int = 4
+    """GUESS: greedy placement is order-dependent, so the first point chooses without knowing
+    about the last; a few passes let early choices react to late ones."""
+
+
+@dataclass(frozen=True)
+class BankConfig:
+    """Bank build and packaging (docs/02, docs/06 §6.5)."""
+
+    shard_size: int = 200
+    """GUESS: per-band lazy-loaded shards (docs/06 §6.5). Small enough that the first puzzle
+    is interactive before the rest of a band has downloaded."""
+
+    output_dir: str = "banks/v2"
+    archive_dirname: str = "_archive"
+    """The archive keeps the unstripped payloads, so `bank/validate.py` can be pointed at a
+    build months later — which is what its docstring promises and what stripped shards cannot
+    support."""
+
+    default_constructions: int = 2_000
+    """GUESS: a starting budget for `make bank`. Target-driven generation with per-band floors
+    replaces this once the scorer redistributes the bands (docs/09 P2)."""
+
 
 SOLVER = SolverConfig()
 TOLERANCE = ToleranceConfig()
@@ -279,3 +338,4 @@ VALIDATION = ValidationConfig()
 BANDING = BandingConfig()
 SCHEMA = SchemaConfig()
 LAYOUT = LayoutConfig()
+BANK = BankConfig()
