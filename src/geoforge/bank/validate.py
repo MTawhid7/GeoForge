@@ -118,7 +118,10 @@ def validate(puzzle: Mapping[str, Any], validator: ValidatorBackend | None = Non
 
     try:
         points = _points_of(puzzle)
-        premises = tuple(fact_from_id(f) for f in puzzle["given"])
+        # Schema v2 states givens as objects. `fact` is the canonical id and the only field
+        # the validator reads: `display` is prose and could say anything without changing what
+        # the puzzle claims, so re-deriving from it would validate the wording, not the maths.
+        premises = tuple(fact_from_id(g["fact"]) for g in puzzle["given"])
         configuration = tuple(fact_from_id(f) for f in puzzle.get("configuration", ()))
         goal = fact_from_id(puzzle["goal"]["fact"])
         answer = str(puzzle["goal"]["answer"]["exact"])
@@ -231,6 +234,10 @@ def corrupt_answer(puzzle: Mapping[str, Any], offset_degrees: int | None = None)
     assert shifted.value is not None
     mutant["goal"]["answer"]["exact"] = kind.format_answer(shifted.value)
     mutant["goal"]["answer"]["display"] = f"{mutant['goal']['answer']['exact']}°"
+    # `approx` too, or the mutant is not the self-consistent puzzle this claims to produce —
+    # a validator could then catch it on an inconsistency instead of on the geometry, and the
+    # test would pass while checking something weaker than it says.
+    mutant["goal"]["answer"]["approx"] = float(shifted.value * 180)
     return mutant
 
 
@@ -322,11 +329,33 @@ def main(argv: list[str] | None = None) -> int:
 
     failed = sum(1 for v in validations if not v.ok)
     if args.mutation_test and puzzles:
-        caught = sum(1 for p in puzzles if not validate(corrupt_answer(p), validator).ok)
-        print(f"mutation test: {caught}/{len(puzzles)} corrupted answers rejected")
-        if caught != len(puzzles):
-            failed += 1
+        failed += _mutation_battery(puzzles, validator)
     return 1 if failed else 0
+
+
+def _mutation_battery(puzzles: Sequence[Mapping[str, Any]], validator: ValidatorBackend) -> int:
+    """All three mutations, not just the first — and every premise, not a sample.
+
+    Each targets a distinct failure the others cannot see: a self-consistent wrong answer tests
+    the *geometry* check, a lying published answer tests that the answer is tied back to the
+    derived fact, and a dropped premise tests minimality. Running only one leaves the other two
+    guarantees asserted by nothing. Returns the number of mutations that got through, which is
+    the number of ways this validator has been shown to have no teeth.
+    """
+    escaped = 0
+    for name, mutants in (
+        ("corrupted answers", [corrupt_answer(p) for p in puzzles]),
+        ("lying published answers", [corrupt_published_answer(p) for p in puzzles]),
+        (
+            "dropped premises",
+            [drop_premise(p, i) for p in puzzles for i in range(len(p["given"]))],
+        ),
+    ):
+        caught = sum(1 for m in mutants if not validate(m, validator).ok)
+        print(f"mutation test: {caught}/{len(mutants)} {name} rejected")
+        if caught != len(mutants):
+            escaped += 1
+    return escaped
 
 
 if __name__ == "__main__":

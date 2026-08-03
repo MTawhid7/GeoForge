@@ -24,33 +24,44 @@ import json
 import sys
 import time
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from importlib.metadata import version
 
 import numpy as np
 
+from geoforge import schema
 from geoforge.config import SOLVER
 from geoforge.generator import wellposed
 from geoforge.generator.construction import Construction
 from geoforge.generator.degeneracy import check_figure
+from geoforge.generator.emit import assemble
 from geoforge.generator.extract import ExtractedGoal, extract_goals
-from geoforge.generator.quantities import get as quantity_type
 from geoforge.generator.sampler import sample_construction
 from geoforge.generator.traceback import Derivation, derive, prune_figure
 from geoforge.generator.translation import (
-    SolutionStep,
     Translation,
     translate,
     unspeakable_givens,
 )
 from geoforge.generator.translation.phrases import angle_of
 from geoforge.generator.translation.vertex_angles import VertexAngle
+from geoforge.schema import SchemaError
 from geoforge.scoring.bands import band_for_depth
 from geoforge.solvers.interface import SolverBackend, get_backend
-from geoforge.solvers.types import SolveOptions
+from geoforge.solvers.types import Fact, SolveOptions
 
 #: Pipeline stage names, used as attrition keys. Ordered as the pipeline runs.
-STAGES = ("sample", "realize", "degeneracy", "extract", "traceback", "translate", "wellposed")
+STAGES = (
+    "sample",
+    "realize",
+    "degeneracy",
+    "extract",
+    "traceback",
+    "translate",
+    "wellposed",
+    "emit",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,68 +76,80 @@ class Discard:
 
 @dataclass(frozen=True, slots=True)
 class CandidatePuzzle:
-    """Stage 9 output: everything needed to build, score and validate a puzzle."""
+    """Stage 9 output: the shippable puzzle, plus the pipeline objects scoring will need.
 
-    id: str
-    quantity_type: str
-    construction: str
-    """The *pruned* construction — the figure actually drawn."""
-    premises: tuple[str, ...]
-    configuration: tuple[str, ...]
-    goal: str
-    """Canonical fact id of the goal."""
-    reference_points: tuple[tuple[str, float, float], ...]
-    """The engine's coordinates for the *pruned* figure — the diagram the puzzle was derived
-    over, and the input cross-engine validation needs (docs/04 §V).
+    The artifact is `puzzle`, a schema-v2 `Puzzle`. The rest are the generator objects docs/05
+    scores over — carried in memory and never serialized, so nothing leaks into the JSON: the
+    only thing `to_json` can emit is what the schema defines.
+    """
 
-    Restricted to the pruned construction's points on purpose. A validator handed the scaffolding
-    the figure no longer shows could derive the goal through a point the player never sees, and
-    report a pass the puzzle has not earned.
-
-    Build-time data, not player-facing: the shipped `figure` with laid-out display coordinates is
-    Phase 2's, and this is stripped from shipped banks alongside `provenance` (docs/02)."""
-    question: str
-    """Player-facing, e.g. "∠ACB"."""
-    answer: str
-    answer_unit: str
-    solution: tuple[SolutionStep, ...]
-    depth: int
-    distinct_rules: int
-    band: str
+    puzzle: schema.Puzzle
+    derivation: Derivation
+    translation: Translation
+    pruned: Construction
+    """The pruned construction — the figure actually drawn. Scoring's elegance denominator."""
     seed: int
-    provenance: dict[str, str | int]
 
     def to_json(self) -> dict[str, object]:
-        return {
-            "id": self.id,
-            "quantity_type": self.quantity_type,
-            "difficulty": {
-                "band": self.band,
-                "depth": self.depth,
-                "distinct_rules": self.distinct_rules,
-            },
-            "given": list(self.premises),
-            "configuration": list(self.configuration),
-            "reference_figure": {
-                "points": [{"id": n, "x": x, "y": y} for n, x, y in self.reference_points]
-            },
-            "goal": {
-                "fact": self.goal,
-                "question": self.question,
-                "answer": {"exact": self.answer, "display": f"{self.answer}{self.answer_unit}"},
-            },
-            "solution": [
-                {
-                    "step": s.step,
-                    "rule": s.rule,
-                    "text": s.text,
-                    "derives": s.derives,
-                    "highlights": list(s.highlights),
-                }
-                for s in self.solution
-            ],
-            "provenance": dict(self.provenance),
-        }
+        return self.puzzle.to_json()
+
+    # Convenience accessors over the artifact, so callers do not reach through two layers.
+    @property
+    def id(self) -> str:
+        return self.puzzle.id
+
+    @property
+    def quantity_type(self) -> str:
+        return self.puzzle.quantity_type
+
+    @property
+    def band(self) -> str:
+        return self.puzzle.difficulty.band
+
+    @property
+    def depth(self) -> int:
+        return self.puzzle.difficulty.depth
+
+    @property
+    def distinct_rules(self) -> int:
+        return self.puzzle.difficulty.distinct_rules
+
+    @property
+    def premises(self) -> tuple[str, ...]:
+        return tuple(g.fact for g in self.puzzle.given)
+
+    @property
+    def configuration(self) -> tuple[str, ...]:
+        return self.puzzle.configuration
+
+    @property
+    def goal(self) -> str:
+        return self.puzzle.goal.fact
+
+    @property
+    def question(self) -> str:
+        return self.puzzle.goal.question
+
+    @property
+    def answer(self) -> str:
+        return self.puzzle.goal.answer.exact
+
+    @property
+    def solution(self) -> tuple[schema.Step, ...]:
+        return self.puzzle.solution
+
+    @property
+    def construction(self) -> str:
+        return self.pruned.to_jgex()
+
+    @property
+    def provenance(self) -> Mapping[str, object]:
+        return self.puzzle.provenance or {}
+
+    @property
+    def reference_points(self) -> tuple[tuple[str, float, float], ...]:
+        reference = self.puzzle.reference_figure
+        return tuple((p.id, p.x, p.y) for p in reference.points) if reference else ()
 
 
 @dataclass
@@ -155,15 +178,29 @@ class BatchReport:
         return dict(Counter(p.band for p in self.puzzles))
 
     def summary(self) -> dict[str, object]:
+        """The reproducible half of the report — everything a rerun must reproduce exactly.
+
+        Wall time is deliberately absent. It belongs in `timing()`, printed rather than
+        written, because an artifact carrying it cannot be compared with `diff`: two identical
+        builds would differ on a field that says nothing about what they produced. Keeping it
+        out is what lets a bank build be verified by comparing files (docs/02 invariant 2).
+        """
         return {
             "constructions": self.constructions,
             "puzzles": len(self.puzzles),
             "soundness_failures": len(self.soundness_failures),
             "underdetermined": len(self.underdetermined),
-            "wall_seconds": round(self.wall_seconds, 2),
             "by_band": self.by_band(),
             "attrition_by_stage": self.by_stage(),
             "attrition_by_reason": self.by_reason(),
+        }
+
+    def timing(self) -> dict[str, object]:
+        """Throughput, which no rerun is expected to reproduce."""
+        rate = self.constructions / self.wall_seconds if self.wall_seconds else 0.0
+        return {
+            "wall_seconds": round(self.wall_seconds, 2),
+            "constructions_per_second": round(rate, 1),
         }
 
 
@@ -295,9 +332,47 @@ def _run_one(
                     target.append(wp.reproduction)
                 continue
 
-        report.puzzles.append(
-            _emit(construction, derivation, translation, goal, angle, coords, case_seed, goal_index)
-        )
+        # Assembly is a gate, not just a formatter: the schema refuses a figure whose marks
+        # assert something the givens do not, including the case where a mark states the
+        # answer outright. Those are attrition with a named reason rather than a crash — but
+        # they are *counted*, so a rising `emit:` line means a real assembly bug rather than
+        # a quietly swallowed one.
+        try:
+            report.puzzles.append(
+                _emit(
+                    construction,
+                    derivation,
+                    translation,
+                    goal,
+                    angle,
+                    coords,
+                    figure.declared,
+                    case_seed,
+                    goal_index,
+                )
+            )
+        except SchemaError as exc:
+            report.discards.append(Discard("emit", _emit_reason(exc), case_seed, str(exc)[:200]))
+
+
+#: Assembly refusals, keyed for the attrition report. An unrecognised one is reported as
+#: `schema_error` rather than bucketed into a neighbour, so it cannot hide in a familiar row.
+_EMIT_REASONS: tuple[tuple[str, str], ...] = (
+    ("states the answer on the figure", "figure_states_the_answer"),
+    ("no player-facing phrasing", "given_unspeakable"),
+    ("collide on display labels", "label_collision"),
+    ("with no cong among", "unbacked_mark"),
+    ("with no para among", "unbacked_mark"),
+    ("with no perp or aconst among", "unbacked_mark"),
+)
+
+
+def _emit_reason(exc: SchemaError) -> str:
+    message = str(exc)
+    for needle, reason in _EMIT_REASONS:
+        if needle in message:
+            return reason
+    return "schema_error"
 
 
 def _emit(
@@ -307,6 +382,7 @@ def _emit(
     goal: ExtractedGoal,
     angle: VertexAngle,
     coords: dict[str, tuple[float, float]],
+    declared: tuple[Fact, ...],
     case_seed: int,
     goal_index: int,
 ) -> CandidatePuzzle:
@@ -319,34 +395,30 @@ def _emit(
         construction, derivation.needed_points() | translation.highlighted_points()
     )
     pruned = pruning.construction(construction)
-    kind = quantity_type(goal.quantity_type)
+    drawn = set(pruned.points)
     depth = derivation.depth
-    return CandidatePuzzle(
+    puzzle = assemble(
         # One construction can yield several goals, so the seed alone does not identify a puzzle.
         # The index is positional within the construction rather than a hash of the goal: string
         # hashing is randomized per process, and an id that moved between runs would break the
         # byte-identical-batch guarantee (docs/02 invariant 2). Final bank ids are Phase 2's.
-        id=f"gf-{case_seed:012d}-{goal_index}",
+        puzzle_id=f"gf-{case_seed:012d}-{goal_index}",
         quantity_type=goal.quantity_type,
-        construction=pruned.to_jgex(),
-        premises=tuple(f.fact_id for f in derivation.premises),
-        configuration=tuple(f.fact_id for f in derivation.configuration),
-        goal=goal.fact.fact_id,
-        reference_points=tuple(
-            sorted((p, coords[p][0], coords[p][1]) for p in pruned.points if p in coords)
+        pruned=pruned,
+        derivation=derivation,
+        translation=translation,
+        goal_angle=angle,
+        reference_coords={p: xy for p, xy in coords.items() if p in drawn},
+        difficulty=schema.Difficulty(
+            band=band_for_depth(depth),
+            depth=depth,
+            # Both difficulty features must read the same graph: the minimal derivation. Taking
+            # `goal.distinct_rules` here would publish a count over the *whole* solve beside a
+            # depth over the sub-DAG, so a puzzle would advertise conceptual variety its own
+            # solution never shows (docs/05 §5.1).
+            distinct_rules=derivation.distinct_rules,
         ),
-        question=angle.text,
-        answer=kind.format_answer(goal.fact.value) if goal.fact.value is not None else "",
-        answer_unit="°",
-        solution=translation.steps,
-        depth=depth,
-        # Both difficulty features must read the same graph: the minimal derivation. Taking
-        # `goal.distinct_rules` here would publish a count over the *whole* solve beside a depth
-        # over the sub-DAG, so a puzzle would advertise conceptual variety its own solution
-        # never shows (docs/05 §5.1).
-        distinct_rules=derivation.distinct_rules,
-        band=band_for_depth(depth),
-        seed=case_seed,
+        declared=declared,
         provenance={
             "generator_version": generator_version(),
             "engine": f"{goal.result.stats.engine}-{goal.result.stats.engine_version}",
@@ -354,6 +426,13 @@ def _emit(
             "seed": case_seed,
             "construction": construction.to_jgex(),
         },
+    )
+    return CandidatePuzzle(
+        puzzle=puzzle,
+        derivation=derivation,
+        translation=translation,
+        pruned=pruned,
+        seed=case_seed,
     )
 
 
@@ -386,7 +465,7 @@ def main(argv: list[str] | None = None) -> int:
         disagreements = [f"{v.puzzle_id} [{v.outcome}] {v.detail}" for v in validations if not v.ok]
 
     if args.report:
-        print(json.dumps(report.summary(), indent=2, sort_keys=True))
+        print(json.dumps({**report.summary(), **report.timing()}, indent=2, sort_keys=True))
     if args.out:
         with open(args.out, "w") as handle:
             json.dump(

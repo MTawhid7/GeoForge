@@ -16,7 +16,7 @@ special-case "angle". Each registered type declares:
 | `nice_values` | Given-value palette per band | integer degrees | integer / small-surd lengths, small ratios | — (derived) |
 | `answer_policy` | Exactness class + input mode (doc 02) | integer, keypad | fraction / decimal+tolerance | decimal+tolerance |
 | `templates` | Readable-step template family (doc 03 §3.5) | angle family | similarity/metric family | decomposition family |
-| `marks` | Figure mark kinds it may state | arcs, ticks | length labels | shaded regions |
+| `marks` | Mark kinds **this type's own quantities** use | arcs | length labels, braces | shaded regions |
 
 Enabling a type = registering these six things + its config block. The registry keeps schema, gates,
 scoring, and frontend generic while rollout stays deliberate (doc 09).
@@ -145,8 +145,22 @@ absolutely.
    validation and optional SMT check as compensating controls.
 
 ### Stage 9 — Emit
-`CandidatePuzzle` (construction, premises, configuration facts, goal, exact answer, translated steps,
-provenance incl. engine version). Hand to scoring (doc 05).
+`CandidatePuzzle`: the schema-v2 `Puzzle` (doc 02) plus the pipeline objects doc 05 scores over,
+carried in memory and never serialized — the only thing that can reach the JSON is what the schema
+defines.
+
+**Emit is a gate, not a formatter (Phase 2).** Assembling the figure can *refuse* a puzzle: a mark
+the givens do not back, a given with no phrasing, two engine points colliding on one display label.
+Those are attrition under the `emit` stage with a named reason rather than an exception, so they are
+counted like every other discard — a rising `emit:` line means an assembly bug rather than a quietly
+swallowed one. Measured at seed 42: zero across 400 constructions.
+
+Givens are rendered through the same `phrases.describe` the solution steps use, against the
+**reference** coordinates, so a hypothesis and a step citing it read identically and both match the
+diagram Stage 8 certified the wording over. Display coordinates are a separate parameter: the drawn
+figure is a similarity transform of the reference figure (uniform scale, translation, and one y-flip
+for SVG's axis), which is the only class of transform that preserves every premise (doc 06 §6.3,
+doc 07 T5). Choosing a *better* instantiation to draw is doc 06 §6.3's layout, downstream of here.
 
 ## §V — Bank-build validation (doc 02 invariant 3) — implemented M6
 Every accepted puzzle is re-derived from scratch by the **ag2ddar** backend (uncorrelated codebase):

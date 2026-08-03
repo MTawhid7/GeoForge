@@ -219,6 +219,54 @@ class BandingConfig:
     """GUESS: lower bound on minimal-proof depth for each band."""
 
 
+@dataclass(frozen=True)
+class SchemaConfig:
+    """Puzzle JSON v2 (docs/02). Changing any of these is a schema change."""
+
+    version: str = "2.0"
+    """`major.minor`. The frontend refuses an unknown major; a minor bump is additive.
+    A string rather than docs/02's sketched integer, because the doc's own rules speak of
+    both kinds of bump and an integer can only express one of them."""
+
+    coordinate_decimals: int = 2
+    """PHASE2: display coordinates are rounded at emit, so the JSON *is* the artifact rather
+    than a view of a longer float. Two decimals over a 1000-unit viewbox is 0.01 units —
+    a hundredth of a pixel at full width, far below anything a renderer or an eye resolves.
+    It is also the determinism knob: rounding here means two builds agreeing to 1e-9 in
+    float space agree byte for byte in JSON."""
+
+    approx_decimals: int = 6
+    """PHASE2: `approx` is for input checking and rendering only (docs/02), never for truth.
+    Six decimals is well inside the integer-degree answer policy and keeps the field stable
+    against last-bit float noise between runs."""
+
+    stripped_fields: tuple[str, ...] = (
+        "reference_figure",
+        "provenance",
+        "configuration",
+    )
+    """Build-time blocks removed from shipped shards, kept in the build archive (docs/02)."""
+
+
+@dataclass(frozen=True)
+class LayoutConfig:
+    """Display figure geometry (docs/06 §6.3).
+
+    The anti-leak thresholds are specified by the doc; the framing values are ours. Nothing
+    here moves a point relative to another — every transform the layout applies is a
+    similarity, because any other kind breaks a premise (docs/07 T5).
+    """
+
+    viewbox_width: float = 1000.0
+    viewbox_height: float = 750.0
+    """4:3, the aspect docs/06 §6.3 asks the layout to aim for. Fixed rather than per-figure so
+    every shard renders in one coordinate system and the frontend never rescales differently
+    between puzzles."""
+
+    margin_fraction: float = 0.08
+    """GUESS: keeps point labels off the viewbox edge at 360 px width."""
+
+
 SOLVER = SolverConfig()
 TOLERANCE = ToleranceConfig()
 DEGENERACY = DegeneracyConfig()
@@ -229,3 +277,5 @@ WELLPOSED = WellPosedConfig()
 TRANSLATION = TranslationConfig()
 VALIDATION = ValidationConfig()
 BANDING = BandingConfig()
+SCHEMA = SchemaConfig()
+LAYOUT = LayoutConfig()

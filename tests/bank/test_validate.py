@@ -107,7 +107,7 @@ class TestMutations:
                 points=tuple(
                     sorted((p["id"], p["x"], p["y"]) for p in puzzle["reference_figure"]["points"])
                 ),
-                premises=tuple(fact_from_id(f) for f in puzzle["given"]),
+                premises=tuple(fact_from_id(g["fact"]) for g in puzzle["given"]),
                 goals=(wrong,),
             )
             proved = validator.solve_facts(spec).proof_dag.proved_goals
@@ -150,7 +150,14 @@ class TestMutations:
         """DDAR cannot state one. Treating it as a pass would certify a puzzle whose stated
         hypotheses were never checked."""
         smuggled = json.loads(json.dumps(puzzles[0]))
-        smuggled["given"].append("sameclock:a:b:c:a:b:c")
+        smuggled["given"].append(
+            {
+                "form": "relation",
+                "fact": "sameclock:a:b:c:a:b:c",
+                "display": "not a thing a player is told",
+                "highlights": [],
+            }
+        )
         assert validate(smuggled, validator).outcome is ValidationOutcome.UNSUPPORTED
 
 

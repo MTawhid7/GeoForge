@@ -63,27 +63,38 @@ in `src/geoforge/schema.py` + generated TS types are authoritative):
 ```jsonc
 {
   "id": "gf-000123",
-  "schema_version": 2,
+  "schema_version": "2.0",               // major.minor; unknown major ⇒ refuse to read
   "quantity_type": "angle",              // primary goal type; one per puzzle
   "difficulty": { "score": 6.2, "band": "hard", "depth": 7, "distinct_rules": 5 },
   "figure": {
     "points": [{ "id": "A", "x": 120.5, "y": 44.2, "label_dx": -8, "label_dy": -6 }],
     "segments": [["A","B"]],
-    "circles": [{ "center": "O", "through": "A" }],
+    "circles": [{ "id": "circle:O:A", "cx": 300.0, "cy": 250.0, "r": 88.4,
+                  "center_point": "O", "through": ["A","B","C"] }],
     "regions": [],                       // for area puzzles: closed boundaries, shading flags
-    "marks": { "equal_segments": [], "parallel": [], "right_angles": [],
+    "marks": { "equal_segments": [["A:B","C:D"]],  // transitively closed tick classes
+               "parallel": [], "right_angles": [],
+               "angle_arcs": [{ "at": ["B","A","C"], "label": "40°", "kind": "given" },
+                              { "at": ["B","D","C"], "label": "?",   "kind": "goal"  }],
                "length_labels": [] }     // for length puzzles: labeled given lengths
   },
   "given": [
-    { "quantity": { "kind": "angle", "at": ["B","A","C"] },
-      "value": { "exact": "40", "approx": 40.0 }, "display": "∠BAC = 40°" }
+    // tagged union: most givens are relations, not valued quantity statements
+    { "form": "quantity", "fact": "aconst:a:b:a:c=2/9",
+      "quantity": { "kind": "angle", "at": ["B","A","C"] },
+      "value": { "exact": "40", "approx": 40.0 },
+      "display": "∠BAC = 40°", "highlights": ["angle:B:A:C"] },
+    { "form": "relation", "fact": "cong:a:o:c:o",
+      "display": "AO = CO", "highlights": ["seg:A:O","seg:C:O"] }
     // other kinds: {"kind":"length","of":["A","B"]} · {"kind":"ratio","of":[["A","B"],["C","D"]]}
     //              {"kind":"area","of":"region:R1"}
   ],
   "goal": {
+    "fact": "aconst:b:d:d:c=1/9",         // canonical id: the audit handle, as in `derives`
+    "question": "∠BDC",
     "quantity": { "kind": "angle", "at": ["B","D","C"] },
     "answer": { "exact": "20", "approx": 20.0, "display": "20°" },
-    "input": { "mode": "integer", "unit": "deg" }   // per-type answer-input policy, see below
+    "input": { "mode": "keypad", "exactness": "integer", "unit": "deg", "tolerance": null }
   },
   "solution": [
     { "step": 1, "rule": "isosceles_base_angles",
@@ -106,6 +117,35 @@ alone (doc 04 §V). It is build-time data, stripped from shipped banks alongside
 Perturbing it would break validation; perturbing `figure` is the whole point of `figure`.
 It carries the **pruned** point set: a validator given scaffolding the drawn figure no longer shows
 could reach the goal through a point the player never sees.
+
+**Five schema decisions settled when v2 was implemented (Phase 2 M1).** Each deviates from the sketch
+above as it originally stood; the sketch now shows what the code emits.
+
+1. **`given[]` is a tagged union.** The sketch showed only valued quantity statements, but most real
+   givens are *relations* — `cong`, `coll`, `cyclic`, `midp` — which have no value and no `at`. Both
+   forms carry `fact`, the canonical id, which is what a validator re-derives from (§V). `display` is
+   prose and is never read back: re-deriving from it would validate the wording, not the mathematics.
+2. **`marks.angle_arcs`** was missing entirely, while doc 06 §6.2 requires given-angle arcs with
+   degree labels and a per-quantity-type goal mark. Marks are derived from a `FactKind → mark` table
+   over the *stated* facts, so doc 04 §QTR's `marks` row means "mark kinds this type's own quantities
+   use" (angle → arc) rather than every kind a puzzle may show — an angle puzzle carries `para` and
+   `perp` givens that the type itself knows nothing about.
+3. **Circles carry `cx`/`cy`/`r`,** not `{center, through}`. A `cyclic` circle has no named centre at
+   all, and making the frontend solve for a radius would put geometry in the renderer against
+   invariant 1. Computing the centre numerically *renders* a circle the engine already proved.
+4. **`goal.input` has four fields.** `mode` is the widget and `exactness` is the class of accepted
+   answer; conflating them means P3's `length` (decimal widget, surd exact form) cannot be expressed
+   without a schema change.
+5. **`schema_version` is the string `"2.0"`.** The rules below speak of major *and* minor bumps, which
+   an integer cannot express. Readers refuse an unknown major and accept any minor.
+
+**A mark is a claim.** Every figure mark must be backed by a stated given, and the goal backs exactly
+one mark — its own `?`. This is enforced structurally by the schema parser, not left to whoever
+assembled the figure. The goal is excluded as a source of backing on purpose: a puzzle whose answer is
+90° would otherwise license drawing a right-angle square on the very angle it asks for, which does not
+mislead the player so much as print the answer for them. Vertex identity is compared as
+`(vertex, {ray, ray})` rather than as a set of three labels, since ∠PVQ and ∠VPQ share their points
+and are different angles.
 
 **Exact values:** `exact` is a canonical symbolic string in a closed grammar (rationals and
 quadratic-surd forms like `3*sqrt(2)`; grammar owned by `schema.py`, values produced by the exact layer
