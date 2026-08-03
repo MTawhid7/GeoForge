@@ -1,4 +1,4 @@
-.PHONY: setup lint typecheck test bench-batch cross-validate bank clean
+.PHONY: setup lint typecheck test schema bench-batch cross-validate bank clean
 
 # Everything runs inside the project-local .venv via uv. Never install into system Python.
 
@@ -15,6 +15,11 @@ format:
 
 typecheck:
 	uv run mypy
+	uv run python -m geoforge.schema_emit --check
+
+# Regenerate the TypeScript types and JSON Schema from src/geoforge/schema.py.
+schema:
+	uv run python -m geoforge.schema_emit --emit
 
 test:
 	uv run pytest

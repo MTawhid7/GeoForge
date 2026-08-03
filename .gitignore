@@ -25,8 +25,11 @@ __pycache__/
 # Spike outputs (regenerate with the spike scripts)
 /spikes/p0/out/
 
-# Build artifacts
-/banks/
+# Build artifacts. `banks/schema/` is generated but committed: it is the published contract
+# other tools compile against, and CI's drift check compares against the committed copy.
+# Built shards and the build archive are data, added when the bank builder lands (docs/09 P2).
+/banks/*
+!/banks/schema/
 /web/node_modules/
 /web/dist/
 

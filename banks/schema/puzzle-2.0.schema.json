@@ -1,0 +1,513 @@
+{
+  "$defs": {
+    "AngleArc": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "maxItems": 3,
+          "minItems": 3,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "given",
+            "goal"
+          ]
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "at",
+        "label"
+      ],
+      "type": "object"
+    },
+    "Difficulty": {
+      "additionalProperties": false,
+      "properties": {
+        "band": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "integer"
+        },
+        "distinct_rules": {
+          "type": "integer"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "band",
+        "depth",
+        "distinct_rules"
+      ],
+      "type": "object"
+    },
+    "DisplayCircle": {
+      "additionalProperties": false,
+      "properties": {
+        "center_point": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cx": {
+          "type": "number"
+        },
+        "cy": {
+          "type": "number"
+        },
+        "id": {
+          "type": "string"
+        },
+        "r": {
+          "type": "number"
+        },
+        "through": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "cx",
+        "cy",
+        "r"
+      ],
+      "type": "object"
+    },
+    "DisplayPoint": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label_dx": {
+          "type": "number"
+        },
+        "label_dy": {
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "ExactValue": {
+      "additionalProperties": false,
+      "properties": {
+        "approx": {
+          "type": "number"
+        },
+        "exact": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "exact",
+        "approx"
+      ],
+      "type": "object"
+    },
+    "Figure": {
+      "additionalProperties": false,
+      "properties": {
+        "circles": {
+          "items": {
+            "$ref": "#/$defs/DisplayCircle"
+          },
+          "type": "array"
+        },
+        "marks": {
+          "$ref": "#/$defs/Marks"
+        },
+        "points": {
+          "items": {
+            "$ref": "#/$defs/DisplayPoint"
+          },
+          "type": "array"
+        },
+        "regions": {
+          "type": "array"
+        },
+        "segments": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "type": "object"
+    },
+    "Given": {
+      "additionalProperties": false,
+      "properties": {
+        "display": {
+          "type": "string"
+        },
+        "fact": {
+          "type": "string"
+        },
+        "form": {
+          "enum": [
+            "quantity",
+            "relation"
+          ]
+        },
+        "highlights": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ExactValue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "form",
+        "fact",
+        "display"
+      ],
+      "type": "object"
+    },
+    "Goal": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "$ref": "#/$defs/ExactValue"
+        },
+        "fact": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/GoalInput"
+        },
+        "quantity": {
+          "$ref": "#/$defs/Quantity"
+        },
+        "question": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fact",
+        "question",
+        "quantity",
+        "answer",
+        "input"
+      ],
+      "type": "object"
+    },
+    "GoalInput": {
+      "additionalProperties": false,
+      "properties": {
+        "exactness": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "tolerance": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "exactness",
+        "unit"
+      ],
+      "type": "object"
+    },
+    "Marks": {
+      "additionalProperties": false,
+      "properties": {
+        "angle_arcs": {
+          "items": {
+            "$ref": "#/$defs/AngleArc"
+          },
+          "type": "array"
+        },
+        "equal_segments": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "length_labels": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "parallel": {
+          "items": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "array"
+        },
+        "right_angles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "Puzzle": {
+      "additionalProperties": false,
+      "properties": {
+        "configuration": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "difficulty": {
+          "$ref": "#/$defs/Difficulty"
+        },
+        "figure": {
+          "$ref": "#/$defs/Figure"
+        },
+        "given": {
+          "items": {
+            "$ref": "#/$defs/Given"
+          },
+          "type": "array"
+        },
+        "goal": {
+          "$ref": "#/$defs/Goal"
+        },
+        "id": {
+          "type": "string"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "quantity_type": {
+          "type": "string"
+        },
+        "reference_figure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReferenceFigure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_version": {
+          "type": "string"
+        },
+        "solution": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "quantity_type",
+        "difficulty",
+        "figure",
+        "given",
+        "goal",
+        "solution"
+      ],
+      "type": "object"
+    },
+    "Quantity": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ReferenceFigure": {
+      "additionalProperties": false,
+      "properties": {
+        "points": {
+          "items": {
+            "$ref": "#/$defs/ReferencePoint"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "points"
+      ],
+      "type": "object"
+    },
+    "ReferencePoint": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "Step": {
+      "additionalProperties": false,
+      "properties": {
+        "derives": {
+          "type": "string"
+        },
+        "highlights": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rule": {
+          "type": "string"
+        },
+        "step": {
+          "type": "integer"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "step",
+        "rule",
+        "text",
+        "derives"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://geoforge.dev/schema/puzzle-2.0.json",
+  "$ref": "#/$defs/Puzzle",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "DO NOT EDIT \u2014 generated by `uv run python -m geoforge.schema_emit --emit`",
+  "title": "GeoForge puzzle v2.0"
+}
