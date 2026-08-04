@@ -41,6 +41,15 @@
 - One config module per package under `src/geoforge/config/`; every tolerance/threshold/weight lives
   there; no inline magic numbers.
 - Conventional commits, one logical change each.
+- **Branch per milestone; PR; rebase merge; linear history** (settled 2026-08-04). `main` stays stable
+  and is never committed to directly. A milestone branch carries several conventional commits, opens as
+  a PR via `gh`, and merges with `--rebase` once `make lint typecheck && uv run pytest -q` and the
+  bench-batch attrition diff are clean. The repo is configured rebase-only (merge and squash are
+  disabled) so the setting enforces the rule rather than relying on memory.
+  *Why rebase and not squash:* squashing collapses a milestone into one commit, which contradicts the
+  line above — and the one-logical-change granularity is exactly what makes `git bisect` worth having on
+  a pipeline where a soundness bug is the top-priority failure. *Why not a merge commit:* on a
+  single-developer repo with hours-long branches it buys topology nobody reads.
 
 ## 8.3 Testing policy
 
