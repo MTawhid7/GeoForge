@@ -93,16 +93,28 @@ and 2 correctly rejected because the angle was genuinely underdetermined by the 
 **Exactness classes per quantity type, and where irrational answers come from (added 2026-08-04).**
 The verify predicate differs by type, and so does the value grammar each can express:
 
-| Type | Verify predicate | Values expressible | Notes |
-|---|---|---|---|
-| `angle` | `aconst` | **Rationals × π only.** `ConstantAngle.angle` is a `Fraction` | 7π/8 is free; √3·π has no representation and never will (doc 07 T18) |
-| `ratio` | `rconst`, **`r2const`** | Rationals, plus square roots of rationals via the squared form | `r2const … 2` states a ratio of √2 |
-| `length` | `lconst`, **`l2const`** | Same, given a scale-pinning given | `l2const A B 3` states \|AB\| = √3 |
+**AMENDED 2026-08-04 (M4a spike).** The "values expressible" column was read off the predicate
+definitions and is correct about what can be *stated*. It was then used to claim irrational answers were
+reachable, which is a claim about what can be *derived* — and that one is false. Both columns now
+appear, because the gap between them is the finding.
 
-So the closed exact-value grammar of doc 02 (rationals and quadratic surds) is exactly what the engine
-can state, and irrational answers are reachable today — through lengths and ratios, not angles. The
-snap step uses each type's own nice-value rule; for the squared predicates the candidate is snapped on
-the *square*, which is where the integer lives.
+| Type | Verify predicate | Values **statable** | Values **derivable** (measured) |
+|---|---|---|---|
+| `angle` | `aconst` | **Rationals × π only.** `ConstantAngle.angle` is a `Fraction` | Same. 7π/8 is free; √3·π has no representation and never will (doc 07 T18) |
+| `ratio` | `rconst` | Rationals | Rationals, but only those AR's **multiplicative** chasing reaches from the figure's own ratio atoms — in practice powers of 2 (doc 07 T21) |
+| `length` | `lconst` | Rationals, given a scale-pinning given | Same set, scaled by the pinned unit |
+| `ratio` | ~~`r2const`~~ | √ of a rational | **None.** No rule concludes `r2const`; AR does not produce it |
+| `length` | ~~`l2const`~~ | √ of a rational | **None.** No rule concludes `l2const`; Pythagoras (r57) routes through `lconst` and does not fire under Yuclid |
+
+So the closed exact-value grammar of doc 02 (rationals and quadratic surds) is what the engine can
+**state**. What it can **derive** is rational-valued: measured at seed 42 over 117 realized figures, all
+5 squared-constant facts appearing in saturating closures were assumptions at depth 0, and a 3-4-5
+triangle with `perp` and both legs pinned closes at 3 facts without deriving the hypotenuse. Irrational
+*answers* are therefore not reachable on this engine by any quantity type — see doc 07 T18 (reversed)
+and T21. The squared predicates remain useful as *givens*, which is where the corpus already uses them.
+The snap step uses each type's own nice-value rule; a squared candidate would be snapped on the *square*,
+which is where the integer lives — kept here because it is the right design for whenever a rule
+concludes one.
 
 **Verification runs over fixed coordinates** (`SolverBackend.solve_facts`, §3.3), never by
 re-parsing the construction with the goal attached: `JGEXProblemBuilder.build()` retries until every
@@ -307,8 +319,8 @@ enthusiasm — decides the enabling order in doc 09.
 | Quantity type | Derivation source | Status |
 |---|---|---|
 | `angle` | Engine DD rules + AR (linear relations over angle atoms) | **Native, enabled.** Answers are rationals × π (doc 07 T18) and eyeball-readable on a to-scale figure (T5) — angle alone is not a sufficient product |
-| `ratio` | Engine AR over log-length atoms (`rconst`, **`r2const`**, `eqratio`, similar triangles) | **Native.** Scale-free — no unit needed. Promoted to the same phase as the difficulty rebuild (doc 07 T7) |
-| `length` | Same AR machinery + a stated unit length pinning the scale; `lconst`/**`l2const`**; Pythagoras and metric rules present in Newclid's DDARN (`R57`, `R85`–`R90`) | **Native given scale pinning** (doc 04 stage 5). Same phase as `ratio` |
+| `ratio` | Engine AR over log-length atoms (`rconst`, `eqratio`) | **Native but near-empty. MEASURED 2026-08-04 (M4a).** Derives at 100% and costs nothing — ratio facts come straight out of the closure — but exactly one rule of 93 concludes a ratio constant (r51, midpoint, always ½) and AR chases ratios *multiplicatively*, so the reachable answers are powers of 2: 3 distinct values at 52.9% modal share over 117 figures, worse than angle. `r2const` derives never. **Deferred** behind a rule extension (doc 07 T21) |
+| `length` | Same AR machinery + a stated unit length pinning the scale; `lconst` | **Native given scale pinning** (doc 04 stage 5), and empirically the ratio answer space times the pinned unit — strictly worse than `ratio`, since it also costs a scale-pinning leaf. `l2const` derives never; Pythagoras (`R57`) routes through `lconst` and does not fire under Yuclid, so 3-4-5 hypotenuses are not derivable. **Deferred with `ratio`** |
 | `area` | **Not engine-derived.** Newclid has no area predicate and none can be faked from `eqratio` in general. Custom verified layer: decompose the target region into triangles whose sides/angles the engine has derived; compute exact areas symbolically (SymPy) from engine-certified quantities; each decomposition step becomes a solution step | Later wave; design doc required before build (doc 09). **Candidate alternative under evaluation:** the Chou–Gao–Zhang **area method**, which proves area/ratio/length statements natively *and* yields short human-readable proofs. It is a genuinely different engine, not a Newclid extension, so adopting it is a doc 07 entry and an SAL backend, not a dependency bump |
 | `arc length`, `perimeter`, … | Composition over engine-certified lengths/angles | Follows the area layer's pattern |
 

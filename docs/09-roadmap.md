@@ -120,14 +120,43 @@ Determinism holds: byte-identical batch across `PYTHONHASHSEED` 0 and 99991.
 *Deferred out of M4 and into M5, having been measured as unimplementable or better placed there:* the
 shortcut check (doc 07 T19 — the engine cannot be asked, see below) and the answer-entropy cap.
 
-**M4a — Ratio and length spike (next).** Add goal extractors for `ratio` and `length` over the closures
-Stage 4 already computes, and report verification rate, yield per construction, and answer distribution
-per type. Rationale: the closure is the expensive part and we harvest one quantity type from it, so this
-may *raise* yield rather than cost it — and every gate built after this should be tuned against the real
-quantity mix, not against an angle-only corpus. Decide the mix from the spike, not from argument.
+**M4a — Ratio and length spike. DONE 2026-08-04. Outcome: do not register either type; the quantity
+waves are deferred behind a rule-set change (doc 07 T21).** The spike harvested `rconst`/`lconst` from
+the closures Stage 4 already computes and measured verification rate, yield, depth and answer
+distribution per type at seed 42, n=600 (117 realized figures).
 
-**M5 — Auxiliary-construction detection.** Surface `requires_auxiliary` from the traceback we already
-build (doc 04 Stage 6), score it (doc 05 §5.1a), report it per band.
+| | ratio | angle, post-M4 |
+|---|---|---|
+| Constructions yielding a novel goal | 9 / 117 | — |
+| Verification rate | 17 / 17 (harvested, so already derived) | — |
+| Distinct answer values | **3** — {2, ½, ⅓} | 9 |
+| Modal answer share | **52.9%** | 36.0% |
+| Clearing `min_proof_depth = 3` | **3 of 17** | — |
+
+The hypothesis was right about cost and wrong about value. Harvesting from the closure *is* cheaper than
+the propose-then-verify path angles use — no speculative engine call per candidate — but the answer
+space is {2, ½} plus whatever a construction states outright, and that is **more** guessable than the
+corpus M4 just fixed. Two attempted fixes both failed: widening the given-value palette from `{2/1, 3/1}`
+to ten mixed fractions dropped it to 2 distinct values at 58.3% modal, and biasing the sampler 25× toward
+the 16 ratio-creating primitives produced 5× the ratio facts with **the same 3 values** at 74.4% modal
+and still exactly 3 clearing the depth floor. Cause: one rule of 93 concludes a ratio constant (r51,
+midpoint, always ½) and AR ratio chasing is multiplicative-only, so the reachable set is powers of two.
+Length derives only behind a scale-pinning given and lands in the same space, scaled. Full numbers and
+the reasoning in doc 07 T21.
+
+Two things fell out that were not the question. **Doc 07 T18's second bullet is reversed**: no rule
+concludes `l2const` or `r2const`, so √2 and √3 answers are *not* free — all 5 squared constants in 117
+closures were assumptions, and Pythagoras (r57) never fires under Yuclid even with both legs of a 3-4-5
+triangle pinned. And a **SAL adapter defect**: `_value_of` probed attribute names, so `l2const`/`r2const`
+came back with the value stranded in `args` and `value=None` — a fact id (`l2const:a:b:9/1`) that
+`fact_from_id` rejects outright, breaking the premise-vs-derived id agreement `_fact_from_construction`
+documents. Fixed with a kind-keyed table asserted exhaustive over `VALUED_KINDS`, and every one of the
+five kinds pinned by a behavioural test (writing the table by inspection got `rconst` wrong first try:
+its Fraction is in `value`, while `ratio` holds the segments).
+
+**M5 — Auxiliary-construction detection (next).** Surface `requires_auxiliary` from the traceback we
+already build (doc 04 Stage 6), score it (doc 05 §5.1a), report it per band. Tuned against the
+angle-only corpus, which M4a settled is the corpus we have (doc 07 T21).
 **AC:** the rate is measured on the current corpus. If it is ~0, that is a finding about the sampler
 (doc 07 L4) and feeds P5 — not a failure of the milestone.
 
@@ -138,11 +167,19 @@ assigned for all 93 rules (doc 03 §3.5a, doc 05 §5.1, doc 07 T17).
 calls; fidelity check tested from both sides; sampled prose review clean; puzzles previously discarded
 for over-budget AR chains now ship.
 
-**M7 — Quantity waves: ratio and length.** Register both (doc 04 §QTR); goal extractors over
-`rconst`/`r2const` and `lconst`/`l2const`; scale-pinning givens; fraction and decimal answer input
-(doc 06 §6.2); tolerance-collision check.
-**AC:** mixed banks across all bands; ≥ 1 irrational answer per band via the squared predicates
-(doc 07 T18); angle banks rebuild byte-identical (regression); tolerance-collision check clean.
+**M7 — Quantity waves: ratio and length. BLOCKED by M4a's measurement (doc 07 T21); moved out of P3.**
+Registering the types is the cheap part and the spike showed it does not buy what this milestone was for
+— the reachable answer set is {2, ½} because one rule of 93 concludes a ratio constant and AR chases
+ratios multiplicatively. The acceptance criterion "≥ 1 irrational answer per band via the squared
+predicates" is **unsatisfiable as written**: nothing derives `l2const` or `r2const` (doc 07 T18, reversed).
+
+Unblocked by either of two things, neither of them this milestone's to build:
+- a rule concluding ratio constants from similar triangles, which is where non-dyadic ratios would come
+  from — an engine-side change, and doc 07 P2 forbids the GPL route to one;
+- the area layer's own decomposition arithmetic (doc 03 §3.7), which does not route through DDAR and so
+  is not subject to this limit at all.
+
+Revisit when one lands. The QTR itself needs no change — that much the spike did confirm.
 
 ## P4 — Bank industrialisation (the deferred P2 tail)
 
@@ -215,10 +252,15 @@ they assumed a property instead of measuring it.
   answer was the difficulty ceiling of the entire product (doc 07 L3): a puzzle ships only if built from
   the theorems we can pronounce, so the pipeline selected for elementary proofs and the discard log that
   was supposed to drive coverage stayed empty because nothing hard ever got far enough to fail.
-- *"Quantity waves follow engine support"* sequenced by cost when it should have sequenced by necessity.
-  Ratio and length were cheap all along — `r2const` and `l2const` were sitting in Newclid the whole time
-  (doc 07 T18) — and angle-only turned out not to be a viable product at all, because on a to-scale
-  figure every angle answer is eyeball-readable (doc 07 T5).
+- *"Quantity waves follow engine support"* sequenced by cost when it should have sequenced by necessity
+  — and then the correction made the same mistake in the other direction. Angle-only really is not a
+  viable product, because on a to-scale figure every angle answer is eyeball-readable (doc 07 T5). But
+  "ratio and length were cheap all along, `r2const` and `l2const` were sitting in Newclid the whole
+  time" reasoned from a *predicate's existence* to a *capability*, without asking what derives it. M4a
+  asked: one rule of 93 concludes a ratio constant, nothing concludes a squared one, and the reachable
+  ratio answers are {2, ½} — a corpus more guessable than the angle one it was meant to fix (doc 07
+  T21). Both revisions of this bullet were written from the engine's vocabulary rather than from its
+  output; the entry below is what should have been applied to both.
 
 The replacement principle, which is what P3 is ordered by: **build the measurement before the mechanism.**
 The shortcut filter and answer-entropy cap come first not because they add value on their own — they
