@@ -118,16 +118,28 @@ honor-system defence assumes measuring is *harder* than solving. For a right ang
 in a to-scale figure it is strictly easier, and the puzzle has no content left.
 
 The revised position keeps to-scale figures (doc 06 §6.3 item 2 — a not-to-scale figure would break
-every premise) and attacks measurability from three other directions:
+every premise) and attacks measurability from four other directions:
+- **Reject the two values that are *recognised* rather than measured.** Nobody estimates a right angle;
+  they see one, and 45° is a square's diagonal. Landed M4 as a Stage-5 rejection. Everything else on the
+  round list is *guessable* but not *readable* — nobody tells 60° from 65° by eye — and belongs to the
+  entropy cap below. Measured over 3,000 constructions: rejecting {45, 90} takes the modal answer share
+  from 71.8% to 36.0%; extending to every multiple of 30 reaches 30.8% but halves the yield again, which
+  is a bad trade and permanently excludes hard puzzles that happen to answer 60°.
 - **Answer entropy is a build gate**, not an aesthetic: per-band caps on the share of the bank any single
-  answer value may hold (doc 05 §5.2 filter 8).
+  answer value may hold (doc 05 §5.2 filter 8). A share cap is the right instrument for the merely-round
+  values precisely because it is adaptive — it deletes surplus, not a category.
 - **Non-round angle values.** `aconst` carries a `Fraction` of π, so 7π/8 is as cheap as 90° — the round
-  palette was our config, not a constraint (T18).
-- **Quantity types whose answers are not eyeball-readable.** A ratio of √2 or an area cannot be
-  estimated off a figure the way a right angle can. This is now a difficulty argument for doc 09 P3's
-  quantity waves, not only a variety argument.
+  palette was our config, not a constraint (T18). Landed M4, with the caveat that it only reaches
+  puzzles that state an angle at all, which was 2 in 22 before M4's `angle_weight`.
+- **Quantity types whose answers are not eyeball-readable.** This is the deepest of the four and the
+  reason the reference material in doc 01 is overwhelmingly area and ratio. Angles have *recognisable
+  landmarks* — 90°, 45°, and in a symmetric figure 60° — and lengths, ratios and areas essentially do
+  not: the only comparable landmarks are 1:1 and 1:2, and both are normally *stated* as givens rather
+  than being the answer. You cannot look at a figure and recognise √2. A difficulty argument for doc 09
+  P3's quantity waves, not merely a variety argument.
 
-Revisit if answer entropy is enforced and spot checks still report sight-readable goals.
+Revisit once more than one quantity type is enabled and the per-band answer distribution can be read
+per type.
 
 **T6 — No CAS in the hot loop.** SymPy is validation-layer only (spot checks, Gröbner third opinions) —
 plus exact-value normalization and the wave-3 area layer's *arithmetic on engine-certified quantities*

@@ -53,13 +53,24 @@ random clause at a time essentially never lands on the deliberate arrangements t
 doc 01 is made of — three squares sharing a vertex, two hexagons edge to edge, a square inscribed in an
 equilateral triangle. Recorded as doc 07 L4.
 
-Two upgrades, in order (doc 09 P3 then P5):
+Three upgrades, in order (doc 09 P3 then P5):
 
-1. **Pass the band through.** `sample_construction` takes a `band` argument that the batch runner has
-   never supplied, so every construction is sampled on the *easy* profile regardless of what band it
-   ends up in. Fixing this is a one-line change with immediate effect on Stage 2 as well. Per-band
-   profiles then set step-count range, circle weight, and goals per construction, with budget dedicated
-   to a deep/expert profile.
+1. ~~**Pass the band through.**~~ **DONE, M4.** `band_for_index` draws a Stage-1 profile from
+   `GENERATION.band_mix` on the construction's own rng stream, so it stays a pure function of
+   `(seed, index)` and sharding still changes nothing. `BandProfile` carries step range, circle weight,
+   angle weight and goal budget per band; `BatchReport.sampled_bands` reports how the budget was spent,
+   which is the number to compare against `by_band` when asking which profile pays for itself.
+
+   **The circle bias was measuring the wrong thing, and that is what produced the first bank.**
+   `ConstructionDef.introduces_circle` keyed on the `cong` predicate — which is how JGEX spells a
+   circle *and* every square, parallelogram, isosceles triangle and reflection. It flagged **37 of 87**
+   primitives, so a 2× "circle bias" was a 2× bias toward symmetry generators. The flag now means what
+   `emit.circles_of` draws (a `circle` or `cyclic` clause): 3 primitives, 2 of them usable. Measured at
+   seed 42, circles per figure went **0 of 98 → 10 of 25**.
+
+   A second weight joins it: `angle_weight`, over the primitives that state an angle value. Measured
+   before it, **only 2 of 22 surviving puzzles stated an angle at all**, so the per-band palette below
+   governed 9% of the corpus and the rest answered 45° because the figure contained a square.
 2. **Configuration-seeded generation.** A hand-reviewed library of figure *archetypes* — cyclic
    quadrilateral with diagonals, two intersecting circles, square with an inscribed triangle,
    regular-polygon dissections — instantiated and then decorated by the existing random growth, rather
@@ -74,18 +85,19 @@ Choose 1–3 free parameters; assign exact values from the target quantity type'
 for the band (angles: multiples of 10 → arbitrary integers; lengths: small integers/surds; ratios: small
 fractions). Remaining parameters stay free — they power the well-posedness check.
 
-**The band was never passed here, and it is the proximate cause of the 45° bank (2026-08-04).**
+**The band was never passed here, and it was a contributing cause of the 45° bank (fixed M4).**
 `_render_numeric_param` falls back to `nice_angle_degrees["easy"]` when no band is given, and Stage 1
-never gave one — so every angle in every band came from multiples of 10, `perp` became the most common
-given in the corpus (101 occurrences across 98 puzzles), and right-angle-plus-isosceles produced 45°
-forever. Fixing Stage 1 item 1 fixes this. Two further changes to the palette itself:
-- **Non-round rational angles are free** and the palette should use them for the upper bands: `aconst`
-  stores a `Fraction` of π, so 7π/8 costs exactly what 90° costs (doc 07 T18). What is *not* available at
-  any price is an irrational angle.
-- **Irrational answers come from the other quantity types**, via `l2const`/`r2const` (doc 03 §3.3a).
-This stage is also where the answer-entropy pressure of doc 05 §5.2 filter 8 is cheapest to apply —
-capping at selection time alone would just discard most of a corpus that should never have been so
-uniform.
+never gave one — so every angle in every band came from multiples of 10. The palette now differs per
+band, and the upper bands draw **non-round even integers** (multiples of 10 excluded): `aconst` stores a
+`Fraction` of π, so 74° costs exactly what 90° costs (doc 07 T18), and values stay even because
+bisecting an odd angle leaves a half-degree that the whole-degree `answer_policy` then rejects.
+What is *not* available at any price is an irrational angle.
+
+**Measured caveat, and the reason Stage 5 also gates on the answer:** fixing the palette was necessary
+and nowhere near sufficient. Only **2 of 22** surviving puzzles stated an angle at all, so the palette
+governed 9% of the corpus; the rest answered 45° because the figure contained a square, with no angle
+given anywhere. Stage 1's `angle_weight` addresses the first half and Stage 5's rejection the second.
+Irrational answers come from the other quantity types via `l2const`/`r2const` (doc 03 §3.3a).
 
 **Scale pinning:** if
 the target quantity type is dimensional (`length`, `area`), exactly one given must fix the figure's
@@ -117,6 +129,30 @@ goals, verify the scale-pinning given is a *leaf of the goal's derivation* (a le
 never uses the stated unit is a ratio goal in disguise — retype it). Up to N_goals per construction
 become independent candidates (dedupe later). Thresholds live in `config/`, shared with doc 05's
 filters — single source.
+
+**Sight-readable answers are rejected here (added M4 — doc 07 T5).** An answer of 45° or 90°
+(`GENERATION.rejected_answer_degrees`) is *recognised* off a to-scale figure rather than measured, so
+the puzzle has no content left however deep its proof. It is a rejection rather than a ranking penalty
+because a preference only helps when the same construction also offers something better, and most offer
+nothing else — measured over 250 constructions, 45° was 13 of 47 verified candidates (28%) but 11 of 24
+after ranking (46%). **Ranking by proof depth was actively concentrating them**, which is doc 07 T19 in
+miniature: the engine's longest mechanical chains live in exactly the symmetric figures whose angles are
+round. `_preference` therefore stays `(-depth, -distinct_rules, key)` and carries no roundness term —
+by the time it runs, every readable answer is already gone.
+
+Scope was chosen by measurement, over 3,000 constructions at seed 42:
+
+| rejected | puzzles | yield | distinct answers | modal share |
+|---|---|---|---|---|
+| nothing | 163 | 5.43% | 10 | 71.8% |
+| **{45, 90}** | **25** | **0.83%** | **9** | **36.0%** |
+| multiples of 30 and 45 | 13 | 0.43% | 7 | 30.8% |
+
+{45, 90} does almost all the work; extending to every multiple of 30 buys 5 points of modal share and
+halves the yield again. The residual concentration is doc 05 §5.2 filter 8's job — a per-band *share*
+cap keeps a hard puzzle that answers 60° while refusing a bank full of them, which banning the value
+cannot do. `reject_sight_readable=False` exists for tests over classic fixtures (Thales, inscribed
+angle) whose whole point is a right-angle answer; never for shipping.
 
 ### Stage 6 — Traceback + premise minimization + configuration facts
 - Extract the minimal-cost sub-DAG for the goal (shortest hyperpath; ties → fewer distinct premises).

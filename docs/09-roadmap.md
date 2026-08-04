@@ -95,13 +95,36 @@ and running dedupe on the corpus above would correctly collapse the easy band to
 The phase this roadmap was resequenced to create. Ordered so each milestone produces the measurement
 that justifies the next.
 
-**M4 — Validity gates.** Shortcut check (doc 04 §stage-6b, doc 05 §5.2 filter 9) + answer-entropy cap
-(filter 8) + the band actually passed to `sample_construction` + non-round angle palettes for the upper
-bands (doc 04 Stage 2, doc 07 T18). Smallest change with the largest effect, and the instrument
-everything after it is measured with.
-**AC:** filter 9's rejection rate on the seed-42 corpus measured and committed; no answer value holds
-more than 15% of a band; a rebuilt bank where no spot-check puzzle is marked `solved_by_inspection`.
-The bank will shrink sharply — **that is the pass condition, not a regression.**
+**M4 — Sampler bias, band plumbing, and the sight-readable rejection — DONE.** Measured at seed 42:
+
+| | before | after |
+|---|---|---|
+| Answers (n=3000) | 45°×117, 90°×22, 30°×9 | 30°×9, 72°×4, 60°×3, 36°×2, 55°×2, 40°×2, 50°, 70°, 63° |
+| Modal answer share | **71.8%** | **36.0%** |
+| Figures with a circle | 0 of 98 | 10 of 25 |
+| Primitives flagged `introduces_circle` | 37 of 87 | 3 of 87 |
+| Yield | 5.43% | 0.83% |
+| Throughput | — | 29.9 constructions/s ⇒ 2,000 puzzles ≈ 25 min at 6 workers |
+
+Four defects, three of them invisible until something else was fixed:
+1. **`_CIRCLE_KEYWORDS` included `cong`** — how JGEX spells a circle *and* every square, parallelogram
+   and isosceles triangle. The 2× "circle bias" was a 2× bias toward symmetry generators.
+2. **The band never reached `sample_construction`**, so every construction drew from the easy palette.
+3. **Almost nothing stated an angle** (2 of 22), so the palette governed 9% of the corpus — fixed with
+   `angle_weight`, and the rest by rejecting the answers a player reads off the figure (doc 07 T5).
+4. **`emit.frame` applied a reflection**, silently breaking any `aconst` given that was not 90° — the
+   same signature as doc 03 §3.2a. Now a half-turn; pinned by `tests/generator/test_frame.py`.
+
+Determinism holds: byte-identical batch across `PYTHONHASHSEED` 0 and 99991.
+
+*Deferred out of M4 and into M5, having been measured as unimplementable or better placed there:* the
+shortcut check (doc 07 T19 — the engine cannot be asked, see below) and the answer-entropy cap.
+
+**M4a — Ratio and length spike (next).** Add goal extractors for `ratio` and `length` over the closures
+Stage 4 already computes, and report verification rate, yield per construction, and answer distribution
+per type. Rationale: the closure is the expensive part and we harvest one quantity type from it, so this
+may *raise* yield rather than cost it — and every gate built after this should be tuned against the real
+quantity mix, not against an angle-only corpus. Decide the mix from the spike, not from argument.
 
 **M5 — Auxiliary-construction detection.** Surface `requires_auxiliary` from the traceback we already
 build (doc 04 Stage 6), score it (doc 05 §5.1a), report it per band.
