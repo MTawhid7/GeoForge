@@ -125,7 +125,14 @@ the bank/difficulty/product spine — the spine, not any engine, is the platform
   bank's answer distribution has enough entropy that guessing the modal answer beats random by less than
   a stated margin. The first bank failed this at 72% — the criterion exists because nothing was watching.
 - **Shortcut resistance** (added 2026-08-04): 0 published puzzles whose goal is reachable from the stated
-  givens within the shortcut budget (doc 05 §5.2 filter 9). This is a build gate, not a sampled check.
+  givens by a short route. ~~This is a build gate~~ — **it is not, and cannot be, on this engine
+  (2026-08-04, M5; doc 05 §5.2 filter 9, doc 07 T22).** There is no step budget to impose, no second
+  derivation to find, and forward search never derives a constant angle at all (measured: 0 novel
+  `aconst` across 117 closures). The criterion stands as a *criterion* — it is still what the product
+  must achieve — but it has no automated instrument, and the two partial substitutes (the configuration
+  table, the LLM oracle column) are a whitelist and a judge, not a proof. This is the largest known gap
+  between what this document asks for and what the build can verify, and it is stated rather than
+  quietly downgraded.
 - **Prose fidelity** (replaces the pivot-era readability gate, doc 07 T17): 100% of rendered solution
   steps pass the entity-level check, and the sampled prose review on each bank build finds no
   misstatement. The old criterion — ≥ 90% of puzzles built entirely from whitelisted step types — is

@@ -80,15 +80,31 @@ What the proof-structure features could not see: **how hard it is to find the fi
 the majority of the score's weight once measured, and their initial weights are guesses like everyone
 else's — the calibration protocol below is what settles them.
 
-- `shortcut_margin` — the *gap* between the published proof's depth and the shortest derivation any
-  route achieves. Filter 9 rejects on the shortest route being trivially short; this feature scores what
-  is left. A puzzle whose published 9-step proof has a 3-step alternative is a 3-step puzzle, and this is
-  the number that says so. Computed from the same bounded re-solve filter 9 runs, so it costs nothing
-  extra.
-- `requires_auxiliary` — whether the minimal derivation needs a point named in no given and not in the
-  goal. This is the single strongest difficulty multiplier known in the literature (doc 07 T10), it is a
-  property of the traceback we already compute, and the first bank was never checked for it. Expected
-  near-zero on current output; that measurement is a deliverable, not an assumption.
+- ~~`shortcut_margin`~~ — **not computable (M5).** It was to be the gap between the published proof's
+  depth and the shortest derivation any route achieves, "computed from the same bounded re-solve filter
+  9 runs, so it costs nothing extra". Filter 9 cannot be run at all (§5.2 filter 9, doc 04 Stage 6b), and
+  there is no second derivation to be shorter: `ProofState.apply` is write-once, so each fact carries
+  exactly one justification. There is no depth gap to compute because there is only ever one depth.
+- ~~`requires_auxiliary`~~ — **identically zero, not near-zero (M5, doc 07 T22).** Defined as
+  `subdag.points() - needed_points()`, it cannot be non-empty: forward chaining binds a rule's
+  conclusion only to points its premises already name, so every sub-DAG point enters through a leaf, and
+  the leaves are the premises, the configuration facts and the tautologies — all but the last of which
+  `needed_points()` already contains. Measured 0/163 at seed 42, with containment holding 61/61 and no
+  tautology ever naming an otherwise-unmentioned point. The decisive case is the `langley_with_auxiliary`
+  fixture, the one genuinely auxiliary-requiring construction in the repo: it reports **empty**, because
+  the auxiliary point is named by a premise. Any constructed point is a stated given the moment the proof
+  uses it, so this metric is blind to exactly what it is named for. The literature's difficulty
+  multiplier is real (doc 07 T10); it does not survive translation into a pipeline that *draws the whole
+  construction for the player*, and nothing detects it here until the hide mechanism exists (doc 07 L1).
+- `unused_points` — **the replacement, and the one §5.1a feature that ships in M5.** Drawn points the
+  minimal derivation does not need: `len(set(pruned.points) - derivation.needed_points())`. This is the
+  honest version of the question the two entries above were reaching for — not "must the solver invent a
+  point" (they never must) but "how much of what they are shown is irrelevant". It is free, it comes from
+  data Stage 6 already produces, and unlike its predecessors it **varies**: measured over the seed-42
+  corpus it spans 0–5 with a mean of 1.7, and only 34% of puzzles have none. The variance exists because
+  `prune_figure` closes construction dependencies transitively — a point needed to *build* a kept point
+  survives into the figure even when no premise names it. Weight is a GUESS pending §5.1b, and its sign
+  was checked against the corpus before it was assigned rather than argued from the story.
 - `first_move_branching` — how many facts are derivable in one step from the stated givens. A figure
   offering three openings is a search; a figure offering one is a nudge. Read off the closure the
   shortcut check already builds.
@@ -161,19 +177,27 @@ so it is run on every bank build and its output is committed alongside the bank.
    Two supporting mechanisms live upstream, because a cap alone would just discard most of the corpus:
    Stage 2 must draw from the *band's* value palette rather than always the easy one (doc 04 Stage 2),
    and non-angle quantity types widen the answer space structurally (doc 07 T18).
-9. **Shortcut (added 2026-08-04 — doc 07 T19).** Re-solve the goal from the stated givens under a step
-   budget of `FILTERS.shortcut_budget` (initially 2). If it lands, discard — whatever the published
-   proof looks like. Notes that matter for implementing it honestly:
-   - it runs over the **stated givens only**, because that is what the player has. Running it over the
-     full construction would ask a different and easier question;
-   - it uses the same `solve_facts` over fixed coordinates that Stage 6 minimization uses, so
-     configuration facts stay available and the check does not accidentally test a different figure;
-   - **it must be shown to fire.** Filter 5 taught this lesson (it never fires on real output and is
-     therefore forced to fire in tests); filter 9 is expected to fire *heavily* at first, and the
-     measured rejection rate on the current corpus is the deliverable of the milestone that lands it;
-   - a resource-cap hit is **not** "no shortcut found". The budget is small, so exhaustion should be
-     impossible; if it happens, the puzzle is discarded and logged, on the same reasoning as doc 06
-     §6.3's `hit_cap` verdict — an unanswered question is not a "no".
+9. ~~**Shortcut (added 2026-08-04 — doc 07 T19).**~~ **CANNOT BE BUILT ON THIS ENGINE (settled M5).**
+   The specification — re-solve the goal from the stated givens under a step budget of
+   `FILTERS.shortcut_budget`, discard if it lands — asks the engine a question it has no way to answer.
+   Four independent blockers, kept on the page so the filter is not re-proposed in six months:
+   - **no budget to impose.** `SolveOptions` has a seed, a backend and a wall clock; there is no step or
+     depth cap, and caps are evaluated after the fact;
+   - **a tier-limited solve is inert.** Newclid's `FollowDeductions` agent ignores its `rules` argument;
+   - **forward search never reaches an angle goal.** *Measured (M4a, seed 42, n=600):* across 117
+     saturating closures over the stated givens, 181 `aconst` facts appear and **0 are novel**. The
+     closure does not derive constant angles, so a bounded re-solve returns "no shortcut" for every
+     angle puzzle whatever its difficulty. Per this section's own rule that a filter must be shown to
+     fire, a filter that provably *never* fires is worse than absent — it would read as evidence;
+   - **no alternative route exists to be found.** `ProofState.apply` is write-once: one justification per
+     fact, so the DAG holds no second derivation.
+
+   The failure it targeted is real and now **unmitigated**: the human shortcut ("a rhombus diagonal
+   bisects the angle") is a composite theorem the engine's rule granularity lacks, not a shorter path
+   through its rules. It has to be caught by recognising the *configuration* (the configuration table)
+   or by an outside judge (the LLM oracle column, doc 07 T21's sibling reasoning) — neither of which is
+   a proof, and both of which trail the corpus. This is the largest known hole in the difficulty story
+   and it is named as such rather than papered over.
 10. **Figure poverty (added 2026-08-04).** A rolling build metric rather than a fixed threshold at
    first: figures with no circle, fewer than 5 points, and fewer than 3 distinct given kinds are the
    shape the first bank was made of. The immediate action is measurement and reporting per band, not a
