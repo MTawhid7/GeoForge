@@ -15,6 +15,18 @@
    happens only at defined gates with logged reasons — never `except: continue`.
 6. **Engines are read-only dependencies** (doc 03 §3.6, doc 07 P3). Reference clones are never modified
    in place; GPL clones are never imported (doc 07 P2).
+7. **The LLM writes prose and nothing else** (added 2026-08-04, doc 07 T17). It may populate
+   `solution[].text` and `given[].display`; doc 02 invariant 5 enumerates every field it may not touch,
+   and that list is exhaustive by design. Three rules follow for anyone working near the renderer:
+   never send it a goal, an answer, or a figure — it renders one already-proved step at a time and
+   cannot solve what it is never shown; never accept a sentence that has not passed the fidelity check;
+   and never make a live call in a code path a bank build depends on, because reproducibility comes from
+   the cache (doc 02 invariant 6), not from the model.
+8. **Measure before you write it down** (added 2026-08-04). The difficulty model shipped a whole phase
+   on the unexamined assumption that a longer proof is a harder puzzle, and one playtest refuted it
+   (doc 07 T19). Any claim about what the corpus contains — band distributions, answer variety, figure
+   richness, how often a gate fires — goes in a doc only with the number that supports it and the seed
+   it was measured at. "A gate that never fires is untested" is the same principle applied to code.
 
 ## 8.2 Code standards
 
@@ -22,7 +34,10 @@
   facts/steps/DAG/SAL types.
 - TS `strict: true`, ESLint; small stateless components; no geometry math beyond viewport transforms.
 - Naming: translation template IDs are `snake_case` and **public API** (appear in puzzle JSON `rule`
-  field); renaming one is a schema-affecting change.
+  field); renaming one is a schema-affecting change. Since 2026-08-04 a step rendered from an
+  untemplated rule carries the namespaced engine rule id instead (doc 03 §3.5a item 1) — also public
+  API, and also not renameable at will. Adding a template for such a rule *changes* the published
+  `rule` value, so it is a schema-affecting change too, not a cosmetic improvement.
 - One config module per package under `src/geoforge/config/`; every tolerance/threshold/weight lives
   there; no inline magic numbers.
 - Conventional commits, one logical change each.
@@ -32,7 +47,9 @@
 | Layer | Required tests |
 |---|---|
 | SAL adapters | Contract suite vs. every backend: determinism double-run diff, fact normalization, DAG integrity, resource-cap surfacing; shared fixture corpus (classic configurations; Langley-with-auxiliary; JGEX dataset samples) |
-| Translator | Per-template: positive fixture + a trace it must *refuse* (readability gate); golden-text snapshots per locale |
+| Translator (templates) | Per-template: positive fixture + a trace it must *refuse*; golden-text snapshots per locale |
+| Step renderer (LLM) | Fidelity check unit-tested from both sides — a sentence naming a point the step does not involve must be rejected, and a correct sentence must be accepted (a checker that rejects everything passes half a test suite). Golden fixtures: every templated rule rendered through the LLM path must stay semantically equivalent, run in CI against the cache so it costs no calls. Cache-key test: same step ⇒ same key ⇒ no network call. **No test may make a live API call** |
+| Difficulty gates | Filter 8 (answer entropy) and filter 9 (shortcut) each need a reject/near-miss pair *and* a measured firing rate on the real corpus committed alongside — filter 9 is expected to reject heavily, and a version of it that quietly stopped firing would look exactly like success |
 | Generator | Per-stage attrition snapshot on fixed seed corpus; configuration-fact preservation test (a puzzle whose minimization would previously strip arc-side info must retain it) |
 | Well-posedness | Mutation tests: deliberately under-determined puzzle rejected; configuration-flip sample correctly treated as sample-discard, not puzzle-discard |
 | Bank validation | Round-trip build → cross-engine re-derivation → schema validation → TS type check; mutation tests (corrupt answer / drop premise ⇒ reject). A validator that never fails is untested |
