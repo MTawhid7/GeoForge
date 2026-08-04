@@ -391,6 +391,89 @@ class TestFactRoundTrip:
         with pytest.raises(UnsupportedFactKind):
             _construction_from_fact(bogus)
 
+    def test_every_valued_kind_knows_where_its_value_lives(self) -> None:
+        """Phase 3 M4a. `_value_of` used to *probe* attribute names — try `length`, `ratio`,
+        `value`, give up and return None. Giving up returns the same thing as "this fact has no
+        value", so two whole kinds (`l2const`, `r2const`, whose fields are `square_length` and
+        `square_ratio`) came back unvalued and nothing failed loudly.
+
+        A kind-keyed table can be checked for exhaustiveness, which is the entire point of
+        replacing the loop with one. Registering a new valued kind now fails here until its
+        attribute is declared, instead of silently producing valueless facts.
+        """
+        from geoforge.solvers.newclid_backend import _VALUE_ATTRIBUTE
+        from geoforge.solvers.types import VALUED_KINDS
+
+        assert set(_VALUE_ATTRIBUTE) == set(VALUED_KINDS)
+
+    @pytest.mark.parametrize(
+        ("construction", "kind", "value"),
+        [
+            ("a b = segment a b; c = s_angle a b c 50o", FactKind.CONSTANT_ANGLE, Fraction(5, 18)),
+            ("a b = segment a b; c = lconst c a 4", FactKind.CONSTANT_LENGTH, Fraction(4)),
+            ("a b = segment a b; c = l2const c a 4", FactKind.SQUARED_CONSTANT_LENGTH, Fraction(4)),
+            (
+                "a b c = triangle a b c; d = rconst a b c d 2/1",
+                FactKind.CONSTANT_RATIO,
+                Fraction(2),
+            ),
+            (
+                "a b c = triangle a b c; d = r2const a b c d 3/1",
+                FactKind.SQUARED_CONSTANT_RATIO,
+                Fraction(3),
+            ),
+        ],
+        ids=["aconst", "lconst", "l2const", "rconst", "r2const"],
+    )
+    def test_every_valued_kind_carries_its_value_out_of_the_engine(
+        self, backend: SolverBackend, construction: str, kind: FactKind, value: Fraction
+    ) -> None:
+        """`l2const` and `r2const` are the M4a regression; the other three are the near-misses
+        that always worked, and they belong here because the attribute names do not follow one
+        convention — writing this table by inspection got `rconst` wrong on the first attempt
+        (its Fraction is in `value`; `ratio` holds the segments). Every entry is pinned by
+        behaviour, so a plausible-looking wrong name fails here instead of shipping.
+
+        Two things had to be true and only one was. The value must reach `Fact.value` rather
+        than staying in `args` — and `fact_from_id` *rejects* a valued kind that carries no
+        value, so the broken spelling `l2const:a:c:4/1` could not even be parsed back. Any
+        puzzle shipping such a given would have crashed the layout gate, which reconstructs
+        every given with `fact_from_id`.
+        """
+        figure = backend.realize(ProblemSpec(construction=construction), SolveOptions(seed=42))
+        closure = backend.solve_facts(
+            PremiseSpec(points=figure.points, premises=figure.declared, goals=()),
+            SolveOptions(seed=42),
+        )
+        facts = [f for f in closure.facts if f.kind is kind]
+        assert facts, f"the closure stated no {kind.value}"
+        for fact in facts:
+            assert fact.value == value
+            assert fact.is_valued
+            assert all("/" not in arg for arg in fact.args), "the value stayed in the arguments"
+            assert fact_from_id(fact.fact_id) == fact
+
+    def test_a_premise_and_a_derived_fact_agree_on_a_squared_constant(
+        self, backend: SolverBackend
+    ) -> None:
+        """The invariant `_fact_from_construction` documents, asserted for the kind that broke
+        it: a stated premise and the same fact coming back from the engine must share an id, or
+        premise minimization matches nothing and reports a load-bearing premise as droppable.
+        """
+        figure = backend.realize(
+            ProblemSpec(construction="a b = segment a b; c = l2const c a 4"),
+            SolveOptions(seed=42),
+        )
+        squared = FactKind.SQUARED_CONSTANT_LENGTH
+        declared = {f.fact_id for f in figure.declared if f.kind is squared}
+        assert declared
+        closure = backend.solve_facts(
+            PremiseSpec(points=figure.points, premises=figure.declared, goals=()),
+            SolveOptions(seed=42),
+        )
+        derived = {f.fact_id for f in closure.facts if f.kind is squared}
+        assert declared <= derived, f"premise {declared} is spelled differently from {derived}"
+
     def test_canonicalization_preserves_an_angles_value(self) -> None:
         """The engine reorders the points within each line of an angle. That leaves a
         line-to-line angle unchanged — a line has no direction — and the value must come

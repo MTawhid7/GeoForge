@@ -185,20 +185,48 @@ def _setup_from_premise_spec(spec: PremiseSpec) -> ProblemSetup:
     )
 
 
+#: Which attribute each valued predicate keeps its exact value in. Keyed by kind rather than
+#: probed by name: a name-probing loop silently returns None for a predicate whose field it
+#: does not happen to list, and None means "unvalued", which is a lie about the fact rather
+#: than a missing optimization. Asserted exhaustive over VALUED_KINDS in the SAL contract suite.
+#:
+#: Note `rconst`. Newclid's `ConstantRatio` has both a `ratio` field and a `value` field, and
+#: the number is in `value` — `ratio` is the pair of segments. The names do not follow one
+#: convention across these five predicates, which is why every entry is pinned by a behavioural
+#: test rather than by inspection.
+_VALUE_ATTRIBUTE: dict[FactKind, str] = {
+    FactKind.CONSTANT_ANGLE: "angle",
+    FactKind.CONSTANT_LENGTH: "length",
+    FactKind.CONSTANT_RATIO: "value",
+    FactKind.SQUARED_CONSTANT_LENGTH: "square_length",
+    FactKind.SQUARED_CONSTANT_RATIO: "square_ratio",
+}
+
+
 def _value_of(predicate: Any, kind: FactKind) -> Fraction | None:
     """Extract the exact value carried by a valued predicate.
 
     Angles come back in units of pi (Newclid's `angle` field is already a Fraction of a
     half-turn), which is GeoForge's normative convention — see types.py.
+
+    **Phase 3 M4a.** This used to probe `("length", "ratio", "value")` by name, which covered
+    `lconst` and `rconst` and silently missed `l2const` and `r2const` — their fields are
+    `square_length` and `square_ratio`. Those facts came back with `value=None` and the value
+    still sitting in `args`, so `is_valued` was False and the fact_id was `l2const:a:b:9/1`
+    rather than `l2const:a:b=9`. That breaks the invariant `_fact_from_construction` documents:
+    the same fact got two different ids depending on whether it arrived as a premise or as a
+    derived fact, so premise minimization could never match one against a DAG leaf — and
+    `fact_from_id` rejects the wrong spelling outright, because it requires a valued kind to
+    carry a value. Measured at seed 42, n=600: 5 such facts across 117 realized figures.
     """
-    if kind is FactKind.CONSTANT_ANGLE:
-        return Fraction(predicate.angle)
-    for attr in ("length", "ratio", "value"):
-        raw = getattr(predicate, attr, None)
-        if isinstance(raw, Fraction):
-            return raw
-        if isinstance(raw, int):
-            return Fraction(raw)
+    attribute = _VALUE_ATTRIBUTE.get(kind)
+    if attribute is None:
+        return None
+    raw = getattr(predicate, attribute, None)
+    if isinstance(raw, Fraction):
+        return raw
+    if isinstance(raw, int):
+        return Fraction(raw)
     return None
 
 
