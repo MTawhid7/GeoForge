@@ -56,17 +56,29 @@ Coords = Mapping[str, tuple[float, float]]
 
 
 def frame(coords: Coords) -> dict[str, tuple[float, float]]:
-    """Fit a figure into the viewbox by a **similarity transform only**.
+    """Fit a figure into the viewbox by a **direct similarity transform only**.
 
-    Uniform scale, translation, and a y-flip from maths convention (y up) to SVG's (y down).
-    Choosing the pose is `bank.layout`'s job; this only fits the result to the box.
+    Uniform scale, translation, and a half-turn that carries maths convention (y up) into SVG's
+    (y down). Choosing the pose is `bank.layout`'s job; this only fits the result to the box.
 
-    The y-flip is a reflection, and that is safe: everything the puzzle publishes is
-    *undirected* — vertex angles, distances, congruences — all of which a mirror preserves.
-    What a reflection does negate is a directed line-to-line angle, and those appear only in
-    `derives` and `goal.fact`, which are trace handles over the **reference** figure. Cross-
-    engine validation reads `reference_figure` and never this one (docs/04 §V), so nothing
-    downstream sees the flip.
+    **Both axes are negated, not just y (fixed Phase 3 M4).** Negating y alone is a reflection,
+    and this docstring used to argue that was safe because "everything the puzzle publishes is
+    undirected". That is false for `given[].fact`: an `aconst` given is a **directed**
+    line-to-line angle mod pi, and a reflection negates it. Negating x as well makes the map a
+    half-turn — orientation-preserving — so directed angles and the orientation-sensitive
+    configuration facts (`sameclock`) both survive, and the figure the player sees satisfies its
+    own stated givens.
+
+    Why it stayed hidden: every `aconst` given the sampler used to produce was 90 degrees, and
+    90 is the one angle equal to its own negation mod pi. The bug became visible the moment
+    Stage 2 started stating other angles. This is the same shape as the cross-engine convention
+    trap in docs/03 §3.2a, where an uncalibrated validator accepted exactly the 25 puzzles of
+    129 whose answer was 90 degrees — and it is why `tests/bank/test_layout.py` asserts every
+    premise over the *display* figure rather than trusting an argument about which fields are
+    undirected.
+
+    A half-turn is as free as the flip was: `bank.layout._best_rotation` already scans poses, so
+    a figure rotated 180 degrees from the old framing is not a worse figure.
 
     What is *not* optional is that the transform be a similarity. Every premise is a metric
     statement about this point set, so anything else breaks one (docs/06 §6.3, docs/07 T5).
@@ -90,7 +102,7 @@ def frame(coords: Coords) -> dict[str, tuple[float, float]]:
 
     cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
     ox, oy = LAYOUT.viewbox_width / 2, LAYOUT.viewbox_height / 2
-    return {name: (ox + (x - cx) * scale, oy - (y - cy) * scale) for name, (x, y) in coords.items()}
+    return {name: (ox - (x - cx) * scale, oy - (y - cy) * scale) for name, (x, y) in coords.items()}
 
 
 # --------------------------------------------------------------------------------------
