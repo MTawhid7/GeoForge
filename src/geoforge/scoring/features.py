@@ -77,6 +77,30 @@ class Features:
     goal_given_distance: int
     """Figure-graph hops from the goal's points to the nearest point a given mentions. 0 when a
     given touches the goal directly."""
+    unused_points: int
+    """Drawn points the minimal derivation does not need — `pruned.points - needed_points()`.
+
+    **Recorded, deliberately unscored (M5).** It arrived as the replacement for the
+    `requires_auxiliary` feature docs/05 §5.1a specified, which turned out to be identically zero
+    (doc 07 T22). This one at least varies — 0 to 5, mean 1.58 over 163 puzzles at seed 42, with
+    only 34% at zero — because `prune_figure` closes construction dependencies transitively, so a
+    point needed to *build* a kept point survives into the figure with no premise naming it.
+
+    It is not in `SCORING.weights`, and the reason is measured rather than cautious. Spearman
+    against every difficulty signal on the same corpus:
+
+        n_points +0.777 | depth -0.048 | width -0.110 | distinct_rules -0.140
+        branch_join -0.147 | score -0.096
+
+    So it is overwhelmingly a proxy for *figure size* and, if anything, runs the wrong way against
+    difficulty: mean unused is 1.80 in easy and 2.11 in hard but 0.00 in expert (n=8 — thin, and
+    the direction agrees with the rank correlations). Weighting it positively would score big
+    rambling figures as hard, which is precisely the mistake doc 07 T19 records for proof depth.
+
+    What it is genuinely evidence *for* is the sampler. A high count means Stage 1 built structure
+    the puzzle then made no use of, so it belongs to the doc 07 L4 case that generation is the
+    bottleneck, and it is reported as a build diagnostic rather than a difficulty term. Any future
+    move to weight it must re-measure these correlations first."""
 
     @property
     def is_pure_algebra(self) -> bool:
@@ -107,6 +131,7 @@ def measure(derivation: Derivation, translation: Translation, pruned: Constructi
         n_premises=len(derivation.premises),
         construction_steps=len(pruned.steps),
         goal_given_distance=_goal_given_distance(derivation),
+        unused_points=len(frozenset(pruned.points) - derivation.needed_points()),
     )
 
 

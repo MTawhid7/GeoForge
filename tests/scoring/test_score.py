@@ -36,6 +36,7 @@ BASE = Features(
     n_premises=3,
     construction_steps=4,
     goal_given_distance=0,
+    unused_points=0,
 )
 
 #: Every feature the score reads, with a value above and below BASE's.
