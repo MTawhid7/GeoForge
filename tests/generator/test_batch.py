@@ -13,12 +13,15 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 
 import pytest
 
+from geoforge.config import GENERATION
 from geoforge.generator.batch import (
     STAGES,
     BatchReport,
+    band_for_index,
     case_seed_for,
     construction_rng,
     main,
@@ -234,3 +237,47 @@ class TestCli:
         gated = run(30, SEED)
         ungated = run(30, SEED, check_wellposed=False)
         assert len(ungated.puzzles) >= len(gated.puzzles)
+
+
+class TestBandPlumbing:
+    """docs/04 Stage 1. `sample_construction` has always taken a band; until Phase 3 M4 the
+    batch runner never passed one, so every construction in every band was drawn on the easy
+    profile — the plumbing gap behind the 45-degree corpus."""
+
+    def test_the_band_is_a_pure_function_of_seed_and_index(self) -> None:
+        """Shardability (docs/04 "Determinism and parallelism"): the band must not depend on the
+        constructions before it, or splitting a range across workers changes the corpus."""
+        first = [band_for_index(construction_rng(42, i)) for i in range(60)]
+        second = [band_for_index(construction_rng(42, i)) for i in reversed(range(60))]
+        assert first == list(reversed(second))
+
+    def test_a_different_seed_gives_a_different_assignment(self) -> None:
+        assert [band_for_index(construction_rng(42, i)) for i in range(60)] != [
+            band_for_index(construction_rng(7, i)) for i in range(60)
+        ]
+
+    def test_every_configured_band_is_actually_reached(self) -> None:
+        """A mix entry that never fires is a profile nobody is testing."""
+        seen = {band_for_index(construction_rng(42, i)) for i in range(400)}
+        assert seen == set(GENERATION.band_mix)
+
+    def test_the_mix_is_roughly_respected(self) -> None:
+        counts = Counter(band_for_index(construction_rng(42, i)) for i in range(2000))
+        total = sum(GENERATION.band_mix.values())
+        for band, weight in GENERATION.band_mix.items():
+            assert abs(counts[band] / 2000 - weight / total) < 0.05, counts
+
+    def test_profiles_differ_from_one_another(self) -> None:
+        """Four identical profiles would make the whole mechanism a no-op that still reads as
+        wired up."""
+        profiles = [
+            (p.min_steps, p.max_steps, p.circle_weight, p.angle_weight)
+            for p in GENERATION.band_profiles.values()
+        ]
+        assert len(set(profiles)) == len(profiles)
+
+    def test_a_run_reports_how_the_profile_budget_was_spent(self) -> None:
+        report = run(40, 42, check_wellposed=False)
+        assert sum(report.sampled_bands.values()) == report.constructions
+        assert set(report.sampled_bands) <= set(GENERATION.band_mix)
+        assert "sampled_bands" in report.summary()

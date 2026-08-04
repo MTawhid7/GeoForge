@@ -103,38 +103,57 @@ class TestAgainstTheCorpus:
 
 
 class TestMeasuredConstants:
-    """Two features take one value across the whole corpus. Asserted, not hidden.
+    """Which features actually vary across the corpus. Asserted, not hidden.
 
     A constant feature contributes a fixed offset and no discrimination. Leaving that
     undocumented invites someone to retune its weight and conclude the model is broken when
     nothing moves.
+
+    **Rewritten in Phase 3 M4, because M4 existed to break two of these.** The previous version
+    asserted that `nice_penalty` took exactly one value and that no answer was ever telegraphed
+    by a given, and named the cause in its own docstring: the batch runner never passed a band
+    to `sample_construction`, so every construction drew its angles from the easy palette. Both
+    are now false, which is the point — a test that pins a defect has to be updated when the
+    defect is fixed, or it starts defending it.
     """
 
     def test_goal_given_distance_is_always_zero(self, candidates: list[CandidatePuzzle]) -> None:
         """Cause: figures run 3-8 points and the premises name nearly all of them, so the goal's
         points are always among the givens' points. The feature discriminates on larger figures
-        and is kept for them (docs/05 §5.3)."""
+        and is kept for them (docs/05 §5.3). Unchanged by M4 — the profiles widened the step
+        range but not enough to separate goal from givens."""
         assert {c.features.goal_given_distance for c in candidates} == {0}
 
-    def test_nice_penalty_is_constant_because_the_sampler_only_makes_round_angles(
+    def test_nice_penalty_now_varies(self, candidates: list[CandidatePuzzle]) -> None:
+        """The band reaches the sampler, so the penalty can finally tell puzzles apart.
+
+        This is the assertion the old `..._is_constant_because_the_sampler_only_makes_round_
+        angles` becomes. With the band threaded through (docs/04 Stage 1) and the upper bands
+        drawing non-round givens (docs/07 T18), a weight on `nice_penalty` does something for
+        the first time.
+        """
+        assert len({c.features.nice_penalty for c in candidates}) > 1
+
+    def test_an_answer_equal_to_a_given_is_possible_and_penalised(
         self, candidates: list[CandidatePuzzle]
     ) -> None:
-        """Cause: `sample_construction` is never passed a band, so every construction draws its
-        given angles from the *easy* palette — multiples of 10 (`GENERATION.nice_angle_degrees`).
-        Band-targeted sampling is M6; until then every answer is round and the penalty cannot
-        tell puzzles apart. It is the same plumbing gap, seen from the other end."""
-        assert len({c.features.nice_penalty for c in candidates}) == 1
+        """The discriminating half of the penalty, which now has something to discriminate.
 
-    def test_no_answer_is_telegraphed_by_a_given(self, candidates: list[CandidatePuzzle]) -> None:
-        """The discriminating half of the penalty. Zero hits, and Stage 5's `already_given`
-        rejection is why — but that one compares *facts*, and this compares *values*, so they
-        are not the same check and this one is worth keeping."""
+        Previously zero hits corpus-wide. Once Stage 2 states real angles, a puzzle can state
+        50 degrees and answer 50 degrees at a different vertex — not caught by Stage 5's
+        `already_given`, which compares *facts* rather than *values*, and exactly what the
+        penalty is for. Asserted as "the penalty reflects it" rather than "it never happens",
+        because it does happen and pretending otherwise is how the check rots.
+        """
         from geoforge.scoring.features import _degrees
 
         for candidate in candidates:
             goal = _degrees(candidate.derivation.goal)
             givens = {_degrees(f) for f in candidate.derivation.premises}
-            assert goal is None or goal not in givens, candidate.id
+            if goal is not None and goal in givens:
+                assert candidate.features.nice_penalty > 0.0, (
+                    f"{candidate.id}: answer {goal} is stated among the givens and pays nothing"
+                )
 
 
 class TestBranchJoins:

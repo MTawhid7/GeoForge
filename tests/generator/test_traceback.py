@@ -167,7 +167,9 @@ class TestPremiseMinimization:
         """In the inscribed-angle figure, `d` sits on the circle but takes no part in proving
         an angle among a, b, c, o — so `cyclic a b c d` must not survive as a given."""
         figure = backend.realize(ProblemSpec(construction=INSCRIBED), OPTS)
-        goal = extract_goals(backend, figure, OPTS, max_goals=1).goals[0]
+        goal = extract_goals(backend, figure, OPTS, max_goals=1, reject_sight_readable=False).goals[
+            0
+        ]
         derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, OPTS)
         assert derivation is not None
         assert any(f.kind is FactKind.CYCLIC for f in derivation.dropped_premises)
@@ -175,7 +177,7 @@ class TestPremiseMinimization:
 
     def test_necessary_premises_survive(self, backend: SolverBackend) -> None:
         figure = backend.realize(ProblemSpec(construction=THALES), OPTS)
-        goal = extract_goals(backend, figure, OPTS).goals[0]
+        goal = extract_goals(backend, figure, OPTS, reject_sight_readable=False).goals[0]
         derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, OPTS)
         assert derivation is not None
         assert derivation.premises
@@ -190,7 +192,7 @@ class TestPremiseMinimization:
         depends on a configuration nobody stated.
         """
         figure = backend.realize(ProblemSpec(construction=THALES), OPTS)
-        goal = extract_goals(backend, figure, OPTS).goals[0]
+        goal = extract_goals(backend, figure, OPTS, reject_sight_readable=False).goals[0]
         subdag = minimal_subdag(goal.result.proof_dag, goal.fact.fact_id)
         assert subdag is not None
         assert subdag.configuration, "fixture must exercise configuration facts"
@@ -219,9 +221,12 @@ class TestPremiseMinimization:
         trusted from the pre-filter.
         """
         figure = backend.realize(ProblemSpec(construction=REDERIVES_WIDER), OPTS_233)
+        # `reject_sight_readable=False`: this fixture's goal is 120 degrees, which the product
+        # policy rejects (docs/07 T5). The F-2 trap it pins is about premise minimization
+        # re-deriving a wider proof, and has nothing to do with the answer's value.
         goals = [
             g
-            for g in extract_goals(backend, figure, OPTS_233).goals
+            for g in extract_goals(backend, figure, OPTS_233, reject_sight_readable=False).goals
             if g.fact.fact_id == "aconst:a:c:c:f=2/3"
         ]
         assert goals, "fixture no longer produces its goal; re-derive it before editing"
@@ -233,7 +238,9 @@ class TestPremiseMinimization:
 
     def test_minimization_is_deterministic(self, backend: SolverBackend) -> None:
         figure = backend.realize(ProblemSpec(construction=INSCRIBED), OPTS)
-        goal = extract_goals(backend, figure, OPTS, max_goals=1).goals[0]
+        goal = extract_goals(backend, figure, OPTS, max_goals=1, reject_sight_readable=False).goals[
+            0
+        ]
         runs = [
             derive(backend, figure.points, goal.result.proof_dag, goal.fact, OPTS) for _ in range(2)
         ]
@@ -245,7 +252,9 @@ class TestPremiseMinimization:
         """After minimization the recorded proof must be the proof from what is left, or a
         solution step could cite a given the puzzle no longer states."""
         figure = backend.realize(ProblemSpec(construction=INSCRIBED), OPTS)
-        goal = extract_goals(backend, figure, OPTS, max_goals=1).goals[0]
+        goal = extract_goals(backend, figure, OPTS, max_goals=1, reject_sight_readable=False).goals[
+            0
+        ]
         derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, OPTS)
         assert derivation is not None
         stated = set(derivation.premises) | set(derivation.configuration)
@@ -258,7 +267,7 @@ class TestPremiseMinimization:
         it has to arrive as a result rather than an exception.
         """
         figure = backend.realize(ProblemSpec(construction=THALES), OPTS)
-        goal = extract_goals(backend, figure, OPTS).goals[0]
+        goal = extract_goals(backend, figure, OPTS, reject_sight_readable=False).goals[0]
         outcome = minimize_premises(backend, figure.points, (), (), goal.fact, OPTS)
         assert outcome.engine_errors == ()
 

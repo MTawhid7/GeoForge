@@ -54,7 +54,7 @@ def _pipeline(backend: SolverBackend, jgex: str, seed: int, goal_id: str | None 
     construction = _parse(jgex)
     figure = backend.realize(construction.to_spec(), opts)
     coords = figure.coords()
-    for goal in extract_goals(backend, figure, opts).goals:
+    for goal in extract_goals(backend, figure, opts, reject_sight_readable=False).goals:
         if goal_id is not None and goal.fact.fact_id != goal_id:
             continue
         derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, opts)

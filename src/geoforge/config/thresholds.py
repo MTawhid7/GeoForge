@@ -54,17 +54,100 @@ class DegeneracyConfig:
     """DOC docs/04: reject angles within this of 0 deg or 180 deg."""
 
 
+@dataclass(frozen=True, slots=True)
+class BandProfile:
+    """How Stage 1 samples for one band (docs/04 Stage 1).
+
+    Added Phase 3 M4. `sample_construction` has always taken a `band`, and the batch runner has
+    never passed one, so every construction in every band was drawn on the easy profile. One
+    profile per band is the fix; `GenerationConfig.band_mix` decides how the budget is split.
+    """
+
+    min_steps: int
+    max_steps: int
+    circle_weight: float
+    """Relative pick weight for primitives that put a **drawable** circle into the figure —
+    `circle` and `on_circum`, the only two the renderer will draw (`solvers/catalog.py`).
+    There are 2 of them against 60 other usable extensions, so the pick probability per step is
+    `2w / (60 + 2w)`: w=2 gives 6%, w=10 gives 25%, w=20 gives 40%. The old global value of 2.0
+    was spread across 37 mis-flagged primitives and bought nothing."""
+    angle_weight: float
+    """Relative pick weight for primitives that state an angle value (`s_angle`, `aconst`).
+    MEASURED Phase 3 M4: at weight 1.0 only 2 of 22 surviving puzzles stated an angle at all, so
+    the per-band angle palette governed 9% of the corpus and the rest answered 45 degrees because
+    the figure contained a square. A puzzle asking for an angle should usually be given one."""
+    require_angle_given: bool
+    """Force an early step to state an angle value.
+
+    A figure that states no angle can only have its angles determined by its own symmetry, and
+    a symmetric figure's angles are the multiples of 30 and 45 that
+    `GenerationConfig.rejected_answer_degrees` throws away. MEASURED at seed 42: with the
+    rejection on and this off, 600 constructions yielded **one** puzzle.
+
+    Weighting alone does not achieve it — at `angle_weight` 6-12, 91% of surviving puzzles still
+    stated no angle, because a weighted draw that misses simply never comes back to it."""
+    max_goals: int
+    """Goal candidates kept per construction (docs/04 Stage 5)."""
+
+
 @dataclass(frozen=True)
 class GenerationConfig:
     """Sampling and goal selection (docs/04 Stages 1, 2, 5)."""
 
-    min_construction_steps: int = 3
-    max_construction_steps: int = 9
-    """DOC docs/04 Stage 1."""
+    band_profiles: dict[str, BandProfile] = field(
+        default_factory=lambda: {
+            "easy": BandProfile(
+                min_steps=3,
+                max_steps=5,
+                circle_weight=3.0,
+                angle_weight=6.0,
+                require_angle_given=True,
+                max_goals=3,
+            ),
+            "medium": BandProfile(
+                min_steps=4,
+                max_steps=7,
+                circle_weight=8.0,
+                angle_weight=8.0,
+                require_angle_given=True,
+                max_goals=3,
+            ),
+            "hard": BandProfile(
+                min_steps=5,
+                max_steps=9,
+                circle_weight=14.0,
+                angle_weight=10.0,
+                require_angle_given=True,
+                max_goals=3,
+            ),
+            "expert": BandProfile(
+                min_steps=6,
+                max_steps=9,
+                circle_weight=20.0,
+                angle_weight=12.0,
+                require_angle_given=True,
+                max_goals=3,
+            ),
+        }
+    )
+    """DOC docs/04 Stage 1. MEASURED at seed 42 — see the M4 attrition note in docs/09."""
 
-    circle_step_weight: float = 2.0
-    """GUESS, informed by PHASE0: circles carry most of the non-trivial difficulty in angle
-    chasing, so the grammar is biased toward them. Retune against attrition data."""
+    band_mix: dict[str, float] = field(
+        default_factory=lambda: {"easy": 0.15, "medium": 0.25, "hard": 0.35, "expert": 0.25}
+    )
+    """Share of constructions sampled on each profile. Weighted away from easy on purpose: the
+    profile is an *input*, not the band a puzzle ends up in, and easy was oversupplied 23:6 over
+    hard while expert was empty. Must be non-empty; values are normalized, so they need not
+    sum to 1."""
+
+    @property
+    def min_construction_steps(self) -> int:
+        return min(p.min_steps for p in self.band_profiles.values())
+
+    @property
+    def max_construction_steps(self) -> int:
+        """DOC docs/04 Stage 1. Derived from the profiles so there is one source of truth."""
+        return max(p.max_steps for p in self.band_profiles.values())
 
     max_given_parameters: int = 3
     """DOC docs/04 Stage 2: how many free angle parameters get concrete values."""
@@ -73,12 +156,20 @@ class GenerationConfig:
         default_factory=lambda: {
             "easy": tuple(range(20, 90, 10)),
             "medium": tuple(range(15, 90, 5)),
-            "hard": tuple(range(11, 90)),
-            "expert": tuple(range(11, 90)),
+            "hard": tuple(d for d in range(12, 89, 2) if d % 10),
+            "expert": tuple(d for d in range(12, 89, 2) if d % 10),
         }
     )
-    """DOC docs/04 Stage 2 'nice value' palette per band: easy uses multiples of 10, harder
-    bands allow awkward integers. Moves into the quantity-type registry in M3 (docs/04 QTR)."""
+    """DOC docs/04 Stage 2 'nice value' palette per band.
+
+    **Upper bands made non-round in Phase 3 M4** (docs/07 T18): `aconst` holds a `Fraction` of
+    pi, so 74 degrees costs exactly what 90 does, and the round palette was our config rather
+    than an engine limit. Two constraints shape the harder palette:
+    - *multiples of 10 are excluded*, because they are what produced an answer distribution of
+      71x45 degrees and 15x90 out of 98;
+    - *values stay even*, because bisecting an odd angle leaves a half-degree and the angle
+      `answer_policy` is whole degrees, so odd givens mostly cost yield rather than buying
+      variety."""
 
     excluded_constructions: frozenset[str] = field(
         default_factory=lambda: frozenset({"test_r20", "test_r25", "e5128", "2l1c", "3peq", "free"})
@@ -96,6 +187,43 @@ class GenerationConfig:
     min_distinct_rules: int = 2
     """DOC docs/05 §5.2 filters 1: below these a puzzle is trivial. Shared with scoring —
     one source, per docs/04 Stage 5."""
+
+    rejected_answer_degrees: frozenset[int] = field(default_factory=lambda: frozenset({45, 90}))
+    """Whole-degree answers rejected outright at Stage 5, however good the proof behind them.
+
+    45 and 90 are not merely *common*, they are **recognised rather than measured**. Nobody
+    estimates a right angle off a figure; they see one. 45 is the same — it is a square's
+    diagonal. Since figures are drawn to scale and stay that way (docs/07 T5, docs/06 §6.3), a
+    puzzle answering either has no content left whatever its derivation looks like.
+
+    A **rejection, not a ranking penalty**. MEASURED at seed 42: ranking by proof depth was
+    actively concentrating these — 45 degrees was 13 of 47 verified candidates (28%) but 11 of
+    24 after ranking (46%), because the engine's longest mechanical chains live in exactly the
+    symmetric figures whose angles are round (docs/07 T19). Demoting them in the sort only helps
+    when the same construction also offers something better, and most offer nothing else.
+
+    **Why not every multiple of 30, which was tried.** Measured over 3,000 constructions:
+
+    | rejected | puzzles | yield | distinct answers | modal share |
+    |---|---|---|---|---|
+    | nothing | 163 | 5.43% | 10 | 71.8% |
+    | {45, 90} | 25 | 0.83% | 9 | 36.0% |
+    | multiples of 30 and 45 | 13 | 0.43% | 7 | 30.8% |
+
+    {45, 90} does almost all the work. Extending to every multiple of 30 removes 12 more
+    puzzles, buys 5 percentage points of modal share, and halves the yield again. The residual
+    concentration is 30 degrees at 9 occurrences, which is what docs/05 §5.2 filter 8's
+    per-band entropy cap is for — a cap limits a value's *share* rather than banning the number,
+    so a genuinely hard puzzle answering 60 degrees survives while a bank full of them does not.
+    Banning the value outright cannot make that distinction.
+
+    Cost, measured and intended: this deletes 139 of 163 puzzles (docs/09 P3 M4 — the bank
+    shrinking sharply is the pass condition). Volume is P4's problem.
+
+    Shared with scoring the same way `min_proof_depth` is — one source, per docs/04 Stage 5. A
+    non-integer number of degrees is never rejected: `Fact.value` is a `Fraction` of pi
+    (docs/07 T18), so those are genuinely awkward angles and the best answers we produce.
+    """
 
 
 @dataclass(frozen=True)

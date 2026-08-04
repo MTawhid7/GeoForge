@@ -23,7 +23,7 @@ from geoforge.generator.batch import BatchReport, CandidatePuzzle, run
 from geoforge.generator.emit import frame
 from geoforge.generator.translation.phrases import angle_of
 from geoforge.solvers.interface import SolverBackend, get_backend
-from geoforge.solvers.types import FactKind, fact_from_id
+from geoforge.solvers.types import fact_from_id
 
 BATCH_N = 60
 SEED = 42
@@ -36,7 +36,9 @@ def backend() -> SolverBackend:
 
 @pytest.fixture(scope="module")
 def report() -> BatchReport:
-    return run(BATCH_N, SEED)
+    # `reject_sight_readable=False`: this corpus exists to exercise machinery, and the
+    # product answer policy (docs/07 T5) costs an order of magnitude of yield.
+    return run(BATCH_N, SEED, reject_sight_readable=False)
 
 
 @pytest.fixture(scope="module")
@@ -149,33 +151,41 @@ class TestAdmissibilityCanReject:
     def test_a_figure_that_breaks_a_configuration_fact_is_refused(
         self, backend: SolverBackend, candidates: list[CandidatePuzzle]
     ) -> None:
-        """Collapse the two points a `diff` fact says are distinct.
+        """Collapse two points a recorded configuration fact distinguishes.
 
-        It has to be *that* pair. Collapsing an arbitrary pair often breaks nothing the puzzle
-        recorded, because the configuration facts on this corpus are thin: measured over a
-        seed-42 batch, 6 of 10 are `diff` and all 4 `sameclock` facts are tautologies of the
-        form `sameclock x y z x y z`, which constrain nothing at all (docs/07 T13).
+        The pair has to come from a configuration fact. Collapsing an arbitrary pair often
+        breaks nothing the puzzle recorded, because the configuration facts on this corpus are
+        thin — some `sameclock` entries are tautologies of the form `sameclock x y z x y z`,
+        which constrain nothing at all (docs/07 T13).
+
+        **Widened in Phase 3 M4 from `diff` specifically.** It used to select `FactKind.DIFFERENT`
+        by name, and the M4 sampler no longer produces any: the corpus now records `sameclock`
+        almost exclusively, so the test silently had nothing to check and said so. Any
+        configuration fact naming two distinct points will do — collapsing them degenerates the
+        triangle the fact is about, which is what admissibility must refuse.
         """
         checked = 0
         for candidate in candidates:
             pairs = [
-                f.args
+                (f.args[i], f.args[j])
                 for f in candidate.derivation.configuration
-                if f.kind is FactKind.DIFFERENT and len(set(f.args)) == 2
+                for i in range(len(f.args))
+                for j in range(i + 1, len(f.args))
+                if f.args[i] != f.args[j]
             ]
             if not pairs:
                 continue
             reference = _reference(candidate)
             angle = angle_of(candidate.derivation.goal, reference)
             assert angle is not None
-            first, second = pairs[0][0], pairs[0][1]
+            first, second = pairs[0]
             collapsed = dict(reference)
             collapsed[second] = reference[first]
             assert not _admissible(
                 backend, collapsed, candidate.derivation, candidate.translation, angle
             ), f"{candidate.id}: collapsing {first} onto {second} was accepted"
             checked += 1
-        assert checked, "no puzzle carried a usable `diff` fact, so nothing was tested"
+        assert checked, "no puzzle carried a usable configuration fact, so nothing was tested"
 
     def test_the_reference_figure_itself_is_admissible(
         self, backend: SolverBackend, candidates: list[CandidatePuzzle]

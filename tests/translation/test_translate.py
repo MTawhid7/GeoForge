@@ -42,7 +42,7 @@ def backend() -> SolverBackend:
 
 def solve(backend: SolverBackend, jgex: str):  # type: ignore[no-untyped-def]
     figure = backend.realize(ProblemSpec(construction=jgex), OPTS)
-    goal = extract_goals(backend, figure, OPTS, max_goals=1).goals[0]
+    goal = extract_goals(backend, figure, OPTS, max_goals=1, reject_sight_readable=False).goals[0]
     derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, OPTS)
     assert derivation is not None
     return figure, goal, derivation, translate(derivation.subdag, figure.coords())

@@ -31,13 +31,13 @@ from importlib.metadata import version
 import numpy as np
 
 from geoforge import schema
-from geoforge.config import SOLVER
+from geoforge.config import GENERATION, SOLVER
 from geoforge.generator import wellposed
 from geoforge.generator.construction import Construction
 from geoforge.generator.degeneracy import check_figure
 from geoforge.generator.emit import assemble
 from geoforge.generator.extract import ExtractedGoal, extract_goals
-from geoforge.generator.sampler import sample_construction
+from geoforge.generator.sampler import profile_for, sample_construction
 from geoforge.generator.traceback import Derivation, derive, prune_figure
 from geoforge.generator.translation import (
     Translation,
@@ -185,6 +185,10 @@ class BatchReport:
     — minimization and the sub-DAG disagreeing about what the proof needs means one of them is
     wrong. A run that collects one exits non-zero."""
     constructions: int = 0
+    sampled_bands: dict[str, int] = field(default_factory=dict)
+    """How the Stage-1 profile budget was actually spent (docs/04 Stage 1). Distinct from
+    `by_band`, which reports the band each *surviving* puzzle scored into — comparing the two is
+    how you see which profile is paying for itself."""
     wall_seconds: float = 0.0
 
     def by_stage(self) -> dict[str, int]:
@@ -210,6 +214,7 @@ class BatchReport:
             "soundness_failures": len(self.soundness_failures),
             "unused_given_bugs": len(self.bugs),
             "underdetermined": len(self.underdetermined),
+            "sampled_bands": dict(sorted(self.sampled_bands.items())),
             "by_band": self.by_band(),
             "attrition_by_stage": self.by_stage(),
             "attrition_by_reason": self.by_reason(),
@@ -237,25 +242,59 @@ def run(
     backend: SolverBackend | None = None,
     *,
     check_wellposed: bool = True,
+    reject_sight_readable: bool = True,
 ) -> BatchReport:
     """Run the pipeline over `n` sampled constructions.
 
     `check_wellposed=False` skips Stage 8 only. It exists for the fast attrition sweeps that shape
     the sampler, never for producing shippable puzzles: without it nothing has verified that the
     answers are answers.
+
+    `reject_sight_readable=False` keeps goals answering a multiple of 30 or 45 degrees
+    (docs/07 T5). Same contract as above — a lever for tests and sweeps, never for shipping.
+    It exists because the policy costs an order of magnitude of yield (measured at seed 42:
+    8.25% to 0.43%), so a test fixture that wants *a corpus of candidate puzzles* to exercise
+    machinery on would otherwise need thousands of constructions and still cover its shapes by
+    luck. The rejection itself is asserted directly instead, where it can be seen to fire.
     """
     backend = backend or get_backend()
     report = BatchReport()
     started = time.perf_counter()
 
     for index in range(n):
-        construction, _ = sample_construction(construction_rng(seed, index))
+        rng = construction_rng(seed, index)
+        band = band_for_index(rng)
+        construction, _ = sample_construction(rng, band=band)
         case_seed = case_seed_for(seed, index)
         report.constructions += 1
-        _run_one(backend, construction, case_seed, report, check_wellposed=check_wellposed)
+        report.sampled_bands[band] = report.sampled_bands.get(band, 0) + 1
+        _run_one(
+            backend,
+            construction,
+            case_seed,
+            report,
+            band=band,
+            check_wellposed=check_wellposed,
+            reject_sight_readable=reject_sight_readable,
+        )
 
     report.wall_seconds = time.perf_counter() - started
     return report
+
+
+def band_for_index(rng: np.random.Generator) -> str:
+    """Which Stage-1 profile this construction is sampled on (docs/04 Stage 1).
+
+    Drawn from the construction's own stream, so the band stays a pure function of
+    `(seed, index)` and sharding still changes nothing (docs/04 "Determinism and parallelism").
+
+    This is the *input* profile, not the band the puzzle ends up in — that comes from the score
+    (docs/05 §5.1). Until Phase 3 M4 no band was passed at all, so every construction in every
+    band was sampled on the easy profile.
+    """
+    bands = sorted(GENERATION.band_mix)
+    weights = np.array([GENERATION.band_mix[b] for b in bands], dtype=float)
+    return bands[int(rng.choice(len(bands), p=weights / weights.sum()))]
 
 
 def construction_rng(seed: int, index: int) -> np.random.Generator:
@@ -279,7 +318,9 @@ def _run_one(
     case_seed: int,
     report: BatchReport,
     *,
+    band: str = "easy",
     check_wellposed: bool,
+    reject_sight_readable: bool = True,
 ) -> None:
     opts = SolveOptions(seed=case_seed)
 
@@ -292,7 +333,13 @@ def _run_one(
         return
 
     try:
-        extraction = extract_goals(backend, figure, opts)
+        extraction = extract_goals(
+            backend,
+            figure,
+            opts,
+            max_goals=profile_for(band).max_goals,
+            reject_sight_readable=reject_sight_readable,
+        )
     except Exception as exc:
         report.discards.append(Discard("extract", type(exc).__name__, case_seed, str(exc)[:200]))
         return

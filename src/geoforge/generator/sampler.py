@@ -15,6 +15,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from geoforge.config import GENERATION
+from geoforge.config.thresholds import BandProfile
 from geoforge.generator.construction import Construction, Step, fresh_point_names
 from geoforge.solvers.catalog import ConstructionDef, catalog
 
@@ -37,16 +38,35 @@ def _usable(defs: tuple[ConstructionDef, ...], n_points: int) -> tuple[Construct
     )
 
 
-def _weights(defs: tuple[ConstructionDef, ...]) -> np.ndarray:
-    """Circle-introducing primitives are up-weighted (config.circle_step_weight)."""
+def profile_for(band: Band) -> BandProfile:
+    """The Stage-1 profile for a band, falling back to easy for an unknown one."""
+    return GENERATION.band_profiles.get(band, GENERATION.band_profiles["easy"])
+
+
+def _weights(defs: tuple[ConstructionDef, ...], profile: BandProfile) -> np.ndarray:
+    """Pick weights for one band's profile.
+
+    Two primitives are up-weighted and everything else sits at 1.0: those that draw a circle,
+    and those that state an angle value. Both sets are tiny — 2 of 62 usable extensions each —
+    so without a weight they are effectively never sampled, which is exactly what produced a
+    corpus of squares answering 45 degrees with no angle given (docs/09 P3 M4).
+    """
     return np.array(
-        [GENERATION.circle_step_weight if d.introduces_circle else 1.0 for d in defs],
+        [
+            max(
+                profile.circle_weight if d.introduces_circle else 1.0,
+                profile.angle_weight if d.states_angle_value else 1.0,
+            )
+            for d in defs
+        ],
         dtype=float,
     )
 
 
-def _pick(rng: np.random.Generator, defs: tuple[ConstructionDef, ...]) -> ConstructionDef:
-    weights = _weights(defs)
+def _pick(
+    rng: np.random.Generator, defs: tuple[ConstructionDef, ...], profile: BandProfile
+) -> ConstructionDef:
+    weights = _weights(defs, profile)
     index = int(rng.choice(len(defs), p=weights / weights.sum()))
     return defs[index]
 
@@ -108,16 +128,15 @@ def sample_construction(
     The result is pure data and has not been realized: whether it describes a valid figure is
     decided when the SAL tries to instantiate it (Stage 3).
     """
+    profile = profile_for(band)
     if n_steps is None:
-        n_steps = int(
-            rng.integers(GENERATION.min_construction_steps, GENERATION.max_construction_steps + 1)
-        )
+        n_steps = int(rng.integers(profile.min_steps, profile.max_steps + 1))
 
     all_defs = catalog()
     seed_defs = tuple(sorted(d for d in all_defs.values() if d.is_seed))
     extension_defs = tuple(sorted(d for d in all_defs.values() if not d.is_seed))
 
-    seed_def = _pick(rng, _usable(seed_defs, n_points=0))
+    seed_def = _pick(rng, _usable(seed_defs, n_points=0), profile)
     first = _build_step(rng, seed_def, existing=(), band=band)
     if first is None:  # pragma: no cover - seeds take no inputs, so they always fit
         raise RuntimeError(f"seed construction {seed_def.name} failed to instantiate")
@@ -128,6 +147,22 @@ def sample_construction(
     committed = 1
     no_candidate = 0
 
+    # A figure that states no angle can only have its angles fixed by its own symmetry, and
+    # those are exactly the multiples of 30 and 45 that Stage 5 now rejects (docs/07 T5).
+    # MEASURED at seed 42 without this: 600 constructions produced one puzzle.
+    if profile.require_angle_given:
+        angle_defs = tuple(d for d in _usable(extension_defs, len(points)) if d.states_angle_value)
+        for _ in range(GENERATION.max_clause_attempts):
+            if not angle_defs:
+                break
+            attempted += 1
+            angle_step = _build_step(rng, _pick(rng, angle_defs, profile), tuple(points), band)
+            if angle_step is not None:
+                steps.append(angle_step)
+                committed += 1
+                points.extend(angle_step.outputs)
+                break
+
     while len(steps) < n_steps:
         candidates = _usable(extension_defs, n_points=len(points))
         if not candidates:
@@ -137,7 +172,7 @@ def sample_construction(
         step: Step | None = None
         for _ in range(GENERATION.max_clause_attempts):
             attempted += 1
-            step = _build_step(rng, _pick(rng, candidates), tuple(points), band)
+            step = _build_step(rng, _pick(rng, candidates, profile), tuple(points), band)
             if step is not None:
                 break
         if step is None:
