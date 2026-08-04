@@ -33,14 +33,20 @@ plan they imply is superseded — go to `docs/09` for the current sequence.
    was a square. DDAR finds long chains precisely in symmetric configurations humans read at a glance,
    so the old score was anti-correlated where the expert band lives. A **shortcut filter** — re-solve
    the goal under a 2-step budget, discard if it lands — is now a hard gate, not a feature.
-3. **Angle-only is not a product** (T5). Every angle answer is eyeball-readable on a to-scale figure.
-   `ratio` and `length` are promoted to the next phase; `r2const`/`l2const` give √2 and √3 answers with
-   no new engine work (T18). Irrational *angles* are impossible — `aconst` holds a `Fraction`.
+3. **Angle-only is not a product, and no other quantity type rescues it yet** (T5, T21). Every angle
+   answer is eyeball-readable on a to-scale figure — that part stands. The fix does not: `ratio` and
+   `length` were promoted on the strength of `r2const`/`l2const` giving √2 and √3 "with no new engine
+   work", and **M4a measured that and it is false** (T18, reversed). Nothing derives a squared constant;
+   one rule of 93 derives a ratio constant at all, always ½; the reachable ratio answers are {2, ½} at a
+   52.9% modal share, worse than angle's 36.0%. Both types are deferred behind a rule-set change.
+   Guessability is handled by the sight-readable rejection and filter 8's share cap instead. Irrational
+   *angles* remain impossible — `aconst` holds a `Fraction`.
 4. **The bottleneck is now Stage 1** (L4). Random clause growth cannot produce the deliberate
    arrangements that make good puzzles. Configuration archetypes and backward generation are P5.
 
-**Next up is P3 M4:** the validity gates (shortcut + answer entropy + band-aware sampling). Expect the
-bank to shrink sharply — that is the pass condition, not a regression.
+**P3 M4 and M4a are done** — the sampler-bias fix landed the numbers in `docs/09`, and the quantity
+spike closed the ratio/length question. **Next up is P3 M5:** auxiliary-construction detection. Expect
+the bank to keep shrinking as gates land — that is the pass condition, not a regression.
 
 ---
 

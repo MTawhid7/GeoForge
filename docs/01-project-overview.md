@@ -66,13 +66,18 @@ Daily-puzzle and endless-practice modes; one-step-at-a-time hint system; difficu
 - **Puzzle type:** quantity-finding. Given a figure with marked quantities/relations, find one unknown
   quantity. All machinery (schema, goal selection, gates, difficulty, frontend) is written against the
   **quantity-type registry** (doc 04 §QTR), never against "angle" specifically.
-- **Enabled quantity types at launch:** `angle`, `ratio`, `length` (revised 2026-08-04; ratio and length
-  were "first post-release phase"). Angle alone is not a shippable product: on a to-scale figure every
-  angle answer is eyeball-readable, and integer degrees give a small answer space that a player learns
-  to guess (doc 07 T5). Ratios and lengths are scale-free/scale-pinned respectively, carry irrational
-  answers natively through `r2const`/`l2const` (doc 07 T18), and cost far less engine work than the
-  original sequencing assumed. `area` still follows later behind a custom verified derivation layer
-  (doc 03 §3.7). Enabling a type is registry + config + UX, not an architecture change.
+- **Enabled quantity types at launch:** `angle` only (revised twice — see below). The concern that
+  motivated adding `ratio` and `length` stands: on a to-scale figure every angle answer is
+  eyeball-readable, and integer degrees give a small answer space a player learns to guess (doc 07 T5).
+  The remedy did not survive measurement. **M4a measured the ratio corpus and it is more guessable than
+  the angle corpus, not less** — 3 distinct answers at 52.9% modal share, because one rule of 93
+  concludes a ratio constant and AR chases ratios multiplicatively; length lands in the same space
+  scaled by a pinned unit; and `r2const`/`l2const` derive never, so the irrational answers this bullet
+  promised are not reachable at all (doc 07 T18 reversed, T21). Guessability is therefore handled where
+  the measurement says it lives — the sight-readable rejection and filter 8's per-band share cap — and
+  `ratio`/`length` wait on a rule extension. `area` still follows later behind a custom verified
+  derivation layer (doc 03 §3.7). Enabling a type remains registry + config + UX, which the spike
+  confirmed; the blocker is what the engine derives, not what the architecture allows.
 - **Figure universe: line-and-circle Euclidean geometry** — points, segments/lines, polygon families
   (triangles, quadrilaterals, trapezoids, …, as construction-step families), circles and arcs. Circles
   are in the v1 sampler from day one (they carry most non-trivial difficulty). Conics

@@ -11,7 +11,7 @@ special-case "angle". Each registered type declares:
 
 | Field | Meaning | `angle` | `ratio` / `length` | `area` (later) |
 |---|---|---|---|---|
-| `goal_extractor` | Which derived facts qualify as goals | numeric-valued angle atoms (`aconst`) | AR length/ratio atoms (`rconst`/`r2const`, `lconst`/`l2const`) | custom area layer output (doc 03 §3.7) |
+| `goal_extractor` | Which derived facts qualify as goals | numeric-valued angle atoms (`aconst`), proposed then verified — the closure emits none | AR length/ratio atoms (`rconst`, `lconst`), **harvested from the closure**, which emits them directly (M4a). Not `r2const`/`l2const`: nothing derives those | custom area layer output (doc 03 §3.7) |
 | `dimension` | Scale behavior | scale-free | ratio: scale-free; length: **scale-pinned** | scale-pinned (dimension 2) |
 | `nice_values` | Given-value palette per band | rationals × π — round for easy, **non-round for the upper bands** (doc 07 T18) | small integers/surds, small fractions | — (derived) |
 | `answer_policy` | Exactness class + input mode (doc 02) | integer degrees, keypad | fraction / decimal+tolerance, exact surd revealed on solve | decimal+tolerance |
@@ -97,7 +97,10 @@ What is *not* available at any price is an irrational angle.
 and nowhere near sufficient. Only **2 of 22** surviving puzzles stated an angle at all, so the palette
 governed 9% of the corpus; the rest answered 45° because the figure contained a square, with no angle
 given anywhere. Stage 1's `angle_weight` addresses the first half and Stage 5's rejection the second.
-Irrational answers come from the other quantity types via `l2const`/`r2const` (doc 03 §3.3a).
+~~Irrational answers come from the other quantity types via `l2const`/`r2const` (doc 03 §3.3a).~~
+**Reversed by M4a:** nothing derives `l2const` or `r2const`, so no quantity type on this engine yields
+an irrational answer (doc 07 T18, T21). The residual guessability is filter 8's per-band share cap, not
+a second quantity type.
 
 **Scale pinning:** if
 the target quantity type is dimensional (`length`, `area`), exactly one given must fix the figure's
@@ -153,6 +156,16 @@ halves the yield again. The residual concentration is doc 05 §5.2 filter 8's jo
 cap keeps a hard puzzle that answers 60° while refusing a bank full of them, which banning the value
 cannot do. `reject_sight_readable=False` exists for tests over classic fixtures (Thales, inscribed
 angle) whose whole point is a right-angle answer; never for shipping.
+
+**"Closure-scanning is a secondary source only" is right for angles and backwards for ratios (M4a).**
+The propose-then-verify sweep above exists because a saturating closure emits **no** `aconst` — measured
+at seed 42, n=600: all 181 `aconst` facts across 117 closures were stated givens, none derived. That is
+the same fact doc 05 §5.2 filter 9 rests on. `rconst` behaves oppositely: the closure emits it directly
+(32 facts, 17 of them novel, over the same 117 figures), so a ratio goal arrives already symbolically
+derived and costs no speculative engine call at all. Whichever quantity type is registered next should
+pick its extraction direction from this, per type, rather than inheriting the angle sweep — the QTR's
+`goal_extractor` is the right seam for that, and it needs no change to accommodate it. Doc 07 T21
+records why "next" is not `ratio`: the direction is cheap, the answers are not worth harvesting yet.
 
 ### Stage 6 — Traceback + premise minimization + configuration facts
 - Extract the minimal-cost sub-DAG for the goal (shortest hyperpath; ties → fewer distinct premises).

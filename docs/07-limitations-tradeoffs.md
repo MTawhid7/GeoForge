@@ -131,15 +131,19 @@ every premise) and attacks measurability from four other directions:
 - **Non-round angle values.** `aconst` carries a `Fraction` of π, so 7π/8 is as cheap as 90° — the round
   palette was our config, not a constraint (T18). Landed M4, with the caveat that it only reaches
   puzzles that state an angle at all, which was 2 in 22 before M4's `angle_weight`.
-- **Quantity types whose answers are not eyeball-readable.** This is the deepest of the four and the
-  reason the reference material in doc 01 is overwhelmingly area and ratio. Angles have *recognisable
-  landmarks* — 90°, 45°, and in a symmetric figure 60° — and lengths, ratios and areas essentially do
-  not: the only comparable landmarks are 1:1 and 1:2, and both are normally *stated* as givens rather
-  than being the answer. You cannot look at a figure and recognise √2. A difficulty argument for doc 09
-  P3's quantity waves, not merely a variety argument.
+- ~~**Quantity types whose answers are not eyeball-readable.**~~ **WITHDRAWN 2026-08-04 (M4a), and this
+  bullet contains its own refutation.** The argument was: angles have *recognisable landmarks* — 90°,
+  45°, and in a symmetric figure 60° — while lengths, ratios and areas essentially do not, "the only
+  comparable landmarks being 1:1 and 1:2, and both are normally *stated* as givens rather than being the
+  answer." The first clause is right. The parenthetical was the whole finding and it was waved past:
+  measured, **the only ratios this engine derives are 2 and ½** — precisely the 1:2 landmark — because
+  r51 (midpoint, always ½) is the sole rule of 93 concluding a ratio constant and AR composes ratios
+  multiplicatively (T21). "You cannot look at a figure and recognise √2" is also true and also moot: no
+  quantity type derives √2 (T18, reversed). Ratio's modal answer share is 52.9% against angle's 36.0%,
+  so as a T5 mitigation this one points the wrong way.
 
-Revisit once more than one quantity type is enabled and the per-band answer distribution can be read
-per type.
+Three mitigations remain, not four. Revisit the fourth if a rule extension ever widens the derivable
+ratio set — the argument becomes sound again the moment the landmarks stop being the whole codomain.
 
 **T6 — No CAS in the hot loop.** SymPy is validation-layer only (spot checks, Gröbner third opinions) —
 plus exact-value normalization and the wave-3 area layer's *arithmetic on engine-certified quantities*
@@ -152,11 +156,20 @@ Dimensional quantities require scale pinning (one stated unit length as a deriva
 quantities forbid it. Areas are still not engine-derivable and still wait for the custom decomposition
 layer — shipping them via coordinate computation would violate "numeric verifies, never derives".
 
-What changed is the *ordering rationale*. Waves were sequenced by engine-support maturity on the
+~~What changed is the *ordering rationale*. Waves were sequenced by engine-support maturity on the
 assumption that angle alone made a viable product. It does not (T5): angle-only means every answer is
 eyeball-readable on a to-scale figure. `ratio` and `length` are therefore promoted from "second wave,
 post-v1" to the same phase as the difficulty rebuild, and their justification is now **difficulty**
-rather than variety. The engine cost is lower than the original sequencing assumed — see T18.
+rather than variety. The engine cost is lower than the original sequencing assumed — see T18.~~
+
+**RE-REVERSED 2026-08-04 by the M4a spike — the promotion is withdrawn; the mechanism above is not.**
+The premise held (angle-only is eyeball-readable, T5) but the inference did not: promoting `ratio` and
+`length` on *difficulty* grounds assumed their answers are harder to guess than angles', and measurement
+says the opposite — 3 reachable values at 52.9% modal share against angle's 9 at 36.0%. The engine cost
+really is low, which is what T18 got right; the engine *yield* is what matters and it is near-empty
+(T21). Both types return to "later wave", now blocked on a rule set that concludes ratio constants
+rather than on our sequencing. Note what this leaves standing: the registry mechanism was exercised by
+the spike and needs no change, so the cost of enabling them stays low whenever the block clears.
 
 **T8 — Answer input by exactness class.** Angles: integer keypad. Ratios: p/q fraction input. Lengths/
 areas: decimal input checked within a per-puzzle tolerance against `approx`, with the exact surd form
@@ -373,10 +386,19 @@ Two things follow, and they are good news:
   multiples-of-10 palette was `GENERATION.nice_angle_degrees`, our own config, and Stage 1 never even
   passed a band to it — so every angle in the first bank came from the *easy* palette regardless of the
   puzzle's band. That is a bug, not a limitation.
-- **Irrational values are already reachable through other quantity types.** Newclid ships `l2const` and
-  `r2const` (`squared_constant_length`, `squared_constant_ratio`): |AB|² = 3 states |AB| = √3, and a
+- ~~**Irrational values are already reachable through other quantity types.** Newclid ships `l2const`
+  and `r2const` (`squared_constant_length`, `squared_constant_ratio`): |AB|² = 3 states |AB| = √3, and a
   squared ratio of 2 states a ratio of √2. So √2 and √3 answers need no new engine work — they need the
-  `length`/`ratio` quantity types enabled (T7).
+  `length`/`ratio` quantity types enabled (T7).~~
+  **REVERSED 2026-08-04 by the M4a spike.** The predicates exist and can be *stated*; nothing *derives*
+  them, and an answer has to be derived. No rule among the 93 concludes `l2const` or `r2const`, and AR
+  does not produce them. Measured at seed 42, n=600: all 5 squared-constant facts appearing in 117
+  saturating closures were assumptions at depth 0 — every one traceable to an `l2const`/`r2const`
+  primitive in its own construction. Verified independently: the engine cannot even close a 3-4-5
+  triangle. With `perp` and both legs pinned by `lconst`, the closure is 3 facts and `lconst bc = 5` is
+  not derivable; Pythagoras (r57) routes entirely through `lconst` and never fires under Yuclid. So
+  √2 and √3 answers need engine work after all — this bullet asserted a capability from the existence of
+  a predicate, which is exactly the inference doc 08 §8.1.8 exists to forbid. See T21.
 
 
 **T19 — Shortcut resistance is a correctness property, not a difficulty tweak (settled 2026-08-04).**
@@ -418,3 +440,48 @@ The distinction that keeps §5.5's protection intact: **the interestingness mode
 the difficulty score may not.** Difficulty stays a measurement made after the fact, on a corpus the
 difficulty weights had no hand in producing, so the calibration protocol (doc 05 §5.1) keeps meaning what
 it says. Committing to the shape of this is doc 09 P5.
+
+**T21 — Ratio and length are rule-limited, not palette-limited, so the quantity waves are blocked on the
+rule set rather than on the QTR (settled 2026-08-04 by the M4a spike; supersedes the sequencing
+assumption in T7 and doc 09 P5).** The spike asked whether registering `ratio` and `length` would widen
+the answer space that T5 and T18 are about. Measured at seed 42, n=600 constructions, 117 realized:
+
+| | ratio (`rconst`) | angle (`aconst`), post-M4 |
+|---|---|---|
+| Constructions yielding a novel goal | 9 / 117 | — |
+| Distinct answer values | **3** — {2 ×9, ½ ×6, ⅓ ×2} | 9 |
+| Modal answer share | **52.9%** | 36.0% |
+| Clearing `min_proof_depth = 3` | **3 of 17** | — |
+
+Verification is not the problem: ratio facts are *harvested from the saturating closure* rather than
+proposed-then-verified, so they are symbolically derived before we ever see them and verify at 100%.
+The answer space is the problem, and two interventions failed to move it:
+
+- **Widening the value palette made it worse.** Stage 2 draws every ratio given from `{2/1, 3/1}`.
+  Replacing that with ten mixed fractions ({3/2, 5/2, 5/3, 4/3, 7/3, 5/4, 7/4, 7/5, 8/5, 9/4}) gave
+  **2** distinct derived values at **58.3%** modal share. Stated ratios do not propagate.
+- **Biasing the sampler 25× toward the 16 ratio-creating primitives** (`midpoint`, `rconst`, `shift`,
+  `on_line`, `eqratio`, …) produced 5× the ratio facts (17 → 86), **still 3 distinct values**, modal
+  share **74.4%**, and **still exactly 3** clearing the depth floor.
+
+The cause is the rule set. **Exactly one of the 93 rules concludes a ratio constant** — r51, "midpoint
+splits in two", which always concludes ½. Everything else is AR *Ratio Chasing*, which is
+**multiplicative only**: `an/ab = ¼` proves (½ × ½), while `nb/ab = ¾` does not, because that needs
+additive segment arithmetic AR does not do. From a bag of halves you can only ever build powers of two.
+So ratio's answer distribution is *worse* than the angle corpus M4 just fixed, on the same metric.
+
+**Length is strictly worse than ratio, not better.** It derives only when a stated `lconst` pins the
+scale (verified: `lconst ab = 8` ∧ `midp m a b` ⊢ `lconst am = 4`, depth 2), and its answer is then the
+pinned length times a derivable ratio — the same answer space, scaled, plus a scale-pinning given that
+Stage 6 must keep as a derivation leaf (T7).
+
+**Area and arc length are not expressible at all.** The engine's predicate vocabulary is the 33 types
+`FactKind` already mirrors; there is no area or arc predicate to state, let alone derive.
+
+Decision: **`angle` stays the only registered quantity type.** Not because the QTR is wrong — the spike
+confirmed the registry design works, the extractor is ~30 lines and the closure harvest is cheaper than
+the propose-verify path angles use — but because registering a type whose answers are {2, ½} would make
+the guessability problem worse while adding schema surface, frontend input modes, and a scale-pinning
+obligation. The quantity waves move behind whichever of these lands first: a rule extension concluding
+ratio constants from similar triangles (the natural source of non-dyadic ratios), or the area layer's
+own decomposition arithmetic (doc 03 §3.7), which does not route through DDAR at all.
