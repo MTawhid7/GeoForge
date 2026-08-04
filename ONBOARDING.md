@@ -1,8 +1,46 @@
 # GeoForge — Session Onboarding
 
 **Read this first in every new session.** It is the current state of the project, written from
-what has actually been built and measured — not from plans. Last updated: **2026-08-02**, end of
-**Phase 1 (M0–M6 complete)**.
+what has actually been built and measured — not from plans. Last updated: **2026-08-04**.
+
+---
+
+## 0. Where the project actually is (read before anything below)
+
+**Phase 1 complete. Phase 2 M1–M3 complete. Phase 2's tail was deferred and the roadmap resequenced
+on 2026-08-04.** Sections 3–7 below still describe Phase 1 accurately and are worth reading, but the
+plan they imply is superseded — go to `docs/09` for the current sequence.
+
+**What happened.** The first playable bank was built, rendered, and solved on a phone. It failed:
+
+| Measured (98-puzzle bank) | |
+|---|---|
+| Answers | **45° × 71**, 90° × 15, 30° × 9 — guessing "45" beats the app 72% of the time |
+| Circles in any figure | **0 of 98** |
+| Distinct solution shapes, easy band | **2**, across 56 puzzles |
+| Playtest | *expert* and *hard* puzzles solved by inspection |
+| Attrition | 86% degeneracy — the sampler is the bottleneck |
+
+**Four things you must not re-derive from the old text** (full record in `docs/07`):
+
+1. **The readable-step whitelist is no longer a gate** (T17, reverses L3). It covered 19 of Newclid's
+   93 rules, and requiring every step to be sayable meant the pipeline only ever shipped elementary
+   proofs. Prose is now rendered by **Gemini 3.6 Flash** from the engine's structured step, cached by
+   content hash and committed with the bank. The LLM writes `text` and `display` and *nothing else* —
+   `docs/02` invariant 5 enumerates the fields it may never touch, and that list got stricter, not
+   looser.
+2. **Proof length is not difficulty** (T19). A 9-step machine proof was sight-read because the figure
+   was a square. DDAR finds long chains precisely in symmetric configurations humans read at a glance,
+   so the old score was anti-correlated where the expert band lives. A **shortcut filter** — re-solve
+   the goal under a 2-step budget, discard if it lands — is now a hard gate, not a feature.
+3. **Angle-only is not a product** (T5). Every angle answer is eyeball-readable on a to-scale figure.
+   `ratio` and `length` are promoted to the next phase; `r2const`/`l2const` give √2 and √3 answers with
+   no new engine work (T18). Irrational *angles* are impossible — `aconst` holds a `Fraction`.
+4. **The bottleneck is now Stage 1** (L4). Random clause growth cannot produce the deliberate
+   arrangements that make good puzzles. Configuration archetypes and backward generation are P5.
+
+**Next up is P3 M4:** the validity gates (shortcut + answer entropy + band-aware sampling). Expect the
+bank to shrink sharply — that is the pass condition, not a regression.
 
 ---
 
@@ -31,12 +69,17 @@ lineage; everything downstream of the SAL is ours. Full specs in `docs/` — rea
 governs the subsystem you touch (map in §8).
 
 Key design decisions you must not silently reverse (all in `docs/07`):
-- LLMs never touch the correctness path (they may propose auxiliary constructions, which the
-  engine then verifies, and may rephrase prose).
+- **LLMs never touch the correctness path.** They render already-proved steps into English (T17),
+  propose auxiliary constructions for the engine to verify, and later guide search — never decide what
+  is true. The permitted output fields are enumerated in `docs/02` invariant 5.
 - Numerics **verify**, never **derive**.
 - Bank validation uses a *different engine* than generation.
 - The figure is part of the puzzle statement (configuration facts are first-class).
-- Quantity types are pluggable via a registry (`docs/04 §QTR`); angles ship first.
+- Quantity types are pluggable via a registry (`docs/04 §QTR`); `angle` ships, `ratio`/`length` next.
+- **Difficulty is gated before it is scored** (T19): shortcut resistance and answer entropy are hard
+  filters; proof structure is one signal among three, not the definition.
+- **Measure before you write it down** (`docs/08` §8.1.8). The difficulty model shipped a whole phase on
+  an unmeasured assumption and one playtest refuted it.
 
 ## 3. Current status — Phase 0 gate PASSED, Phase 1 COMPLETE
 
@@ -73,15 +116,25 @@ Attrition: degeneracy 1035, extraction 645, translation 16, well-posedness 20.
 | M5 | done | `wellposed`, `scoring/bands` (provisional), `generator/batch` + CLI, P1 criteria |
 | M6 | done | `ag2_backend` (calibrated), `bank/validate` + mutation tests, `--validate` |
 
-**What does not exist yet:** `web/`, `banks/`, `bank/build.py`, `schema.py`.
-`scoring/bands.py` is **provisional depth-only banding** — written to be replaced by the doc 05
-scorer in Phase 2, not extended.
+**Superseded 2026-08-04.** The paragraph above listed `web/`, `banks/`, `bank/build.py` and `schema.py`
+as not existing, and `scoring/bands.py` as the provisional banding to replace. All of that landed in
+Phase 2 M1–M3: `schema.py` + generated TS types, `bank/layout.py` + `bank/build.py`, the full `web/`
+frontend, and `scoring/{features,score,filters,interest,report}.py` — `scoring/bands.py` is deleted.
 
-## 4. What's next — Phase 2 (doc 09 P2)
+## 4. What's next — Phase 3 M4, the validity gates (doc 09 P3)
 
-Scoring/filters/elegance ratio, isomorphism dedupe, layout + anti-leak, the bank builder, JSON
-Schema → TS types in CI, and frontend v1. Cross-engine validation is **already built** — `make bank`
-wires the existing `bank/validate.py` into the bank build rather than writing it.
+**Resequenced 2026-08-04 — see §0.** The old text here pointed at "scoring/filters/elegance ratio,
+isomorphism dedupe, layout + anti-leak, the bank builder, CI, frontend v1". The first and last are
+done; dedupe, anti-leak, the parallel builder and CI are **deferred to P4** because they industrialise
+a bank the measurements in §0 rejected.
+
+Next is **P3 M4**: the shortcut check (`docs/04` §stage-6b), the answer-entropy cap (`docs/05` §5.2
+filter 8), passing the band through to `sample_construction` — it never has been, which is why every
+angle came from the easy palette — and non-round angle values for the upper bands. Then M5
+auxiliary-construction detection, M6 LLM rendering, M7 ratio and length goals.
+
+Cross-engine validation is **already built** — `make bank` wires the existing `bank/validate.py` into
+the bank build rather than writing it.
 
 Two things to know before touching the validator:
 - It reads the **emitted JSON**, not generator objects, so it can be pointed at a bank file on its

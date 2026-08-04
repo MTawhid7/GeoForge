@@ -35,9 +35,17 @@ research/ is the frozen research record behind the 2026 pivot — reference, don
 - All randomness takes an explicit seed (including engine seed plumbing); pipeline output
   reproducible from (generator_version, engine_version, seed).
 - All thresholds/weights live in src/geoforge/config/ — no inline magic numbers.
-- Translation template IDs are public API (appear in puzzle JSON `rule`); renaming = schema change.
+- Step `rule` values are public API (template id, or the namespaced engine rule id when a rule has
+  no template); renaming one — or adding a template to a rule that shipped without one — is a
+  schema change.
+- LLM output may populate ONLY `solution[].text` and `given[].display` (docs/02 invariant 5 is the
+  exhaustive list). Never send the renderer a goal, an answer, or a figure. Never make a live API
+  call in a path a bank build depends on — prose is a content-keyed cache committed with the bank,
+  and that is what keeps builds reproducible. No test may make a live API call.
 - Never hand-edit generated artifacts (web/src/types/generated/, banks/) or reference clones.
 - Frontend contains no geometry logic; it renders JSON as-is.
+- Measure before you write it down: any claim about the corpus goes in a doc with the number and the
+  seed behind it. Difficulty is gated (shortcut resistance, answer entropy) before it is scored.
 - If code must deviate from docs/, edit the doc in the same commit (trade-off reversals go in
   docs/07-limitations-tradeoffs.md).
 

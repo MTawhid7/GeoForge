@@ -90,6 +90,20 @@ Numerics only ever *propose* a candidate; the accepted value is always symbolica
 Validated in Phase 0 (`spikes/p0/s1b_aconst_probe.py`): 6/6 behaviourally correct — 4 verified,
 and 2 correctly rejected because the angle was genuinely underdetermined by the premises.
 
+**Exactness classes per quantity type, and where irrational answers come from (added 2026-08-04).**
+The verify predicate differs by type, and so does the value grammar each can express:
+
+| Type | Verify predicate | Values expressible | Notes |
+|---|---|---|---|
+| `angle` | `aconst` | **Rationals × π only.** `ConstantAngle.angle` is a `Fraction` | 7π/8 is free; √3·π has no representation and never will (doc 07 T18) |
+| `ratio` | `rconst`, **`r2const`** | Rationals, plus square roots of rationals via the squared form | `r2const … 2` states a ratio of √2 |
+| `length` | `lconst`, **`l2const`** | Same, given a scale-pinning given | `l2const A B 3` states \|AB\| = √3 |
+
+So the closed exact-value grammar of doc 02 (rationals and quadratic surds) is exactly what the engine
+can state, and irrational answers are reachable today — through lengths and ratios, not angles. The
+snap step uses each type's own nice-value rule; for the squared predicates the candidate is snapped on
+the *square*, which is where the integer lives.
+
 **Verification runs over fixed coordinates** (`SolverBackend.solve_facts`, §3.3), never by
 re-parsing the construction with the goal attached: `JGEXProblemBuilder.build()` retries until every
 stated goal holds numerically, so handing it an under-determined candidate produces a hang instead
@@ -161,22 +175,27 @@ ordered steps, named points, explicit free parameters, plus **configuration fact
 that JGEX leaves implicit. Serializes to provenance strings. We gain for free: engine input, benchmark
 problems as test fixtures, and interchange with every tool in the ecosystem.
 
-## 3.5 Trace → readable steps (the pivot's hardest component)
+## 3.5 Trace → readable steps
 
-Engine proofs are correct but not player-ready. The translator converts a traced sub-DAG into the
-`solution[]` steps of doc 02's schema:
+Engine proofs are correct but not player-ready. This layer converts a traced sub-DAG into the
+`solution[]` steps of doc 02's schema.
 
-1. **Rule whitelist:** a curated map `engine_rule → (template_id, highlight builder)` for rules with
-   natural one-sentence readings ("base angles of an isosceles triangle", "angles subtending the same
-   arc", "corresponding sides of similar triangles", "Pythagoras in the right triangle ABC").
-   Maintained in `src/geoforge/generator/translation/`; templates are organized per quantity family, and
-   enabling a new quantity type (doc 04 §QTR) requires its template set to exist. There is
-   deliberately **no generic fallback**: a rule nobody has read is a rule nobody can vouch for the
-   prose of, so an unlisted rule fails the gate.
-   *Rule ids are engine-specific* (M4): the ids that fire come from the 87-rule catalogue in
-   `newclid.all_rules`, not the 58-rule `DEFAULT_RULES`. The whitelist is therefore coupled to the
-   generating backend — harmless today, since the AG2 backend validates and never translates, but it
-   means a backend swap needs a whitelist review, not just an adapter.
+**Restructured 2026-08-04 (doc 07 T17). The whitelist is no longer a gate.** Items 1–4 below describe
+the *template* path, which now serves three narrower purposes: a fallback renderer for the rules it
+already covers, the source of `tier` metadata for scoring (doc 05 §5.1), and the golden-fixture corpus
+that catches an LLM regression. The **default** renderer is §3.5a. Items 2b and 2c are unchanged in
+force and apply to both paths — they are about mathematical content, not about phrasing.
+
+1. **Rule template table:** a curated map `engine_rule → (template_id, tier, highlight builder)` for
+   rules with natural one-sentence readings ("base angles of an isosceles triangle", "angles subtending
+   the same arc", "corresponding sides of similar triangles", "Pythagoras in the right triangle ABC").
+   Maintained in `src/geoforge/generator/translation/`; templates are organized per quantity family.
+   Covers 19 of the 93 rules in `newclid.all_rules`. *Rule ids are engine-specific* (M4): the ids that
+   fire come from the full 93-rule catalogue, not the 58-rule `DEFAULT_RULES`, so a backend swap needs a
+   table review, not just an adapter.
+   **What changed:** an unlisted rule used to fail the gate and discard the puzzle. It now falls through
+   to §3.5a. Highlights are still built structurally from the step's facts in both paths — an LLM never
+   produces a highlight (doc 02 invariant 5).
 1b. **Suppression, distinct from failure.** A few rules are correct, load-bearing, and unfit to
    print: `r82 Parallel from collinear` reports two segments of one straight line as parallel, and
    `r56 Properties of midpoint (coll)` concludes that a midpoint lies on its own segment. Their steps
@@ -220,12 +239,57 @@ Engine proofs are correct but not player-ready. The translator converts a traced
    untranslatable, and its puzzle is discarded rather than described awkwardly.
    **This creates a dependency on Stage 8** (`docs/04`, amended): the gate must resample and check
    the vertex angles of *solution steps*, not only the goal value.
-3. **Readability gate:** a puzzle is accepted **only if every step of its minimal derivation translates**
-   via 1–2. Untranslatable puzzles are discarded and logged by offending rule — the discard log is the
-   priority queue for extending the whitelist. This converts the readability risk into attrition, never
-   into shipped ugliness (doc 01 success criteria).
-4. Translated text comes from the per-locale string table keyed by `template_id` (doc 02 localization
-   decision).
+3. **~~Readability gate~~ — retired as a gate (doc 07 T17).** It read: a puzzle is accepted only if
+   every step of its minimal derivation translates via 1–2; untranslatable puzzles are discarded and
+   logged by offending rule. What survives: the **discard log** still exists and is still the priority
+   queue for the template table, but it now records "rendered by LLM, no template" rather than
+   "puzzle deleted". The AR-chain budget of item 2 is *also* no longer a discard — an over-budget chain
+   is handed to §3.5a, which is better at long chains than a template could be.
+   What replaces it: the **prose-fidelity check** of §3.5a item 3, which is a stricter test of the thing
+   we actually cared about. The old gate verified that we had *written a template*; it never verified
+   that the resulting sentence was true of the step.
+4. Template-path text comes from the per-locale string table keyed by `template_id` (doc 02 localization
+   decision). LLM-path text is rendered per locale at build time and cached the same way (§3.5a item 2).
+
+## 3.5a LLM step rendering (default path, added 2026-08-04 — doc 07 T17)
+
+The engine's structured step is rendered into a sentence by an LLM. **Provider: Gemini 3.6 Flash, free
+tier.** Rationale, safety conditions, and the accepted caveat that free-tier content is used by the
+provider for product improvement are all recorded in doc 07 T17 and are not restated here.
+
+**Input to the model is a fact-level step, never a puzzle.** Concretely: the rule's name and its
+upstream description, each premise as a rendered phrase (from `phrases.describe`, which already handles
+vertex-angle disambiguation), the conclusion as a rendered phrase, and the point labels involved. The
+model never receives the goal, the answer, the remaining steps, or the figure. It cannot solve anything
+because it is never shown a problem.
+
+1. **Boundary.** Output populates `solution[].text` and nothing else. `rule`, `derives`, `highlights`,
+   `given[].fact`, `goal`, `answer` and every difficulty field are machine-generated (doc 02
+   invariant 5). A step whose `rule` has a template keeps that `template_id`; a step rendered from an
+   untemplated rule carries the engine rule id namespaced as its `rule` value, which keeps the field's
+   public-API contract meaningful (doc 08 §8.2).
+2. **Cache keyed by content, committed to the repo.** The key is a hash of `(rule id, ordered premise
+   phrases, conclusion phrase, locale, prompt version, model id)`. Same step ⇒ same sentence ⇒
+   byte-identical bank on rebuild, which is how doc 02 invariant 2 survives a nondeterministic
+   renderer. A cache miss is the only thing that makes a network call, so a rebuild at a known seed is
+   offline and free. Re-rendering is an explicit operation that lands as a reviewable prose diff.
+3. **Fidelity check, run on every render before it is accepted.** The failure mode is a fluent sentence
+   asserting something the step does not, so the check is entity-level:
+   - the set of point labels named in the sentence equals the set named by the step's premises and
+     conclusion — no extras, none missing;
+   - every numeral in the sentence appears in the step (and vice versa for values the step states);
+   - the sentence is one sentence, within a length budget, and contains no hedging vocabulary
+     ("probably", "it seems", "should be") — a renderer that hedges is a renderer that has started
+     reasoning.
+
+   Failure ⇒ retry once with the failure quoted back ⇒ fall back to the template if the rule has one ⇒
+   discard the puzzle and log. Discarding is the floor, not the expectation.
+4. **Golden fixtures.** Every rule the template table covers has a frozen expected sentence. The LLM
+   path is run against those fixtures in CI and must remain semantically equivalent by the item-3 check.
+   This is what turns "the model changed under us" from silent drift into a failing test, and it is why
+   the template table is kept rather than deleted (doc 07 T17).
+5. **Model version is provenance.** The model id and prompt version ship in the build archive's
+   provenance block, so a bank can always be traced to what wrote its prose.
 
 ## 3.6 Engine upgrade & patching policy
 
@@ -242,11 +306,11 @@ enthusiasm — decides the enabling order in doc 09.
 
 | Quantity type | Derivation source | Status |
 |---|---|---|
-| `angle` | Engine DD rules + AR (linear relations over angle atoms) | **Native.** Enabled first |
-| `ratio` | Engine AR over log-length atoms (`rconst`, `eqratio`, similar triangles) | **Native.** Scale-free — no unit needed. Second wave |
-| `length` | Same AR machinery + a stated unit length pinning the scale; Pythagoras/metric rules present in Newclid's DDARN | **Native given scale pinning** (doc 04 stage 5). Second wave |
-| `area` | **Not engine-derived.** Custom verified layer: decompose the target region into triangles whose sides/angles the engine has derived; compute exact areas symbolically (SymPy) from engine-certified quantities; each decomposition step becomes a readable solution step | Third wave; design doc required before build (doc 09) |
-| future (arc length, perimeter, …) | Composition over engine-certified lengths/angles | Follows the area layer's pattern |
+| `angle` | Engine DD rules + AR (linear relations over angle atoms) | **Native, enabled.** Answers are rationals × π (doc 07 T18) and eyeball-readable on a to-scale figure (T5) — angle alone is not a sufficient product |
+| `ratio` | Engine AR over log-length atoms (`rconst`, **`r2const`**, `eqratio`, similar triangles) | **Native.** Scale-free — no unit needed. Promoted to the same phase as the difficulty rebuild (doc 07 T7) |
+| `length` | Same AR machinery + a stated unit length pinning the scale; `lconst`/**`l2const`**; Pythagoras and metric rules present in Newclid's DDARN (`R57`, `R85`–`R90`) | **Native given scale pinning** (doc 04 stage 5). Same phase as `ratio` |
+| `area` | **Not engine-derived.** Newclid has no area predicate and none can be faked from `eqratio` in general. Custom verified layer: decompose the target region into triangles whose sides/angles the engine has derived; compute exact areas symbolically (SymPy) from engine-certified quantities; each decomposition step becomes a solution step | Later wave; design doc required before build (doc 09). **Candidate alternative under evaluation:** the Chou–Gao–Zhang **area method**, which proves area/ratio/length statements natively *and* yields short human-readable proofs. It is a genuinely different engine, not a Newclid extension, so adopting it is a doc 07 entry and an SAL backend, not a dependency bump |
+| `arc length`, `perimeter`, … | Composition over engine-certified lengths/angles | Follows the area layer's pattern |
 
 The area layer must obey the same invariants as everything else: inputs are engine-certified exact
 quantities, every step translates through the readability gate, numeric checks verify but never derive,
@@ -259,3 +323,10 @@ Deduction rules; algebraic angle reasoning; proof search; auxiliary-point heuris
 provides these; an LLM proposer plugs into the same API later). If an engine gap blocks a puzzle family,
 the default answer is "that family waits", not "we extend the engine" — deviations from this need a doc 07
 entry.
+
+**Restated 2026-08-04, because adopting LLM rendering invites the wrong inference.** Using a model to
+write English is not a step toward using one to decide geometry. The line is doc 02 invariant 5 and it
+did not move: we do not build, extend, or replace deduction with a model, and a sentence a model wrote
+is never read back as a fact. Where a model *is* on the roadmap beyond prose — auxiliary-construction
+proposal (doc 09 P5) and interestingness guidance (doc 07 T20) — it proposes candidates that the engine
+then proves or rejects, which is the same relationship the numeric layer has to the symbolic one.

@@ -22,6 +22,13 @@ non-native English speakers — symbols and highlighting over prose).
   two-field p/q keypad (ratios); `decimal` → keypad with decimal point, checked against `approx` within
   the puzzle's tolerance, exact form (`3√2`) shown on solve (lengths/areas). Wrong answers shake +
   increment attempt counter; no reveal until solved or give-up.
+  **Promoted from later phases to v1 (2026-08-04, doc 07 T7):** the `fraction` and `decimal` widgets now
+  ship with the first real bank rather than after it, because ratio and length goals are what make
+  answers un-guessable (doc 07 T5). Two UX notes that follow from that being the *reason*: the exact
+  form must be shown on solve — a player who derived √2 and typed 1.41 has solved the puzzle and should
+  be told so in their own terms — and the tolerance must be tight enough that a measured-off-the-figure
+  estimate fails. A widget that accepts eyeballing gives back exactly what the quantity type was
+  adopted to remove.
 - **Interaction:** tap element to highlight; pinch-zoom/pan; no point dragging (static figure in v1).
   Pan and zoom are the browser's own — the viewport meta deliberately does not disable user scaling,
   so no gesture code is carried for something the platform already does correctly.
@@ -59,8 +66,9 @@ non-native English speakers — symbols and highlighting over prose).
 
 ## 6.4 Accessibility & i18n
 
-- All step text is generated at bank build from the rule→template string table; banks are per-locale
-  (v1: English). No strings hardcoded in components; UI chrome uses the frontend string table.
+- All step text is generated at bank build — from the rule→template string table or the LLM renderer
+  (doc 03 §3.5a), both per-locale and both cached with the locale in the key. Banks are per-locale (v1:
+  English). No strings hardcoded in components; UI chrome uses the frontend string table.
 - Color-vision safety: highlights use color + thickness + dash, never color alone.
 - Marks meet minimum stroke/size at 360 px width.
 

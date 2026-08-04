@@ -9,36 +9,85 @@ The generator turns random constructions into validated candidate puzzles. Expec
 The pipeline is parameterized by a registry of **quantity types**; nothing outside the registry may
 special-case "angle". Each registered type declares:
 
-| Field | Meaning | `angle` (v1) | `length`/`ratio` (wave 2) | `area` (wave 3) |
+| Field | Meaning | `angle` | `ratio` / `length` | `area` (later) |
 |---|---|---|---|---|
-| `goal_extractor` | Which derived facts qualify as goals | numeric-valued angle atoms | AR length/ratio atoms | custom area layer output (doc 03 §3.7) |
-| `dimension` | Scale behavior | scale-free | length: **scale-pinned**; ratio: scale-free | scale-pinned (dimension 2) |
-| `nice_values` | Given-value palette per band | integer degrees | integer / small-surd lengths, small ratios | — (derived) |
-| `answer_policy` | Exactness class + input mode (doc 02) | integer, keypad | fraction / decimal+tolerance | decimal+tolerance |
-| `templates` | Readable-step template family (doc 03 §3.5) | angle family | similarity/metric family | decomposition family |
+| `goal_extractor` | Which derived facts qualify as goals | numeric-valued angle atoms (`aconst`) | AR length/ratio atoms (`rconst`/`r2const`, `lconst`/`l2const`) | custom area layer output (doc 03 §3.7) |
+| `dimension` | Scale behavior | scale-free | ratio: scale-free; length: **scale-pinned** | scale-pinned (dimension 2) |
+| `nice_values` | Given-value palette per band | rationals × π — round for easy, **non-round for the upper bands** (doc 07 T18) | small integers/surds, small fractions | — (derived) |
+| `answer_policy` | Exactness class + input mode (doc 02) | integer degrees, keypad | fraction / decimal+tolerance, exact surd revealed on solve | decimal+tolerance |
+| `templates` | Step template family (doc 03 §3.5); **fallback only** since the LLM path renders anything (doc 07 T17) | angle family | similarity/metric family | decomposition family |
 | `marks` | Mark kinds **this type's own quantities** use | arcs | length labels, braces | shaded regions |
 
 Enabling a type = registering these six things + its config block. The registry keeps schema, gates,
 scoring, and frontend generic while rollout stays deliberate (doc 09).
+
+**Enablement status (2026-08-04):** `angle` enabled; `ratio` and `length` promoted to the same phase as
+the difficulty rebuild (doc 07 T7) — angle alone means every answer is eyeball-readable on a to-scale
+figure (T5), so the second wave is now a difficulty requirement rather than a variety nicety. `area`
+still needs the verified decomposition layer, or a second engine (doc 03 §3.7).
+
+Note the registry's `templates` row no longer gates enablement. Under doc 07 T17 a new quantity type
+needs its *goal extractor*, *nice values*, *answer policy* and *marks*; prose comes from the LLM path
+whether or not templates exist yet.
 
 ## Pipeline stages
 
 ```
 sample construction ─▶ assign numeric givens ─▶ numeric pre-checks ─▶ SAL closure (engine)
   ─▶ goal selection ─▶ traceback + premise minimization (incl. configuration facts)
-  ─▶ readable-steps translation gate ─▶ well-posedness gate ─▶ emit CandidatePuzzle
-  ─▶ (scoring/filters, doc 05) ─▶ (bank build + cross-engine validation, §V)
+  ─▶ shortcut + auxiliary-construction check ─▶ step rendering ─▶ well-posedness gate
+  ─▶ emit CandidatePuzzle ─▶ (scoring/filters, doc 05) ─▶ (bank build + cross-engine validation, §V)
 ```
 
 ### Stage 1 — Sample construction
 3–9 JGEX-compatible steps from a weighted grammar (weights in `config/`; start from `ncdgen`'s sampler
 and re-weight). Difficulty targeting starts here: deeper constructions and circle steps correlate with
-harder puzzles. Later upgrade (doc 09 P3): corpus-weighted grammar à la Seed-Geometry.
+harder puzzles.
+
+**Measured verdict on random clause growth (2026-08-04): it is the binding constraint on puzzle quality,
+and it does not work well enough.** At seed 42 over 400 constructions, 344 of 546 discards — 86% of all
+attrition — are degeneracy: `degenerate_triangle` 148, `unrealizable` 98, `flat_angle` 75. What survives
+is small and symmetric: 82% of banked figures have 4 or 5 points and **not one of 98 contained a
+circle**, despite `circle_step_weight = 2.0` biasing the grammar toward them. Growing a figure one
+random clause at a time essentially never lands on the deliberate arrangements the reference material in
+doc 01 is made of — three squares sharing a vertex, two hexagons edge to edge, a square inscribed in an
+equilateral triangle. Recorded as doc 07 L4.
+
+Two upgrades, in order (doc 09 P3 then P5):
+
+1. **Pass the band through.** `sample_construction` takes a `band` argument that the batch runner has
+   never supplied, so every construction is sampled on the *easy* profile regardless of what band it
+   ends up in. Fixing this is a one-line change with immediate effect on Stage 2 as well. Per-band
+   profiles then set step-count range, circle weight, and goals per construction, with budget dedicated
+   to a deep/expert profile.
+2. **Configuration-seeded generation.** A hand-reviewed library of figure *archetypes* — cyclic
+   quadrilateral with diagonals, two intersecting circles, square with an inscribed triangle,
+   regular-polygon dissections — instantiated and then decorated by the existing random growth, rather
+   than grown from nothing. This is a whitelist for the same reason the translation table was: an
+   archetype nobody has reviewed is a figure nobody can vouch for. Expected to fix the degeneracy rate
+   as a side effect, since archetypes are realizable by construction.
+3. **Backward generation** (doc 07 T20, doc 09 P5): search from a target configuration and traceback to
+   propose the problem, rather than deducing everything and keeping whatever survives.
 
 ### Stage 2 — Assign numeric givens
 Choose 1–3 free parameters; assign exact values from the target quantity type's `nice_values` palette
 for the band (angles: multiples of 10 → arbitrary integers; lengths: small integers/surds; ratios: small
-fractions). Remaining parameters stay free — they power the well-posedness check. **Scale pinning:** if
+fractions). Remaining parameters stay free — they power the well-posedness check.
+
+**The band was never passed here, and it is the proximate cause of the 45° bank (2026-08-04).**
+`_render_numeric_param` falls back to `nice_angle_degrees["easy"]` when no band is given, and Stage 1
+never gave one — so every angle in every band came from multiples of 10, `perp` became the most common
+given in the corpus (101 occurrences across 98 puzzles), and right-angle-plus-isosceles produced 45°
+forever. Fixing Stage 1 item 1 fixes this. Two further changes to the palette itself:
+- **Non-round rational angles are free** and the palette should use them for the upper bands: `aconst`
+  stores a `Fraction` of π, so 7π/8 costs exactly what 90° costs (doc 07 T18). What is *not* available at
+  any price is an irrational angle.
+- **Irrational answers come from the other quantity types**, via `l2const`/`r2const` (doc 03 §3.3a).
+This stage is also where the answer-entropy pressure of doc 05 §5.2 filter 8 is cheapest to apply —
+capping at selection time alone would just discard most of a corpus that should never have been so
+uniform.
+
+**Scale pinning:** if
 the target quantity type is dimensional (`length`, `area`), exactly one given must fix the figure's
 scale (a stated segment length); scale-free types must have *no* length givens (they'd be redundant and
 fail Stage-6 minimization anyway).
@@ -93,13 +142,44 @@ filters — single source.
 - The surviving leaves + goal define the stated givens **and the drawn figure**; scaffolding no surviving
   fact references is pruned — *plus* any element a translated solution step highlights (steps may
   reference segments their premises only imply).
+- **Auxiliary-construction detection (added 2026-08-04 — doc 07 T10).** A point that the minimal
+  derivation *uses* but that is named by no stated given and does not appear in the goal is an
+  **auxiliary point**: the puzzle cannot be solved without introducing it, which is the strongest
+  difficulty multiplier in the literature and the mechanism AlphaGeometry's whole training corpus was
+  harvested from. The signal is a property of the sub-DAG we already build; nothing new is computed.
+  Recorded on the candidate as `requires_auxiliary` and its point set, feeding doc 05 §5.1a.
+  Expected near-zero on current output — that measurement is a deliverable, and if it is zero it tells
+  us the sampler, not the detector, is the problem (doc 07 L4). *Hiding* such a point so the player must
+  rediscover it is a later phase; detecting and scoring it is not.
 
-### Stage 7 — Readable-steps translation gate
-Translate the sub-DAG per doc 03 §3.5. Untranslatable ⇒ discard, log offending rule. Output: final
-`solution[]` steps.
-Measured in M4 over 300 sampled constructions: **91%** of formed puzzles pass, with every failure an
-over-budget AR chain — no unknown rule, because the whitelist covers every rule that fires on current
-output. Steps are emitted in **topological order ending at the goal**, not the engine's canonical fact
+### Stage 6b — Shortcut check (added 2026-08-04 — doc 05 §5.2 filter 9, doc 07 T19)
+Re-solve the goal from the **stated givens only**, over the same fixed coordinates
+(`solve_facts`, doc 03 §3.3), under a small step budget. If the goal falls out within budget, discard:
+the puzzle's real solution is not the one we were about to publish.
+
+Placement is deliberate. It runs **after** minimization, because "the stated givens" is not defined
+before then, and **before** Stage 8, because Stage 8 costs 64 resamples and there is no sense paying
+them for a puzzle that will be thrown away (doc 07 O9). It also produces `shortcut_margin` for the
+scorer as a by-product, so the cost is amortized across a filter and a feature.
+
+A resource-cap hit is a discard with a logged reason, never a pass — the budget is small enough that
+exhaustion indicates something wrong, and reading "I could not finish looking" as "there is nothing
+there" is the same error doc 06 §6.3 rejects for the anti-leak closure.
+
+### Stage 7 — Step rendering
+Render the sub-DAG per doc 03 §3.5 / §3.5a. Output: final `solution[]` steps.
+
+**No longer a gate on rule vocabulary (2026-08-04 — doc 07 T17).** It read: "untranslatable ⇒ discard,
+log offending rule", and measured 91% pass over 300 sampled constructions with every failure an
+over-budget AR chain. That gate is retired. A step with a template uses it; a step without one is
+rendered by the LLM path; an over-budget AR chain goes to the LLM path too, which handles long chains
+better than a template can. The discard log survives as the priority queue for the template table, now
+recording "no template, rendered by LLM" rather than a deletion.
+
+**Two things still discard a puzzle here**, and both are about content rather than vocabulary: a step
+whose rendered sentence fails the fidelity check after retry and fallback (doc 03 §3.5a item 3), and the
+unspeakable-given check below. Attrition at this stage should now be small and any rise in it is a
+renderer bug, not a coverage gap. Steps are emitted in **topological order ending at the goal**, not the engine's canonical fact
 order, so a reader never meets a step before its premises. The translation also reports which points
 its steps highlight, which Stage 6 pruning must keep.
 
@@ -223,7 +303,10 @@ at the fix.
 |---|---|
 | Degenerate figure | Stage 3 |
 | Engine soundness bug | Stage 4 numeric guard + §V cross-engine + mutation tests |
-| Unreadable solution | Stage 7 gate (attrition, never shipped) |
+| Solution prose misstates its step | Stage 7 fidelity check (doc 03 §3.5a) + golden fixtures + sampled review |
+| **Goal solvable in two steps — the published proof is not the real one** | **Stage 6b shortcut check (doc 05 §5.2 filter 9)** |
+| **Answer guessable from the bank's answer distribution** | **Selection-time entropy cap (doc 05 §5.2 filter 8) + band-aware Stage 2 palette** |
+| **Answer guessable off the figure by eye** | Non-angle quantity types (doc 07 T5); to-scale figures are not negotiable (doc 06 §6.3) |
 | Configuration-dependent ambiguity | Stage 6 configuration facts + Stage 8 matching-configuration sampling |
 | Redundant givens | Stage 6 minimization |
 | Under-determined goal | Stage 8 |

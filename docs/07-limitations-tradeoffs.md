@@ -50,8 +50,13 @@ the reference clones; re-verify on every engine upgrade.
 ## 7.2 Fundamental limitations (L)
 
 **L1 — No auxiliary-construction puzzles in v1.** Forward chaining only derives facts about existing
-points. v1's ceiling is "hard angle chase", not olympiad. Mitigation path (doc 09 P3): generate *with*
+points. v1's ceiling is "hard angle chase", not olympiad. Mitigation path (doc 09 P5): generate *with*
 the auxiliary element via Newclid's agent API (heuristics now, LLM proposer later), then hide it.
+**Amended 2026-08-04:** L1 is about *hiding*, and it conflated two things. **Detecting** that a puzzle's
+minimal derivation already requires a point no given names is free and lands in P3 M5 (T10) — forward
+chaining derives facts about existing points, but nothing stopped those points from being scaffolding
+the player is never told about. Whether current output contains any is unmeasured, and that measurement
+is the milestone.
 Clarification from the old spec's Langley confusion: a Langley-class figure **with its auxiliary line
 included in the construction** is forward-chainable and serves as an engine fixture (doc 03 §3.3); the
 classic statement *without* the line stays out of scope until the hide mechanism exists.
@@ -59,9 +64,24 @@ classic statement *without* the line stays out of scope until the hide mechanism
 **L2 — Generated ≠ curated.** The median generated puzzle is workmanlike; outliers are surfaced by the
 elegance ratio + gem promotion (doc 05), not oversold.
 
-**L3 — Rule-vocabulary-bounded readability.** A puzzle can only ship if its proof translates through our
-readable-step whitelist (doc 03 §3.5). Coverage grows by extending the whitelist, driven by the discard
-log. Difficulty ceiling grows the same way — deliberate, incremental work.
+**~~L3 — Rule-vocabulary-bounded readability.~~ REVERSED 2026-08-04 — see T17.** L3 read: "a puzzle can
+only ship if its proof translates through our readable-step whitelist (doc 03 §3.5); the difficulty
+ceiling grows the same way — deliberate, incremental work." Measured in Phase 2 M3, that ceiling turned
+out to be the binding constraint on the entire product, not a growth curve. The whitelist covers **19 of
+Newclid's 93 rules**, and since a puzzle ships only if *every* step is sayable, the pipeline selects for
+proofs assembled from the 19 things we can pronounce — which are, by construction, the elementary ones.
+13 distinct rules appear across the whole corpus; circle theorems fire 10 times in 98 puzzles. The
+discard log was supposed to drive whitelist growth, but it stayed nearly empty *because the
+constructions were too simple to need better theorems* — a loop with no way out from inside. Replaced by
+LLM rendering (T17), which makes all 93 rules shippable.
+
+**L4 — The difficulty ceiling is now the generator, not the translator (2026-08-04).** With T17 removing
+the translation gate, the binding constraint moves upstream to Stage 1: a weighted grammar growing
+clauses at random over 87 primitives produces small, symmetric, right-angle-heavy figures, and 86% of
+what it produces is degenerate (344 of 546 discards at seed 42 — degenerate_triangle 148, unrealizable
+98, flat_angle 75). Nothing downstream can add difficulty a construction does not contain. Mitigation is
+doc 09 P5 (configuration-seeded and backward generation); L4 is expected to be the standing limitation
+for the next several phases, and saying so is the point of recording it.
 
 ## 7.3 Accepted technical trade-offs (T)
 
@@ -86,21 +106,45 @@ residual risk; revisit if §V ever catches a class of misses.
 the string table at build time (frontend stays logic-free and replay-verbatim). Cost: translation = bank
 rebuild per locale. Accepted for v1 (English only).
 
-**T5 — To-scale figures make answers measurable.** Metrically consistent figures + integer answers mean
-a player can protractor-measure the goal to within a degree or two. Accepted: single-player app, honor
-system — measuring only cheats yourself (same stance as sudoku apps and chess trainers). Revisit only if
-competitive/leaderboard features appear.
+**T5 — To-scale figures make answers measurable. AMENDED 2026-08-04: the mitigation was wrong, and the
+problem is worse than "measurable".** The original entry read: metrically consistent figures + integer
+answers mean a player can protractor-measure the goal to within a degree or two; accepted on the honor
+system, since measuring only cheats yourself.
+
+Two things were missed. First, **no protractor is needed when the answer is 45°** — and on the first
+real bank, 71 of 98 answers were 45° and another 15 were 90°, so blind-guessing "45" beat the app 72% of
+the time. That is not a player cheating themselves; that is the artifact being invalid. Second, the
+honor-system defence assumes measuring is *harder* than solving. For a right angle or a half-right angle
+in a to-scale figure it is strictly easier, and the puzzle has no content left.
+
+The revised position keeps to-scale figures (doc 06 §6.3 item 2 — a not-to-scale figure would break
+every premise) and attacks measurability from three other directions:
+- **Answer entropy is a build gate**, not an aesthetic: per-band caps on the share of the bank any single
+  answer value may hold (doc 05 §5.2 filter 8).
+- **Non-round angle values.** `aconst` carries a `Fraction` of π, so 7π/8 is as cheap as 90° — the round
+  palette was our config, not a constraint (T18).
+- **Quantity types whose answers are not eyeball-readable.** A ratio of √2 or an area cannot be
+  estimated off a figure the way a right angle can. This is now a difficulty argument for doc 09 P3's
+  quantity waves, not only a variety argument.
+
+Revisit if answer entropy is enforced and spot checks still report sight-readable goals.
 
 **T6 — No CAS in the hot loop.** SymPy is validation-layer only (spot checks, Gröbner third opinions) —
 plus exact-value normalization and the wave-3 area layer's *arithmetic on engine-certified quantities*
 (doc 03 §3.7), which is bookkeeping, not derivation. The generation loop stays engine + exact values.
 
-**T7 — Quantity-generic core, phased enablement.** Schema, gates, scoring, and frontend are written
-against the quantity-type registry (doc 04 §QTR); types are enabled in waves (angle → length/ratio →
-area) strictly by engine-support maturity (doc 03 §3.7), never by editing core pipeline code. Dimensional
-quantities require scale pinning (one stated unit length as a derivation leaf); scale-free quantities
-forbid it. Areas are not engine-derivable and wait for the custom decomposition layer — shipping them
-earlier via coordinate computation would violate "numeric verifies, never derives".
+**T7 — Quantity-generic core, phased enablement. AMENDED 2026-08-04: waves 1 and 2 merge.** The
+mechanism is unchanged — schema, gates, scoring, and frontend are written against the quantity-type
+registry (doc 04 §QTR); types are enabled by registration, never by editing core pipeline code.
+Dimensional quantities require scale pinning (one stated unit length as a derivation leaf); scale-free
+quantities forbid it. Areas are still not engine-derivable and still wait for the custom decomposition
+layer — shipping them via coordinate computation would violate "numeric verifies, never derives".
+
+What changed is the *ordering rationale*. Waves were sequenced by engine-support maturity on the
+assumption that angle alone made a viable product. It does not (T5): angle-only means every answer is
+eyeball-readable on a to-scale figure. `ratio` and `length` are therefore promoted from "second wave,
+post-v1" to the same phase as the difficulty rebuild, and their justification is now **difficulty**
+rather than variety. The engine cost is lower than the original sequencing assumed — see T18.
 
 **T8 — Answer input by exactness class.** Angles: integer keypad. Ratios: p/q fraction input. Lengths/
 areas: decimal input checked within a per-puzzle tolerance against `approx`, with the exact surd form
@@ -113,15 +157,28 @@ DSL and sampler cover points, lines, all polygon families, circles, and arcs —
 domain and the classical puzzle universe. Conics are excluded because (a) no AG-lineage engine's fact
 vocabulary contains them, so support would mean writing our own deduction rules — the exact path P3
 forbids; and (b) puzzle-culture conic problems are coordinate/algebraic in nature and belong to the
-future coordinate-geometry/algebra domain (doc 09 P6), where SymPy-verified generation handles them
+future coordinate-geometry/algebra domain (doc 09 P7), where SymPy-verified generation handles them
 cheaply. Revisit only if an upstream engine ships conic support.
 
-**T10 — Difficulty is a phased capability (honest ladder).** v1's ceiling without auxiliary
-constructions is "hard chase" (challenges strong amateurs; below true olympiad). The ladder to
-olympiad-entry runs through aux-construction hiding (doc 09 P4) — the mechanism validated by
-TongGeometry's competition-selected problems — and the top rung (olympiad-grade via value-guided search
-at scale) is an architected aspiration, not a commitment. Full ladder: doc 01 §Difficulty ambition.
-Bands are never inflated to fake the upper rungs.
+**T10 — Difficulty is a phased capability (honest ladder). AMENDED 2026-08-04: the target audience
+moved, and aux-construction detection moved earlier.** The entry stands in its essentials — bands are
+never inflated to fake the upper rungs, and difficulty comes from proof structure rather than
+presentation obstacles. Three changes:
+
+1. **The audience is competition-trained, not "strong amateurs"** (doc 01). "Hard chase" is no longer an
+   acceptable v1 ceiling; it is the thing the first bank did and it was solved at a glance.
+2. **Auxiliary constructions move from P4 to P3** — not because they got easier, but because *detecting*
+   them is nearly free and we never looked. If the minimal premise set requires a point named in no
+   given and not in the goal, the puzzle demands that construction to solve. That is a property of the
+   traceback we already compute (doc 04 Stage 6). AlphaGeometry's entire training corpus was harvested
+   from exactly this signal. What stays hard is *generating* figures rich enough to contain such points
+   (L4) and the hide/rediscover UX — those stay later.
+3. **The top rung is no longer purely aspirational.** TongGeometry (Nature Machine Intelligence, Jan
+   2026) demonstrated value-guided proposing at olympiad grade with three problems selected for real
+   competitions. It is GPL, so ideas only (P2), but the architecture is published and doc 09 P5 commits
+   to the shape of it rather than to its scale.
+
+Full ladder: doc 01 §Difficulty ambition.
 
 **T11 — Premise minimization is greedy, so locally minimal (settled Phase 1 M3).** Premises are
 tried for removal in canonical order and every successful drop is kept, which yields a set with no
@@ -159,6 +216,22 @@ human would call redundant.
   different figure". Monitor via spot checks.
 - **O6 — Upstream engine churn** — Newclid/AG2 release cadence may break adapters; pinned versions +
   contract tests + attrition-diff on upgrade are the guards.
+- **O8 — LLM prose quality is unmeasured, and its failure mode is fluent** (opened 2026-08-04 with T17).
+  The entity-level check catches a sentence naming the wrong points; it does not catch one that names the
+  right points and misstates the *relation* between them. Guards: golden-text fixtures on every rule the
+  template table already covers (a regression there is machine-detectable), the sampled prose column in
+  the §5.1 spot check, and a pinned model version in bank provenance so a provider-side change shows up
+  as a diff rather than as drift. Escalate to a second-model cross-check if spot checks find a
+  misstatement.
+  *Known defect this supersedes:* the template renderer emits ratios with a shared term — "From AD = BE
+  it follows that AD : AE = BE : AE", 28 steps across 11 puzzles in the first bank — where a human writes
+  AD = BE. `idioms.py` has unit-ratio collapsing and does not catch this shape. Worth one golden fixture
+  so the LLM path is checked against it rather than inheriting it.
+- **O9 — The shortcut filter's cost and yield are both unknown** (opened 2026-08-04 with T19). It adds a
+  bounded engine solve per candidate, at a stage where candidates are still plentiful, and it is expected
+  to reject heavily. Whether that lands as "a few percent slower" or "throughput halves" is unmeasured.
+  Response order if it hurts: cache by premise-set hash → run it before the expensive Stage-8 resampling
+  rather than after → lower the step budget → only then reconsider the check.
 
 
 **T12 — AR steps are narrated by their premises, not by their arithmetic (settled Phase 1 M4).**
@@ -220,3 +293,116 @@ fixture corpus across both engines, which is a smaller loss than it sounds: the 
 JGEX constructions, and DDAR could never have consumed those anyway. Revisit if a future validator
 engine (Seed-Geometry?) turns out to record proofs, in which case it can implement the larger protocol
 without changing the smaller one.
+
+
+**T16 — `configuration` is stripped from shipped shards (settled Phase 2).** Doc 02 originally listed
+only `reference_figure` and `provenance` as build-time blocks. `configuration` joins them: it is not
+player-facing, a shipped shard cannot be independently re-derived once `reference_figure` is gone
+anyway, and its bytes count against doc 06 §6.5's under-2-second budget. The auditable artifact is the
+build archive, which is what `bank/validate.py` actually promises ("pointed at a bank file months
+later") — reachable via `make bank-verify ARCHIVE=<path>`.
+
+
+**T17 — Solution prose is rendered by an LLM, and the readable-step whitelist stops being a gate
+(settled 2026-08-04; reverses L3 and doc 01 primary goal 3 as a *gate*).**
+
+The whitelist was the wrong place to spend the difficulty budget. Requiring every step to be sayable
+from a 19-entry table meant the pipeline shipped only proofs built from elementary theorems (L3). The
+replacement: the engine's structured step — rule id, premises, conclusion, all canonical facts — is
+rendered into a sentence by an LLM at build time, and **all 93 of Newclid's rules become shippable**.
+
+Four conditions make this safe, and none is optional:
+
+1. **The LLM renders; it never derives.** Identical in force to the numeric-layer rule (doc 02 invariant
+   4). The model receives a fact-level step that is already proved and returns English. It never decides
+   what is true, never chooses a step, never sees a goal it could answer.
+2. **Nothing the LLM writes enters the correctness path.** `fact`, `derives`, `given[].fact`, `goal`,
+   `answer`, `highlights`, and every difficulty field remain machine-generated (doc 02 invariant 5,
+   tightened rather than relaxed). The LLM writes `text` and `display` and nothing else.
+3. **Reproducibility is preserved by caching, not by determinism.** Doc 02 invariant 2 requires every
+   artifact reproducible from `(generator_version, engine_version, seed)`, and a network call to a
+   sampling model satisfies no such thing. So rendered prose is a **build-time artifact keyed by a hash
+   of the structured step**, cached in-repo and committed with the bank. A bank rebuild at the same seed
+   re-uses the cache and is byte-identical; re-rendering is a separate, reviewable commit that shows up
+   as a prose diff. The determinism guarantee attaches to the bank, which is the thing that ships.
+4. **Every rendered sentence is machine-checked before it is accepted.** The realistic failure is not
+   gibberish, it is a fluent sentence asserting something the step does not. The check: the sentence must
+   name exactly the point set of the step's premises and conclusion — no point the step does not
+   involve, none of the points it does involve missing — and must contain no numeral absent from the
+   step. Cheap, mechanical, and it catches the class of error that matters. A failed render retries,
+   then falls back to the existing template if the rule has one, then discards the puzzle. Sampled human
+   review on every bank build (doc 05 §5.1's spot check gains a prose column).
+
+**Provider: Gemini 3.6 Flash on the free tier.** Chosen because rendering is a build-time batch job with
+no latency requirement and a cache in front of it, which makes free-tier rate limits (per-project, not
+published — check AI Studio) a throughput matter rather than a design constraint. The renderer is
+therefore written resumable and idempotent from the start. **Recorded caveat:** free-tier content is used
+by the provider to improve its products. What we send is a structured geometry step, not user data or
+anything proprietary, so this is accepted — but it is a reason the renderer must never be handed
+anything else, and a reason to revisit if the corpus ever becomes a competitive asset in itself.
+
+The template table is **not deleted**. It stays as the fallback for the rules it already covers, as the
+source of `tier` metadata for scoring (doc 05 §5.1), and as the golden-text fixture set that catches an
+LLM regression. What it stops being is a gate.
+
+Rejected alternative: keeping the whitelist and growing it to 93 entries by hand. That is ~74 templates
+each needing prose, highlight builders, tests and review, to reach a place where an LLM is already
+adequate — and it would still fail on the AR chains, which have no fixed shape to template.
+
+
+**T18 — Angle values are rational multiples of π by engine construction; irrational answers come from
+lengths and ratios (settled 2026-08-04).** A request for "weird" angle values like √3·π cannot be
+satisfied and never will be by this engine family. `newclid.predicates.constant_angle.ConstantAngle`
+types its value as a `Fraction`, and AR is exact rational arithmetic over angle atoms mod π; an
+irrational angle has no representation, and admitting one would break the closure that makes DDAR sound.
+
+Two things follow, and they are good news:
+- **Non-round rational angles are free.** 7π/8 (157.5°) and 11π/17 cost exactly what 90° costs. The
+  multiples-of-10 palette was `GENERATION.nice_angle_degrees`, our own config, and Stage 1 never even
+  passed a band to it — so every angle in the first bank came from the *easy* palette regardless of the
+  puzzle's band. That is a bug, not a limitation.
+- **Irrational values are already reachable through other quantity types.** Newclid ships `l2const` and
+  `r2const` (`squared_constant_length`, `squared_constant_ratio`): |AB|² = 3 states |AB| = √3, and a
+  squared ratio of 2 states a ratio of √2. So √2 and √3 answers need no new engine work — they need the
+  `length`/`ratio` quantity types enabled (T7).
+
+
+**T19 — Shortcut resistance is a correctness property, not a difficulty tweak (settled 2026-08-04).**
+Doc 05 §5.1 scored the published proof's structure — depth, width, distinct rules, tier mix, branch
+joins — on the assumption that a longer proof is a harder puzzle. Playtesting refuted it directly: an
+expert-banded puzzle with a 9-step machine proof through two similar-triangle chains was solved by
+inspection, because the figure is a square and the answer is half a right angle. Machine depth 9, human
+depth 0.
+
+The failure is not that the model is imprecise; it is **anti-correlated in the regime that matters**.
+DDAR finds long mechanical chains precisely in the symmetric configurations a human sight-reads, so
+"more steps" and "harder for a person" pull apart exactly where the expert band lives. Stage 6 minimizes
+*premises* and has never had any notion of minimizing *route length*, so a short alternate route the
+published proof never mentions costs nothing and is invisible.
+
+Consequence: a **shortcut check** joins the hard filters (doc 05 §5.2 filter 9) rather than the score.
+Re-solve the goal from the stated givens under a small step budget; if it lands, discard the puzzle
+whatever its published proof looks like. It is a filter and not a feature because a puzzle with a
+two-step solution is not "less hard", it is *mis-stated* — we would be publishing a proof that is not
+the shortest thing a solver will find, and calling it the difficulty.
+
+Cost: this will delete a large fraction of the current corpus, and that is the intended outcome. The
+number is the deliverable of the milestone that lands it.
+
+
+**T20 — Backward generation supersedes the no-feedback-loop rule (settled 2026-08-04; supersedes doc 05
+§5.5's second anti-goal).** §5.5 forbade scorer→sampler feedback in v1, allowing only band targeting in
+Stage 1, on the reasoning that a feedback loop would let the scorer optimize against itself and drift
+away from human perception. That reasoning is sound and the rule is still the right default for the
+*score*. It is the wrong rule for **generation direction**.
+
+Forward generation — sample a random figure, deduce everything, keep whatever goal survives — is why
+the first bank is what it is (L4). TongGeometry and AlphaGeometry's own data pipeline both run the other
+way: search *backward* from a target configuration, propose the problem by traceback, prove it by
+forward chaining. That is not a scorer feedback loop; the search is guided by a *proposer*, and the
+scorer stays a downstream judge that the proposer cannot see.
+
+The distinction that keeps §5.5's protection intact: **the interestingness model may guide the search;
+the difficulty score may not.** Difficulty stays a measurement made after the fact, on a corpus the
+difficulty weights had no hand in producing, so the calibration protocol (doc 05 §5.1) keeps meaning what
+it says. Committing to the shape of this is doc 09 P5.

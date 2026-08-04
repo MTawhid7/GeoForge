@@ -39,8 +39,9 @@ depends only on this interface — engine churn becomes an upgrade, not a rewrit
 ### `src/geoforge/generator/` — puzzle synthesis
 Construction sampling (JGEX-compatible DSL), engine-backed closure, quantity-goal selection driven by the
 **quantity-type registry** (doc 04 §QTR — angle/length/ratio/area as pluggable goal families), traceback,
-premise minimization with **configuration facts** (doc 04 §stage-6), well-posedness gate (including scale
-pinning for dimensional quantities), readable-steps translation. Pipeline spec: doc 04.
+premise minimization with **configuration facts** (doc 04 §stage-6), auxiliary-construction detection and
+the shortcut check (doc 04 §stage-6b), well-posedness gate (including scale pinning for dimensional
+quantities), step rendering (templates + LLM, doc 03 §3.5a). Pipeline spec: doc 04.
 
 ### `src/geoforge/scoring/` — quality control
 Difficulty score, hard filters, interestingness (including the TongGeometry elegance ratio), per doc 05.
@@ -166,9 +167,11 @@ against a re-derivation. Only `text`, `display` and `highlights` are player-faci
 pre-implementation sketch showed a display-style `angle_eq:ABC:ACB`, which would have meant inventing
 and maintaining a second identifier scheme for no gain.)
 
-**Localization decision:** `display`/`text` are pre-rendered strings; banks are built per locale from the
-rule→template string table (v1 ships English only). The frontend never composes sentences. Translating
-the app means rebuilding banks — recorded trade-off, doc 07 T4.
+**Localization decision:** `display`/`text` are pre-rendered strings; banks are built per locale (v1
+ships English only). The frontend never composes sentences. Translating the app means rebuilding banks —
+recorded trade-off, doc 07 T4. Since 2026-08-04 the source of a sentence is either the rule→template
+string table or the LLM renderer (doc 03 §3.5a); both are per-locale and both are cached by a key that
+includes the locale, so the localization story is unchanged.
 
 **Bank manifest.** `schema.Manifest` (+ `Shard`) is a dataclass in `schema.py` like everything else,
 emitted as its own document (`banks/schema/bank-<v>.schema.json`) rather than as more `$defs` in the
@@ -176,8 +179,11 @@ puzzle schema — `puzzle-<v>.schema.json` is published as *the shape of a puzzl
 definition reachable from nothing inside it would be a contract saying something it does not mean.
 Both land in the one generated TypeScript file, which is what the frontend imports.
 
-Schema rules: additive change ⇒ minor bump; breaking ⇒ major bump + frontend migration. `provenance` is
-stripped from shipped banks, kept in the build archive.
+Schema rules: additive change ⇒ minor bump; breaking ⇒ major bump + frontend migration.
+**Stripped from shipped banks, kept in the build archive:** `provenance`, `reference_figure`, and —
+added Phase 2, doc 07 T16 — `configuration`. The archive is the auditable artifact
+(`make bank-verify ARCHIVE=<path>`); a shard cannot be independently re-derived once `reference_figure`
+is gone in any case, and the bytes count against doc 06 §6.5's under-2-second budget.
 
 ## Technology stack
 
@@ -225,5 +231,15 @@ is initialized; pin exact versions in `pyproject.toml` / a vendor manifest inste
    independence (doc 07 T14).
 4. **Numeric verifies, never derives:** all published facts come from symbolic derivations; numerics gate
    and check only.
-5. **LLM boundary:** LLM output never enters `given`, `goal`, `answer_deg`, `derives`, `highlights`, or
-   difficulty. (Allowed roles: doc 01 non-goals.)
+5. **LLM boundary (tightened 2026-08-04 when LLM rendering was adopted — doc 07 T17):** LLM output may
+   enter **`solution[].text` and `given[].display` only**. It never enters `given[].fact`, `goal`,
+   `answer`, `derives`, `rule`, `highlights`, `quantity`, `figure`, `marks`, or any `difficulty` field.
+   The enumeration is exhaustive on purpose: adopting a model for prose is exactly when a
+   loosely-worded boundary starts drifting. Enforced in code — the renderer's return type carries
+   strings and the assembler has no path from it to any other field — and by doc 03 §3.5a's fidelity
+   check, which verifies the sentence describes the step it was given. (Allowed roles: doc 01 non-goals.)
+6. **Prose is a cached build artifact, not a live call.** Rendered sentences are keyed by a hash of the
+   structured step and committed with the bank, so invariant 2 (reproducibility from
+   `(generator_version, engine_version, seed)`) holds across a nondeterministic renderer: a rebuild at a
+   known seed hits the cache, makes no network call, and is byte-identical. Re-rendering is an explicit
+   operation reviewed as a prose diff. Model id and prompt version ship in build provenance.
