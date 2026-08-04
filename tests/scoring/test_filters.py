@@ -45,6 +45,7 @@ GOOD = Features(
     n_premises=3,
     construction_steps=4,
     goal_given_distance=0,
+    unused_points=0,
 )
 
 

@@ -156,6 +156,105 @@ class TestMeasuredConstants:
                 )
 
 
+class TestAuxiliaryDetectionCannotFire:
+    """Phase 3 M5. docs/05 §5.1a specified `requires_auxiliary` as
+    `subdag.points() - needed_points()` and framed a zero reading as a fact about the corpus
+    ("expected near-zero on current output; that measurement is a deliverable"). It is not a fact
+    about the corpus — the quantity cannot be non-empty, and these tests pin why.
+
+    They are written to **fail loudly** if that ever changes. A pipeline that could produce a
+    genuine auxiliary point would break `test_no_puzzle_needs_a_point_its_givens_do_not_name`,
+    and that break would be the good news doc 07 L1 is waiting for, not a regression.
+    """
+
+    def test_no_puzzle_needs_a_point_its_givens_do_not_name(
+        self, candidates: list[CandidatePuzzle]
+    ) -> None:
+        for candidate in candidates:
+            derivation = candidate.derivation
+            assert not derivation.subdag.points() - derivation.needed_points(), candidate.id
+
+    def test_the_reason_is_containment_not_luck(self, candidates: list[CandidatePuzzle]) -> None:
+        """Every sub-DAG point enters through one of the sub-DAG's own leaves.
+
+        Forward chaining binds a rule's conclusion only to points its premises already name, so
+        the fact set cannot introduce a point from nowhere. `needed_points()` covers the premises
+        and configuration but not the tautologies, which is the single gap through which the
+        difference could in principle be non-empty — and it never is, because a tautology names
+        points the derivation is already about.
+        """
+        for candidate in candidates:
+            subdag = candidate.derivation.subdag
+            leaves = frozenset(
+                arg
+                for fact in (*subdag.premises, *subdag.configuration, *subdag.trivial)
+                for arg in fact.args
+            )
+            assert subdag.points() <= leaves | frozenset(candidate.derivation.goal.args)
+
+    def test_it_reports_empty_even_on_a_real_auxiliary_construction(self) -> None:
+        """The case that settles it. `langley_with_auxiliary` is the one construction in this
+        repo that genuinely cannot be solved without an auxiliary line, and it is spelled with
+        the line included (docs/03 §3.3).
+
+        The metric still reports empty, because the auxiliary point is named by a premise
+        (`aconst:a:c:a:d=1/9`). Any constructed point becomes a stated given the moment the proof
+        uses it, so the metric is blind to exactly the thing it is named for — which is a
+        statement about the definition, not about this fixture.
+        """
+        from geoforge.generator.traceback import derive
+        from geoforge.solvers.interface import get_backend
+        from geoforge.solvers.types import SolveOptions
+        from tests.solvers.corpus import CORPUS
+
+        backend = get_backend()
+        opts = SolveOptions(seed=SEED)
+        result = backend.solve(CORPUS["langley_with_auxiliary"], opts)
+        assert result.proof_dag.proved_goals, "the fixture must still solve"
+
+        goal_id = result.proof_dag.proved_goals[0]
+        goal = result.proof_dag.index()[goal_id]
+        derivation = derive(backend, result.numeric_model, result.proof_dag, goal, opts)
+        assert derivation is not None
+
+        assert "d" in derivation.subdag.points(), "the auxiliary point must be in the proof"
+        assert "d" in derivation.needed_points(), "and it is named by a premise, which is the point"
+        assert not derivation.subdag.points() - derivation.needed_points()
+
+
+class TestUnusedPoints:
+    """The replacement feature: drawn points the proof does not need."""
+
+    def test_it_matches_its_definition(self, candidates: list[CandidatePuzzle]) -> None:
+        for candidate in candidates:
+            expected = frozenset(candidate.pruned.points) - candidate.derivation.needed_points()
+            assert candidate.features.unused_points == len(expected), candidate.id
+
+    def test_it_is_bounded_by_the_drawn_figure(self, candidates: list[CandidatePuzzle]) -> None:
+        for candidate in candidates:
+            assert 0 <= candidate.features.unused_points <= candidate.features.n_points
+
+    def test_it_actually_varies(self, candidates: list[CandidatePuzzle]) -> None:
+        """Unlike the feature it replaces. If this ever collapses to a single value it has become
+        another fixed offset and should be removed rather than left looking like a signal."""
+        assert len({c.features.unused_points for c in candidates}) > 1
+
+    def test_it_carries_no_weight_in_the_score(self) -> None:
+        """The regression that matters, and the reason this test exists at all.
+
+        `unused_points` looks like a difficulty feature and is not one. Measured over 163 puzzles
+        at seed 42 it correlates **+0.777 with figure size** and -0.05 to -0.15 with depth, width,
+        distinct_rules, branch_join and the score itself; mean unused is 1.80 in easy and 2.11 in
+        hard but 0.00 in expert. Weighting it positively would score big rambling figures as hard
+        — the same anti-correlation doc 07 T19 records for proof depth, which is the mistake this
+        whole phase exists to undo.
+
+        So: adding a weight must break a test and force whoever does it to re-measure first.
+        """
+        assert "unused_points" not in SCORING.weights
+        assert "unused_points" not in SCORING.ranges
+
+
 class TestBranchJoins:
     def test_a_join_needs_two_derived_premises(self, candidates: list[CandidatePuzzle]) -> None:
         """Premises do not count: a step resting on two givens is one idea, not a join of two

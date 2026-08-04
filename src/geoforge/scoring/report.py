@@ -105,6 +105,33 @@ def distribution(candidates: Sequence[Scored]) -> dict[str, Any]:
             for name in ("depth", "width", "distinct_rules", "branch_join", "tier_max", "tier_mix")
         },
         "constant_features": _constant_features(candidates),
+        "sampler_diagnostics": _sampler_diagnostics(candidates),
+    }
+
+
+def _sampler_diagnostics(candidates: Sequence[Scored]) -> dict[str, Any]:
+    """Measurements about the *generator*, reported next to the score but never part of it.
+
+    `unused_points` is here rather than in `features` above because it is not a difficulty
+    signal — measured, it correlates +0.777 with figure size and -0.05 to -0.15 with every
+    difficulty feature (see `features.Features.unused_points`). What it does say is how much
+    structure Stage 1 built that the puzzle then made no use of, which is the doc 07 L4 question.
+    Reported per band because a band whose figures are mostly unused scaffolding is a sampler
+    finding, and the report is where sampler findings should be visible without a special run.
+    """
+    per_band: dict[str, list[int]] = {}
+    for candidate in candidates:
+        per_band.setdefault(candidate.band, []).append(candidate.features.unused_points)
+    return {
+        "unused_points_mean": round(
+            sum(c.features.unused_points for c in candidates) / len(candidates), 2
+        ),
+        "unused_points_by_band": {
+            band: round(sum(values) / len(values), 2) for band, values in sorted(per_band.items())
+        },
+        "puzzles_with_no_unused_points": sum(
+            1 for c in candidates if c.features.unused_points == 0
+        ),
     }
 
 
