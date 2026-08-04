@@ -191,29 +191,54 @@ records why "next" is not `ratio`: the direction is cheap, the answers are not w
 - The surviving leaves + goal define the stated givens **and the drawn figure**; scaffolding no surviving
   fact references is pruned — *plus* any element a translated solution step highlights (steps may
   reference segments their premises only imply).
-- **Auxiliary-construction detection (added 2026-08-04 — doc 07 T10).** A point that the minimal
-  derivation *uses* but that is named by no stated given and does not appear in the goal is an
-  **auxiliary point**: the puzzle cannot be solved without introducing it, which is the strongest
-  difficulty multiplier in the literature and the mechanism AlphaGeometry's whole training corpus was
-  harvested from. The signal is a property of the sub-DAG we already build; nothing new is computed.
-  Recorded on the candidate as `requires_auxiliary` and its point set, feeding doc 05 §5.1a.
-  Expected near-zero on current output — that measurement is a deliverable, and if it is zero it tells
-  us the sampler, not the detector, is the problem (doc 07 L4). *Hiding* such a point so the player must
-  rediscover it is a later phase; detecting and scoring it is not.
+- ~~**Auxiliary-construction detection (added 2026-08-04 — doc 07 T10).**~~ **NOT BUILT — the signal is
+  identically zero by construction, not near-zero on current output (M5, doc 07 T22).** The definition
+  was: a point the minimal derivation *uses* that is named by no stated given and does not appear in the
+  goal, i.e. `subdag.points() - needed_points()`. It cannot be non-empty. Every point in the sub-DAG
+  enters through one of its own leaves — forward chaining derives facts about existing points, so a
+  rule's conclusion binds only points its premises already name — and the leaves are exactly the
+  premises, the configuration facts and the trivial tautologies. `needed_points()` is the premises plus
+  the configuration plus the goal, so the difference can only ever be a point named *solely* by a
+  tautology.
 
-### Stage 6b — Shortcut check (added 2026-08-04 — doc 05 §5.2 filter 9, doc 07 T19)
-Re-solve the goal from the **stated givens only**, over the same fixed coordinates
-(`solve_facts`, doc 03 §3.3), under a small step budget. If the goal falls out within budget, discard:
-the puzzle's real solution is not the one we were about to publish.
+  Measured at seed 42: 0 of 163 puzzles have a non-empty difference; containment holds for 61 of 61
+  checked; no trivial fact ever names a point nothing else does. And the decisive case — the repo's
+  `langley_with_auxiliary` fixture, the one construction here that genuinely needs an auxiliary line —
+  reports **EMPTY**, because its auxiliary point `d` is named by the premise `aconst:a:c:a:d=1/9`. Any
+  constructed point becomes a stated given the moment the proof uses it. The metric is definitionally
+  blind to the thing it is named for.
 
-Placement is deliberate. It runs **after** minimization, because "the stated givens" is not defined
-before then, and **before** Stage 8, because Stage 8 costs 64 resamples and there is no sense paying
-them for a puzzle that will be thrown away (doc 07 O9). It also produces `shortcut_margin` for the
-scorer as a by-product, so the cost is amortized across a filter and a feature.
+  What replaces it is `unused_points` (doc 05 §5.1a): drawn points the derivation does not need. That
+  one is about the *figure* rather than the proof, it varies across the corpus, and it is the honest
+  version of "how much irrelevant structure must the solver search". *Hiding* a genuinely auxiliary
+  point remains a later phase (doc 07 L1), and this stage no longer claims to detect one.
 
-A resource-cap hit is a discard with a logged reason, never a pass — the budget is small enough that
-exhaustion indicates something wrong, and reading "I could not finish looking" as "there is nothing
-there" is the same error doc 06 §6.3 rejects for the anti-leak closure.
+### Stage 6b — ~~Shortcut check~~ **NOT BUILDABLE (settled M5 — doc 05 §5.2 filter 9, doc 07 T22)**
+The specification was: re-solve the goal from the **stated givens only**, over the same fixed
+coordinates (`solve_facts`, doc 03 §3.3), under a small step budget; if the goal falls out within
+budget, discard, because the puzzle's real solution is not the one we were about to publish. The
+*intent* is right and is still the product's central difficulty question (doc 07 T19). The mechanism
+cannot be built on this engine, for four independent reasons, and it is recorded here rather than
+deleted so it is not re-proposed:
+
+1. **There is no step budget to impose.** `SolveOptions` carries a seed, a backend and a wall clock —
+   no step or depth cap. Caps are evaluated after the fact, so "solve under 2 steps" cannot be asked.
+2. **A tier-limited solve is inert.** Newclid's `FollowDeductions` agent ignores its `rules` argument,
+   so restricting the rule set does not restrict the search.
+3. **Forward search cannot reach an angle goal at all.** *Measured (M4a, seed 42, n=600):* across 117
+   saturating closures over the stated givens, **181 `aconst` facts appear and 0 of them are novel** —
+   every one is a stated given. The closure never *derives* a constant angle, so a bounded forward
+   re-solve would return "no shortcut" for every angle puzzle regardless of difficulty. A gate that
+   passes everything is worse than no gate: it would read as evidence.
+4. **There is no alternative route to find.** `ProofState.apply` is write-once, so each fact carries
+   exactly one justification and the DAG holds no second derivation to be shorter.
+
+The human shortcut this was meant to catch — "a rhombus diagonal bisects the angle" — is a *composite
+theorem the engine's rule granularity does not have*, not a shorter path through the engine's rules.
+So it must be caught by recognising the *configuration*, which is the configuration-table filter, or by
+an outside judge, which is the LLM oracle column. Neither asks the engine a question it cannot answer.
+
+Consequently `shortcut_margin` is not computable either (doc 05 §5.1a), and doc 07 O9 closes.
 
 ### Stage 7 — Step rendering
 Render the sub-DAG per doc 03 §3.5 / §3.5a. Output: final `solution[]` steps.
@@ -353,7 +378,7 @@ at the fix.
 | Degenerate figure | Stage 3 |
 | Engine soundness bug | Stage 4 numeric guard + §V cross-engine + mutation tests |
 | Solution prose misstates its step | Stage 7 fidelity check (doc 03 §3.5a) + golden fixtures + sampled review |
-| **Goal solvable in two steps — the published proof is not the real one** | **Stage 6b shortcut check (doc 05 §5.2 filter 9)** |
+| **Goal solvable in two steps — the published proof is not the real one** | **UNMITIGATED.** Stage 6b cannot be built on this engine (above; doc 07 T22). Falls to the configuration table and the LLM oracle column, neither of which is a proof |
 | **Answer guessable from the bank's answer distribution** | **Selection-time entropy cap (doc 05 §5.2 filter 8) + band-aware Stage 2 palette** |
 | **Answer guessable off the figure by eye** | Non-angle quantity types (doc 07 T5); to-scale figures are not negotiable (doc 06 §6.3) |
 | Configuration-dependent ambiguity | Stage 6 configuration facts + Stage 8 matching-configuration sampling |

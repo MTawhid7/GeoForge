@@ -44,9 +44,15 @@ plan they imply is superseded — go to `docs/09` for the current sequence.
 4. **The bottleneck is now Stage 1** (L4). Random clause growth cannot produce the deliberate
    arrangements that make good puzzles. Configuration archetypes and backward generation are P5.
 
-**P3 M4 and M4a are done** — the sampler-bias fix landed the numbers in `docs/09`, and the quantity
-spike closed the ratio/length question. **Next up is P3 M5:** auxiliary-construction detection. Expect
-the bank to keep shrinking as gates land — that is the pass condition, not a regression.
+**P3 M4, M4a and M5 are done, and P3 has been cut short as a result** (`docs/07` T22). Each milestone
+measured a different difficulty signal and each came back dead: the sampler caused the answer
+monoculture, ratio/length narrow the answer space rather than widening it, `requires_auxiliary` is zero
+by definition, the shortcut filter cannot be asked of this engine, and its replacement feature
+correlates with figure size rather than difficulty. One cause behind all four — L4, the generator.
+
+**Next up is P3 M6:** the answer-entropy cap plus the configuration table, then M7's LLM renderer (the
+only remaining item that *adds* puzzles), then straight into P5's generator rebuild. Expect the bank to
+keep shrinking until P5 — that is the pass condition, not a regression.
 
 ---
 

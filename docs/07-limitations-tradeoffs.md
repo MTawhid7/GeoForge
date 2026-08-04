@@ -52,11 +52,17 @@ the reference clones; re-verify on every engine upgrade.
 **L1 — No auxiliary-construction puzzles in v1.** Forward chaining only derives facts about existing
 points. v1's ceiling is "hard angle chase", not olympiad. Mitigation path (doc 09 P5): generate *with*
 the auxiliary element via Newclid's agent API (heuristics now, LLM proposer later), then hide it.
-**Amended 2026-08-04:** L1 is about *hiding*, and it conflated two things. **Detecting** that a puzzle's
-minimal derivation already requires a point no given names is free and lands in P3 M5 (T10) — forward
-chaining derives facts about existing points, but nothing stopped those points from being scaffolding
-the player is never told about. Whether current output contains any is unmeasured, and that measurement
-is the milestone.
+~~**Amended 2026-08-04:** L1 is about *hiding*, and it conflated two things. **Detecting** that a
+puzzle's minimal derivation already requires a point no given names is free and lands in P3 M5 (T10) —
+forward chaining derives facts about existing points, but nothing stopped those points from being
+scaffolding the player is never told about. Whether current output contains any is unmeasured, and that
+measurement is the milestone.~~
+**Amendment retracted 2026-08-04 by M5 (T22); the original L1 was right and the amendment split a hair
+that does not exist.** "A point no given names" cannot occur: the construction step that introduces a
+point contributes its facts as premises, so the moment the proof uses the point, a given names it.
+Detection and hiding are not two things — there is nothing to detect *until* something is hidden, which
+is what L1 said before the amendment. Measured 0/163 at seed 42, and the `langley_with_auxiliary`
+fixture reports empty despite genuinely needing its auxiliary line. L1 stands unqualified.
 Clarification from the old spec's Langley confusion: a Langley-class figure **with its auxiliary line
 included in the construction** is forward-chainable and serves as an engine fixture (doc 03 §3.3); the
 classic statement *without* the line stays out of scope until the hide mechanism exists.
@@ -192,12 +198,16 @@ presentation obstacles. Three changes:
 
 1. **The audience is competition-trained, not "strong amateurs"** (doc 01). "Hard chase" is no longer an
    acceptable v1 ceiling; it is the thing the first bank did and it was solved at a glance.
-2. **Auxiliary constructions move from P4 to P3** — not because they got easier, but because *detecting*
-   them is nearly free and we never looked. If the minimal premise set requires a point named in no
-   given and not in the goal, the puzzle demands that construction to solve. That is a property of the
-   traceback we already compute (doc 04 Stage 6). AlphaGeometry's entire training corpus was harvested
-   from exactly this signal. What stays hard is *generating* figures rich enough to contain such points
-   (L4) and the hide/rediscover UX — those stay later.
+2. ~~**Auxiliary constructions move from P4 to P3**~~ — **WITHDRAWN 2026-08-04 by M5 (see T22).** The
+   claim was that detecting them is nearly free because "if the minimal premise set requires a point
+   named in no given and not in the goal, the puzzle demands that construction to solve". The premise is
+   false as a matter of definition, not of yield: a point the derivation uses is *always* named by a
+   given, because the construction that introduces it contributes its facts as premises. The test is
+   the repo's own `langley_with_auxiliary` fixture — genuine auxiliary line, auxiliary point in the
+   proof, detector reports empty. Auxiliary constructions return to a later phase, and what stays hard
+   is unchanged and now the whole of it: *generating* figures rich enough (L4) and the hide/rediscover
+   mechanism. AlphaGeometry harvested that signal from a pipeline that adds points during *search*;
+   ours draws the entire construction for the player, so there is nothing left to rediscover.
 3. **The top rung is no longer purely aspirational.** TongGeometry (Nature Machine Intelligence, Jan
    2026) demonstrated value-guided proposing at olympiad grade with three problems selected for real
    competitions. It is GPL, so ideas only (P2), but the architecture is published and doc 09 P5 commits
@@ -252,11 +262,10 @@ human would call redundant.
   it follows that AD : AE = BE : AE", 28 steps across 11 puzzles in the first bank — where a human writes
   AD = BE. `idioms.py` has unit-ratio collapsing and does not catch this shape. Worth one golden fixture
   so the LLM path is checked against it rather than inheriting it.
-- **O9 — The shortcut filter's cost and yield are both unknown** (opened 2026-08-04 with T19). It adds a
-  bounded engine solve per candidate, at a stage where candidates are still plentiful, and it is expected
-  to reject heavily. Whether that lands as "a few percent slower" or "throughput halves" is unmeasured.
-  Response order if it hurts: cache by premise-set hash → run it before the expensive Stage-8 resampling
-  rather than after → lower the step budget → only then reconsider the check.
+- ~~**O9 — The shortcut filter's cost and yield are both unknown**~~ (opened 2026-08-04 with T19).
+  **CLOSED 2026-08-04 by M5, and not by answering it.** The filter cannot be built on this engine at all
+  (doc 05 §5.2 filter 9), so it has neither cost nor yield. The risk it stood for did not go away — it
+  moved to the unmitigated row of doc 04's risk table.
 
 
 **T12 — AR steps are narrated by their premises, not by their arithmetic (settled Phase 1 M4).**
@@ -414,11 +423,15 @@ DDAR finds long mechanical chains precisely in the symmetric configurations a hu
 *premises* and has never had any notion of minimizing *route length*, so a short alternate route the
 published proof never mentions costs nothing and is invisible.
 
-Consequence: a **shortcut check** joins the hard filters (doc 05 §5.2 filter 9) rather than the score.
+~~Consequence: a **shortcut check** joins the hard filters (doc 05 §5.2 filter 9) rather than the score.
 Re-solve the goal from the stated givens under a small step budget; if it lands, discard the puzzle
-whatever its published proof looks like. It is a filter and not a feature because a puzzle with a
-two-step solution is not "less hard", it is *mis-stated* — we would be publishing a proof that is not
-the shortest thing a solver will find, and calling it the difficulty.
+whatever its published proof looks like.~~ **The consequence did not survive M5: the check cannot be
+built on this engine** (doc 05 §5.2 filter 9 for the four blockers; T22 for what it means). The
+*reasoning* above is untouched and is why T19 is still the phase's most important entry — a puzzle with
+a two-step solution is not "less hard", it is *mis-stated*. What changed is that we have no way to
+detect the mis-statement, so it stands as an unmitigated risk (doc 04's risk table) rather than as a
+solved problem. Do not read the strikethrough as "the concern was overblown"; read it as "we know the
+concern is real and cannot yet act on it".
 
 Cost: this will delete a large fraction of the current corpus, and that is the intended outcome. The
 number is the deliverable of the milestone that lands it.
@@ -485,3 +498,40 @@ the guessability problem worse while adding schema surface, frontend input modes
 obligation. The quantity waves move behind whichever of these lands first: a rule extension concluding
 ratio constants from similar triangles (the natural source of non-dyadic ratios), or the area layer's
 own decomposition arithmetic (doc 03 §3.7), which does not route through DDAR at all.
+
+**T22 — Three of P3's four difficulty instruments cannot be built or do not inform, and the common
+cause is the corpus (settled 2026-08-04 by M5).** P3 was ordered by "build the measurement before the
+mechanism" (doc 09). Having built them, the measurements say the mechanism was never the problem.
+
+| Instrument | Spec | Outcome |
+|---|---|---|
+| `requires_auxiliary` (§5.1a) | point the proof needs that no given names | **Identically zero.** Not a corpus fact — a definitional one |
+| Shortcut filter 9 / `shortcut_margin` (§5.2, §5.1a) | re-solve under a 2-step budget | **Unaskable.** Four independent blockers |
+| `unused_points` (M5's replacement) | drawn points the proof does not need | **Varies, but is not difficulty.** ρ = +0.777 with figure size, −0.05 to −0.15 with every difficulty feature |
+| Answer-entropy cap, filter 8 | per-band share cap on one answer value | **Buildable and still needed.** The one survivor |
+
+Details are in the docs that own each. What matters here is the pattern.
+
+`requires_auxiliary` fails because **the pipeline draws the whole construction**. Every point is given
+to the player, so no point is ever discovered; the literature's strongest difficulty multiplier has no
+referent in a product built this way. The shortcut filter fails because **the engine has one
+justification per fact and never derives a constant angle by forward search** — there is no second
+route, and no way to bound the search for one. `unused_points` fails as a difficulty term because
+**a figure with unused structure is a figure the sampler wandered through**, which is a fact about
+Stage 1, not about the solver's task.
+
+All three trace to the same place. The generator produces figures by random clause growth and then
+asks, afterwards, whether anything hard came out; the instruments were built to detect hardness that
+generation never had a reason to produce. Doc 07 L4 said the difficulty ceiling is the generator; M4
+showed the sampler caused the answer monoculture; M4a showed the sampler's palette could not widen the
+quantity space; M5 shows the difficulty *instruments* degenerate on sampler output. Four milestones,
+one finding.
+
+Consequence for sequencing (doc 09 P3/P5): **stop building difficulty measurements and rebuild
+generation.** The remaining P3 items are kept only where they earn their place independently — filter 8
+because guessability is measured and real, and the LLM renderer because it *adds* puzzles by retiring
+the whitelist rather than removing them. The configuration table is promoted, not dropped: with filter 9
+dead it is the only remaining mechanism aimed at the sight-read failure.
+
+What this does **not** license is lowering a cut to fake a band (T10) or reading "the instrument is
+uninformative" as "the puzzles are fine". The playtest that opened this phase still stands.

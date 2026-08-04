@@ -90,10 +90,42 @@ stats) per doc 06; the doc 05 scorer, hard filters, and interestingness ranking.
 bank builder, CI. All four make a bank *bigger, cleaner and faster to produce*; none makes it *good*,
 and running dedupe on the corpus above would correctly collapse the easy band to two puzzles.
 
-## P3 — Difficulty rebuild (**next**)
+## P3 — Difficulty rebuild (**in progress; resequenced after M5**)
 
 The phase this roadmap was resequenced to create. Ordered so each milestone produces the measurement
-that justifies the next.
+that justifies the next — which worked, and what it justified was cutting the phase short.
+
+**Resequenced 2026-08-04, after M4, M4a and M5 (doc 07 T22).** The ordering principle was "build the
+measurement before the mechanism". Three milestones in, the measurements agree on something the plan did
+not anticipate: **the instruments degenerate on this corpus because generation is the problem, and no
+further instrument will say anything new.**
+
+| Milestone | What it was to measure | What it found |
+|---|---|---|
+| M4 | answer distribution after fixing the sampler | modal share 71.8% → 36.0%; **the cause was Stage 1 all along** |
+| M4a | whether ratio/length widen the answer space | they narrow it; one rule of 93 derives a ratio constant |
+| M5 | the auxiliary-construction rate | identically zero by definition; the shortcut filter unbuildable; the replacement feature anti-correlated with difficulty |
+
+Four separate difficulty signals, four dead ends, one cause — doc 07 L4. So the remaining P3 work is cut
+to the items that earn their place *without* assuming a better corpus, and the generator rebuild (P5)
+is promoted to the critical path:
+
+- **Kept — M6, the answer-entropy cap (filter 8).** Guessability is measured, real, and independent of
+  how figures are generated. It is now the only surviving hard gate from the difficulty rebuild.
+- **Kept and promoted — the configuration table.** It was a nice-to-have while filter 9 was expected to
+  carry the sight-read failure. Filter 9 is dead, so this is the *only* remaining mechanism aimed at
+  that failure, and doc 04's risk table lists the risk as unmitigated until it lands.
+- **Kept — M7, LLM step rendering.** The one item that *adds* puzzles rather than removing them: it
+  retires the whitelist gate over 74 untemplated rules, which raises both yield and the difficulty
+  ceiling. On a corpus yielding 9 puzzles per 1,500 constructions, that matters more than another gate.
+- **Dropped from P3 — layout anti-alignment.** Real but cosmetic beside a yield problem this size;
+  it moves to P4 with the rest of the presentation work.
+- **Promoted — P5.** Everything above is downstream of a sampler that grows clauses at random and
+  discards 86% as degenerate. Start it as soon as M6 and M7 land.
+
+The honest framing: P3 set out to *measure* difficulty and instead established that this generator
+cannot produce enough of it to measure. That is a successful phase with an unwelcome result, and the
+response is to fix generation — not to keep building instruments, and not to lower a cut (doc 07 T10).
 
 **M4 — Sampler bias, band plumbing, and the sight-readable rejection — DONE.** Measured at seed 42:
 
@@ -154,18 +186,64 @@ documents. Fixed with a kind-keyed table asserted exhaustive over `VALUED_KINDS`
 five kinds pinned by a behavioural test (writing the table by inspection got `rconst` wrong first try:
 its Fraction is in `value`, while `ratio` holds the segments).
 
-**M5 — Auxiliary-construction detection (next).** Surface `requires_auxiliary` from the traceback we
-already build (doc 04 Stage 6), score it (doc 05 §5.1a), report it per band. Tuned against the
-angle-only corpus, which M4a settled is the corpus we have (doc 07 T21).
-**AC:** the rate is measured on the current corpus. If it is ~0, that is a finding about the sampler
-(doc 07 L4) and feeds P5 — not a failure of the milestone.
+**M5 — Auxiliary-construction detection. DONE 2026-08-04. Outcome: not built; the metric is
+definitionally zero, the shortcut filter it shared a stage with is unbuildable, and the replacement
+feature ships unscored (doc 07 T22).** The AC allowed for a zero rate as a finding about the sampler.
+The rate is zero, but not for the reason the AC anticipated — it is zero *by construction*, so it is a
+finding about the definition first and about the sampler second.
 
-**M6 — LLM step rendering.** Retire the whitelist gate; Gemini 3.6 Flash free tier; content-keyed cache
+Measured at seed 42:
+
+| | |
+|---|---|
+| `subdag.points() - needed_points()` non-empty | **0 / 163** puzzles, every band |
+| Containment (`subdag.points()` ⊆ its own leaves) | holds 61 / 61 |
+| Tautology naming an otherwise-unmentioned point | 0 |
+| `langley_with_auxiliary` fixture — genuine auxiliary line | reports **EMPTY** |
+| Published solution naming an undrawn point | 0 (no latent shipping defect) |
+
+The fixture is the decisive one. Its auxiliary point `d` is in the proof and essential to it, and the
+detector does not see it, because `d` is named by the premise `aconst:a:c:a:d=1/9`. Any constructed
+point becomes a stated given the moment the proof uses it — so the metric is blind to exactly what it is
+named for, and no sampler change could ever make it fire. Doc 07 T10's "detecting them is nearly free"
+and L1's 2026-08-04 amendment are both withdrawn.
+
+**Shipped instead — `unused_points`, recorded and deliberately unscored.** Drawn points the derivation
+does not need. It varies where its predecessor could not (0–5, mean 1.58, only 34% at zero), because
+`prune_figure` closes construction dependencies transitively. It gets **no weight**, and that was
+decided by measurement rather than caution: ρ = **+0.777** against figure size, and −0.048 / −0.110 /
+−0.140 / −0.147 / −0.096 against depth, width, distinct_rules, branch_join and the score. Mean unused is
+1.80 in easy and 2.11 in hard but 0.00 in expert. Weighting it positively would score big rambling
+figures as hard — doc 07 T19's mistake, repeated. It is reported per band under `sampler_diagnostics`
+as evidence about Stage 1, which is what it actually measures. A test asserts it stays out of
+`SCORING.weights`, so weighting it later forces a re-measure.
+
+**Also settled here, because M5 owned the stage it lived in: doc 05 §5.2 filter 9 cannot be built.**
+Four independent blockers, the strongest of them measured in M4a — a saturating closure over the stated
+givens yields 181 `aconst` facts of which **0 are novel**, so a bounded forward re-solve returns "no
+shortcut" for every angle puzzle regardless of difficulty. `shortcut_margin` goes with it, doc 07 O9
+closes, and doc 04's risk table now carries "goal solvable in two steps" as **unmitigated**.
+
+**M6 — Answer-entropy cap and the configuration table (next).** The two survivors of the resequence
+above, together because both are selection-time gates and both target guessability.
+- *Filter 8*, bank-level, between `interest.select(...)` and the layout loop so the surplus dropped is
+  the least interesting; `BuildReport.dropped_by_entropy` beside `dropped_by_interest`; config
+  `max_answer_share`, `min_band_size_for_share`.
+- *Configuration table* (`scoring/configurations.py`), matched over the **stated givens** rather than
+  construction names — a name whitelist matched 98 of 98 first-bank puzzles and the catalogue has no
+  `rhombus` primitive at all, so the named failures are emergent. Patterns must be **generated from a
+  real engine solve, never hand-written**: `aconst` is a directed line-to-line angle mod π and `cong`
+  canonicalization is thin enough that BUG-4 exists.
+**AC:** both fire on the seed-42 corpus with a committed rate; every pattern has a negative fixture; the
+discard reason names the pattern so attrition reads as a priority queue.
+
+**M7 — LLM step rendering.** Retire the whitelist gate; Gemini 3.6 Flash free tier; content-keyed cache
 committed with the bank; entity-level fidelity check; golden fixtures over every templated rule; tiers
-assigned for all 93 rules (doc 03 §3.5a, doc 05 §5.1, doc 07 T17).
+assigned for all 93 rules (doc 03 §3.5a, doc 05 §5.1, doc 07 T17). **Promoted in the resequence for a
+reason worth stating: it is the only remaining item that raises yield rather than cutting it.**
 **AC:** all 93 rules shippable; the seed-42 corpus rebuilds byte-identical from cache with zero network
 calls; fidelity check tested from both sides; sampled prose review clean; puzzles previously discarded
-for over-budget AR chains now ship.
+for over-budget AR chains now ship — reported as a yield delta, since that is the point.
 
 **M7 — Quantity waves: ratio and length. BLOCKED by M4a's measurement (doc 07 T21); moved out of P3.**
 Registering the types is the cheap part and the spike showed it does not buy what this milestone was for
@@ -211,7 +289,10 @@ The response to doc 07 L4 — the sampler, not the translator or the scorer, is 
   judge the proposer cannot see — doc 07 T20's line.
 - **Auxiliary-construction hiding**: generate *with* the aux element (Newclid agent heuristics, then an
   LLM proposer through the same API, engine-verified), hide it, design the rediscovery hint UX.
-  *Detection* already landed in P3 M5; this is the hard half.
+  ~~*Detection* already landed in P3 M5; this is the hard half.~~ **Corrected by M5: there is no
+  detection half.** A point the proof uses is always named by a given, so nothing is detectable until
+  something is hidden — hiding *creates* the signal rather than exposing one (doc 07 T22, L1). This
+  bullet is therefore the whole of the auxiliary work, not the second half of it.
 
 **AC:** expert band populated at target volume from figures containing genuine auxiliary points;
 degeneracy attrition materially below the measured 86%; hidden-construction hint UX validated by
