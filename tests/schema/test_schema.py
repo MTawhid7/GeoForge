@@ -23,7 +23,9 @@ SEED = 42
 
 @pytest.fixture(scope="module")
 def report() -> BatchReport:
-    return run(BATCH_N, SEED)
+    # `reject_sight_readable=False`: this corpus exists to exercise machinery, and the
+    # product answer policy (docs/07 T5) costs an order of magnitude of yield.
+    return run(BATCH_N, SEED, reject_sight_readable=False)
 
 
 @pytest.fixture(scope="module")
@@ -117,10 +119,20 @@ class TestRejections:
     def test_a_given_that_claims_a_form_it_does_not_carry(
         self, payloads: list[dict[str, Any]]
     ) -> None:
-        raw = json.loads(json.dumps(payloads[0]))
-        raw["given"][0]["form"] = "quantity"
-        with pytest.raises(SchemaError, match="form='quantity'"):
-            Puzzle.from_json(raw)
+        # Searched rather than indexed: which given sits at position 0 is a property of the
+        # corpus, and this test is about the parser.
+        for payload in payloads:
+            index = next(
+                (i for i, g in enumerate(payload["given"]) if g["form"] == "relation"), None
+            )
+            if index is None:
+                continue
+            raw = json.loads(json.dumps(payload))
+            raw["given"][index]["form"] = "quantity"
+            with pytest.raises(SchemaError, match="form='quantity'"):
+                Puzzle.from_json(raw)
+            return
+        pytest.fail("no puzzle carried a relation-form given, so nothing was tested")
 
     def test_colliding_display_labels(self) -> None:
         """Two engine points labelled the same would merge in every id the player sees."""

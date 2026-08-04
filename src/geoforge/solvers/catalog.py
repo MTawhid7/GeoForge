@@ -19,10 +19,34 @@ _NUMERIC_PARAM_CONSTRUCTIONS: frozenset[str] = frozenset(
     {"aconst", "s_angle", "lconst", "l2const", "rconst", "rconst2", "r2const"}
 )
 
-#: Predicate keywords that mean "this primitive puts a circle (or an equal-radius relation)
-#: into the figure". Phase 0 found circles carry most of the difficulty in angle chasing, so
-#: the sampler biases toward these (config.GENERATION.circle_step_weight).
-_CIRCLE_KEYWORDS: tuple[str, ...] = ("cyclic", "circle", "cong")
+#: Predicates that put a circle the renderer will actually **draw** into the figure. This is
+#: deliberately the same pair `generator/emit.py::circles_of` honours, because a primitive whose
+#: circle is never drawn carries none of the difficulty the sampler bias exists to buy.
+#:
+#: **Corrected in Phase 3 M4 — it used to include `cong`, and that one keyword produced the
+#: first bank.** A JGEX circle *is* expressed with `cong` ("equidistant from a centre"), so the
+#: keyword looked right; but `cong` is also how every square, rhombus, parallelogram, isosceles
+#: triangle and reflection is expressed. It flagged **37 of 87** primitives, 18 of them with no
+#: circle in them at all, so `GENERATION.band_profiles[...].circle_weight` was in practice a 2x
+#: bias toward equal-length symmetry generators. Measured consequence at seed 42: the top
+#: primitives were `nsquare`, `square`, `psquare`, `parallelogram`, `risos`, 71 of 98 answers
+#: were 45 degrees, and **not one figure contained a circle**.
+#:
+#: Matching is on the predicate head token, not a substring: `on_circle` is a *construction*
+#: name whose only predicate is `cong`, and a substring test would flag it for a circle it
+#: never declares.
+_CIRCLE_PREDICATES: frozenset[str] = frozenset({"circle", "cyclic"})
+
+#: Primitives that put a **stated angle value** into the figure — the givens an angle-chase
+#: puzzle is actually chased from. Named rather than derived: they are exactly the angle members
+#: of `_NUMERIC_PARAM_CONSTRUCTIONS`, and a primitive whose numeric argument is a length or a
+#: ratio states nothing about an angle.
+#:
+#: MEASURED Phase 3 M4, and it is why the per-band angle palette had almost no effect: with both
+#: of these at pick weight 1.0 among 62 usable extensions, only **2 of 22** surviving puzzles
+#: stated an angle value at all. The rest answer 45 degrees because the figure contains a square,
+#: not because anyone was told an angle.
+_ANGLE_VALUE_CONSTRUCTIONS: frozenset[str] = frozenset({"s_angle", "aconst"})
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -41,6 +65,9 @@ class ConstructionDef:
     is_seed: bool
     """True when the primitive needs no existing points, so it can start a figure."""
     introduces_circle: bool
+    """True when the primitive declares a circle the renderer will draw."""
+    states_angle_value: bool
+    """True when the primitive puts a stated angle value into the figure."""
 
     @property
     def arity(self) -> int:
@@ -71,7 +98,6 @@ def _build_catalog() -> dict[str, ConstructionDef]:
         if not outputs:
             continue
 
-        clause_text = " ".join(str(c) for c in definition.clauses)
         out[name] = ConstructionDef(
             name=name,
             input_points=inputs,
@@ -79,9 +105,26 @@ def _build_catalog() -> dict[str, ConstructionDef]:
             numeric_params=leftover,
             arg_order=args,
             is_seed=not inputs,
-            introduces_circle=any(k in clause_text for k in _CIRCLE_KEYWORDS),
+            introduces_circle=bool(_predicates_of(definition) & _CIRCLE_PREDICATES),
+            states_angle_value=name in _ANGLE_VALUE_CONSTRUCTIONS,
         )
     return out
+
+
+def _predicates_of(definition: object) -> frozenset[str]:
+    """The predicate heads a construction declares.
+
+    A JGEX clause reads `<outputs> = <pred args>, <pred args>`, so the heads are the first
+    token of each comma-separated term on the right of the `=`.
+    """
+    heads: set[str] = set()
+    for clause in getattr(definition, "clauses", ()):
+        _, _, rhs = str(clause).partition("=")
+        for term in rhs.split(","):
+            tokens = term.split()
+            if tokens:
+                heads.add(tokens[0])
+    return frozenset(heads)
 
 
 def seeds() -> tuple[ConstructionDef, ...]:

@@ -7,8 +7,11 @@ looks.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
+from geoforge.config import GENERATION
 from geoforge.generator.extract import (
     ExtractionReason,
     extract_goals,
@@ -43,7 +46,11 @@ def realize(backend: SolverBackend, name: str) -> RealizedFigure:
 
 class TestVerificationDecides:
     def test_thales_right_angle_is_extracted(self, backend: SolverBackend) -> None:
-        report = extract_goals(backend, realize(backend, "thales"), OPTS)
+        # `reject_sight_readable=False`: Thales' answer is a right angle, which the product
+        # policy rejects (docs/07 T5). This test is about verification, not the policy.
+        report = extract_goals(
+            backend, realize(backend, "thales"), OPTS, reject_sight_readable=False
+        )
         assert len(report.goals) == 1
         goal = report.goals[0]
         assert goal.subject == ("a", "c", "b"), "the right angle is the one at c, on the circle"
@@ -58,7 +65,7 @@ class TestVerificationDecides:
         bank would be worth nothing.
         """
         figure = realize(backend, "thales")
-        goal = extract_goals(backend, figure, OPTS).goals[0]
+        goal = extract_goals(backend, figure, OPTS, reject_sight_readable=False).goals[0]
         without = backend.solve_facts(
             PremiseSpec(points=figure.points, premises=(), goals=(goal.fact,)), OPTS
         )
@@ -134,3 +141,58 @@ class TestDeterminism:
         second = extract_goals(backend, figure, OPTS)
         assert [g.fact for g in first.goals] == [g.fact for g in second.goals]
         assert first.rejected == second.rejected
+
+
+class TestSightReadableAnswersAreRejected:
+    """docs/07 T5: 45 and 90 degrees are *recognised* off a to-scale figure, not measured.
+
+    A gate that never fires is untested, and this one is easy to break silently — it lives one
+    `if` away from the ranking that used to concentrate exactly these answers. So it is asserted
+    firing, not firing, and not over-firing.
+    """
+
+    def test_thales_right_angle_is_rejected(self, backend: SolverBackend) -> None:
+        """The canonical case: the angle in a semicircle is 90 degrees and always was."""
+        report = extract_goals(backend, realize(backend, "thales"), OPTS)
+        assert not report.goals
+        assert any(reason is ExtractionReason.SIGHT_READABLE for _, reason in report.rejected), (
+            f"expected a sight_readable rejection, got {report.counts()}"
+        )
+
+    def test_the_same_goal_survives_with_the_policy_off(self, backend: SolverBackend) -> None:
+        """The near-miss. Without this, the test above passes on an extractor that returns
+        nothing at all."""
+        report = extract_goals(
+            backend, realize(backend, "thales"), OPTS, reject_sight_readable=False
+        )
+        assert len(report.goals) == 1
+        assert report.goals[0].fact.degrees() == 90
+        assert not any(reason is ExtractionReason.SIGHT_READABLE for _, reason in report.rejected)
+
+    def test_an_awkward_answer_is_kept(self, backend: SolverBackend) -> None:
+        """The other near-miss: the gate must reject *those two values*, not every answer.
+
+        The inscribed figure is built on a 50-degree given, so its derivable angles are not
+        multiples of 45.
+        """
+        report = extract_goals(backend, realize(backend, "inscribed"), OPTS)
+        assert report.goals, f"nothing survived: {report.counts()}"
+        for goal in report.goals:
+            assert goal.fact.degrees() not in GENERATION.rejected_answer_degrees
+
+    def test_a_non_integer_answer_is_never_rejected(self) -> None:
+        """`Fact.value` is a `Fraction` of pi (docs/07 T18), so a value that is not a whole
+        number of degrees is a genuinely awkward angle — the best kind of answer, and one an
+        integer-only membership test must not accidentally match."""
+        from fractions import Fraction
+
+        from geoforge.generator.extract import _answer_degrees
+
+        class _Stub:
+            def __init__(self, value: Fraction | None) -> None:
+                self.fact = SimpleNamespace(value=value)
+
+        assert _answer_degrees(_Stub(Fraction(1, 7))) is None  # type: ignore[arg-type]
+        assert _answer_degrees(_Stub(None)) is None  # type: ignore[arg-type]
+        assert _answer_degrees(_Stub(Fraction(1, 2))) == 90  # type: ignore[arg-type]
+        assert _answer_degrees(_Stub(Fraction(1, 4))) == 45  # type: ignore[arg-type]

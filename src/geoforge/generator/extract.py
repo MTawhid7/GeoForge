@@ -94,6 +94,9 @@ class ExtractionReason(StrEnum):
     """Below `GENERATION.min_proof_depth` or `min_distinct_rules`: not a puzzle."""
     UNRENDERABLE = "unrenderable"
     """The backend could not express the candidate as a predicate."""
+    SIGHT_READABLE = "sight_readable"
+    """The answer is a multiple of 30 or 45 degrees — read straight off a to-scale figure
+    (`GENERATION.rejected_answer_degrees`, docs/07 T5). Rejected however deep the proof is."""
     SURPLUS = "surplus"
     """Verified and interesting, but ranked below `max_goals_per_construction`. Not a defect —
     counted separately so the attrition report never confuses "no good goal" with "too many"."""
@@ -137,12 +140,21 @@ def extract_goals(
     types: tuple[QuantityType, ...] | None = None,
     max_goals: int | None = None,
     require_interesting: bool = True,
+    reject_sight_readable: bool = True,
 ) -> ExtractionReport:
     """Propose, verify, and filter goals for one realized figure.
 
     `require_interesting` applies the shared depth and distinct-rule floors from `config`
     (`docs/04` Stage 5 uses the same thresholds as `docs/05`'s filters — one source). Turn it
     off to inspect what the engine proves before difficulty filtering, never to ship.
+
+    `reject_sight_readable` drops goals whose answer is a multiple of 30 or 45 degrees
+    (`GENERATION.rejected_answer_degrees`, docs/07 T5). It is a separate switch from
+    `require_interesting` on purpose: that one is about the *proof*, this one is about the
+    *answer*, and conflating them would make it impossible to exercise the machinery on the
+    classic fixtures. Turn it off for tests over known configurations — Thales, inscribed angle,
+    equilateral — whose whole point is a right or a third-of-a-straight answer. Never for
+    shipping: on real output it is the difference between a puzzle and a multiple-choice game.
     """
     from geoforge.solvers.newclid_backend import UnsupportedFactKind
 
@@ -187,6 +199,9 @@ def extract_goals(
         if require_interesting and not _is_interesting(goal):
             rejected.append((proposal.key, ExtractionReason.TOO_SHALLOW))
             continue
+        if reject_sight_readable and _answer_degrees(goal) in GENERATION.rejected_answer_degrees:
+            rejected.append((proposal.key, ExtractionReason.SIGHT_READABLE))
+            continue
         verified.append(goal)
 
     # Every candidate is verified before any is chosen, then the best `limit` are kept. Taking
@@ -204,10 +219,31 @@ def _preference(goal: ExtractedGoal) -> tuple[int, int, str]:
 
     Deeper proofs using more distinct rules make better puzzles. The proposal key breaks ties so
     the choice is deterministic — required, since the whole batch must be reproducible from its
-    seed (docs/02 invariant 2). The full multi-feature scorer is Phase 2's job (docs/05); this
-    only has to pick sensibly among a handful of verified candidates.
+    seed (docs/02 invariant 2). The full multi-feature scorer is docs/05's job; this only has to
+    pick sensibly among a handful of verified candidates.
+
+    Note what this deliberately does *not* do (Phase 3 M4): weigh how guessable the answer is.
+    Ranking by depth measurably concentrated round answers, because the engine's longest chains
+    live in the symmetric figures whose angles are round (docs/07 T19). The fix is the hard
+    rejection above rather than a term here — by the time ranking runs, every answer that could
+    be read off the figure is already gone, so a soft penalty would be a sort key that can never
+    fire, and an untested one at that.
     """
     return (-goal.depth, -goal.distinct_rules, goal.proposal.key)
+
+
+def _answer_degrees(goal: ExtractedGoal) -> int | None:
+    """The goal's value in whole degrees, or None if it is not a whole number of them.
+
+    `Fact.value` is a `Fraction` of pi (docs/07 T18), so a non-integer result is a genuinely
+    awkward angle rather than a rounding artefact — and those are the answers worth keeping,
+    which is why `None` never matches the rejection set.
+    """
+    value = goal.fact.value
+    if value is None:
+        return None
+    degrees = value * 180
+    return int(degrees) % 180 if degrees.denominator == 1 else None
 
 
 def _is_interesting(goal: ExtractedGoal) -> bool:

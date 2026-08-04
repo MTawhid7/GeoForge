@@ -91,11 +91,50 @@ class TestSampling:
             names = [p for step in construction.steps for p in step.outputs]
             assert len(names) == len(set(names))
 
+    def test_the_circle_flag_means_a_circle_gets_drawn(self) -> None:
+        """`introduces_circle` must agree with `emit.circles_of`, which draws only `circle` and
+        `cyclic` facts.
+
+        This is the assertion that would have caught the defect M4 fixed. The flag keyed on the
+        `cong` predicate, which is how JGEX spells *every* equal-length relation, so 37 of 87
+        primitives were flagged — squares, parallelograms, isosceles triangles, reflections —
+        and the sampler's "circle bias" was a 2x bias toward symmetry generators. Measured
+        consequence: zero circles in 98 shipped figures.
+        """
+        flagged = {name for name, d in catalog().items() if d.introduces_circle}
+        assert "circle" in flagged and "on_circum" in flagged
+        for name in ("square", "nsquare", "psquare", "parallelogram", "rectangle", "risos"):
+            assert name not in flagged, f"{name} draws no circle but is flagged as if it does"
+        # `on_circle` is the trap for a substring test: its name contains "circle" and its only
+        # predicate is `cong`, so it declares no circle the renderer can draw.
+        assert "on_circle" not in flagged
+
     def test_circle_bias_is_effective(self) -> None:
-        """Phase 0 found circles carry the difficulty, so the grammar up-weights them."""
+        """Phase 0 found circles carry the difficulty, so the grammar up-weights them.
+
+        The bar is deliberately modest: only 2 of 62 usable extensions draw a circle, so even a
+        20x weight buys ~40% per step rather than a majority. Before M4 this test asserted
+        `> 40/80` and passed — on 37 mis-flagged primitives, none of which drew a circle.
+        """
         rng = np.random.default_rng(19)
-        with_circle = sum(1 for _ in range(80) if sample_construction(rng)[0].introduces_circle)
-        assert with_circle > 40, f"only {with_circle}/80 constructions involved a circle"
+        with_circle = sum(
+            1 for _ in range(80) if sample_construction(rng, band="hard")[0].introduces_circle
+        )
+        assert with_circle > 20, f"only {with_circle}/80 constructions involved a circle"
+
+    def test_a_harder_band_is_more_circle_heavy_than_an_easy_one(self) -> None:
+        """The per-band profiles exist to differ; equal weights would be a silent no-op."""
+        easy = sum(
+            1
+            for i in range(120)
+            if sample_construction(np.random.default_rng(i), band="easy")[0].introduces_circle
+        )
+        hard = sum(
+            1
+            for i in range(120)
+            if sample_construction(np.random.default_rng(i), band="hard")[0].introduces_circle
+        )
+        assert hard > easy, f"easy {easy}/120 vs hard {hard}/120"
 
     @pytest.mark.parametrize("band", ["easy", "medium", "hard"])
     def test_numeric_givens_come_from_the_band_palette(self, band: str) -> None:
