@@ -366,16 +366,29 @@ Everything cheap has been tried. What is left, in the order the measurements jus
 is the only change that alters what a GeoForge puzzle can *ask*, and it is independent of the aux
 problem. See P6.
 
-## P6 — Areas
+## P6 — Areas — **design done 2026-08-05 (`docs/10-area-layer.md`); PROMOTED**
 
-Design doc first (required by doc 03 §3.7), and it must **choose between two architectures** before any
-code: (a) the verified decomposition layer — target region split into triangles whose sides/angles are
-engine-certified, exact symbolic area arithmetic (SymPy) as decomposition steps; or (b) adopting the
-Chou–Gao–Zhang **area method** as a second SAL backend, which proves area/ratio/length statements
-natively and produces short readable proofs, at the cost of a second engine to own. Either way:
-`regions` figure schema + shading UX (doc 06).
-**AC:** shaded-area puzzles pass all existing gates including cross-engine re-certification of every
-underlying fact; decomposition steps pass the prose-fidelity check.
+~~Design doc first (required by doc 03 §3.7), and it must **choose between two architectures** before
+any code.~~ **Written, and the choice is made:** (a) the verified decomposition layer is the build;
+(b) the Chou–Gao–Zhang area method stays a candidate to be judged against A2's measured results rather
+than ahead of them, because it is a second engine to own.
+
+**Promoted ahead of the remaining P5 auxiliary-construction work**, on evidence rather than appeal.
+P3 and P5 have spent four milestones on proof *structure* and the ceiling is measured: aux is real but
+capped at ~1.8% of goals with five levers tried and none moving it (doc 07 T26), and `aconst` is
+**0-derived** so every angle puzzle is a chase from stated angles. **No rung of doc 01's ladder changes
+what a puzzle can ask.** The area layer is the only planned work that does, and it is independent of
+the aux problem.
+
+Feasibility is spiked, not assumed: the engine certifies `aconst` and two `lconst` on one triangle, the
+layer computes √3, and shoelace confirms it (doc 10 §10.4). Build order, kill conditions and the
+directed-angle hazard that shapes the primitive set are all in doc 10.
+
+**AC:** unchanged and still binding — shaded-area puzzles pass all existing gates including cross-engine
+re-certification of every underlying *engine* fact; decomposition steps pass the prose-fidelity check.
+Added by doc 10: ≥1 irrational answer per band, modal answer share below angle's 36.0%, and an
+independent second route re-checking every emitted area — the cross-engine validator cannot see layer
+arithmetic (doc 10 §10.8), which is the one genuinely new blind spot this work introduces.
 
 ## P7 — Formal tier & platform seed (ongoing)
 
