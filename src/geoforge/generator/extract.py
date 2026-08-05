@@ -97,6 +97,10 @@ class ExtractionReason(StrEnum):
     SIGHT_READABLE = "sight_readable"
     """The answer is a multiple of 30 or 45 degrees — read straight off a to-scale figure
     (`GENERATION.rejected_answer_degrees`, docs/07 T5). Rejected however deep the proof is."""
+    DEGENERATE_GOAL = "degenerate_goal"
+    """The goal's own three points are too flat to carry a trustworthy numeric check
+    (docs/04 Stage 3, docs/07 T23). This is the *scoped* half of what Stage 3 used to reject
+    whole figures for: a flat triple matters when the puzzle is about it, and not otherwise."""
     SURPLUS = "surplus"
     """Verified and interesting, but ranked below `max_goals_per_construction`. Not a defect —
     counted separately so the attrition report never confuses "no good goal" with "too many"."""
@@ -156,17 +160,25 @@ def extract_goals(
     equilateral — whose whole point is a right or a third-of-a-straight answer. Never for
     shipping: on real output it is the difference between a puzzle and a multiple-choice game.
     """
+    from geoforge.generator.degeneracy import degenerate_triples
     from geoforge.solvers.newclid_backend import UnsupportedFactKind
 
     opts = opts or SolveOptions()
     limit = GENERATION.max_goals_per_construction if max_goals is None else max_goals
     given = {fact.fact_id for fact in figure.declared}
+    flat = degenerate_triples(figure)
 
     proposals = propose(figure, types)[: EXTRACTION.max_candidates_per_construction]
     verified: list[ExtractedGoal] = []
     rejected: list[tuple[str, ExtractionReason]] = []
 
     for proposal in proposals:
+        # Scoped degeneracy (docs/07 T23). Stage 3 no longer throws a figure away because some
+        # unrelated corner of it is flat; a flat triple is refused here, where it is the subject
+        # of the question and so the one place its flatness can mislead.
+        if frozenset(proposal.subject) in flat:
+            rejected.append((proposal.key, ExtractionReason.DEGENERATE_GOAL))
+            continue
         # Cheap pre-check. It only catches the case where our spelling already matches the
         # engine's canonical one, so it saves an engine call but cannot be relied on; the
         # authoritative check is on the canonical fact after verification, below.

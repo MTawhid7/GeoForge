@@ -224,8 +224,34 @@ givens yields 181 `aconst` facts of which **0 are novel**, so a bounded forward 
 shortcut" for every angle puzzle regardless of difficulty. `shortcut_margin` goes with it, doc 07 O9
 closes, and doc 04's risk table now carries "goal solvable in two steps" as **unmitigated**.
 
-**M6 — Answer-entropy cap and the configuration table (next).** The two survivors of the resequence
-above, together because both are selection-time gates and both target guessability.
+**M6 — Generation rebuild: configuration seeding and the rescoped degeneracy check. IN PROGRESS
+2026-08-05.** Promoted ahead of the gates below, because the M5 resequence said generation is the
+binding constraint and two measurements then showed the fix is far cheaper than P5 assumed.
+
+*Adopted, with the measurement that justified each:*
+
+1. **Rescope the degeneracy check** (doc 07 T23). It rejected a whole figure for any one flat triple
+   among C(n,3) — combinatorial in point count, so hardest on the richest figures. Ground truth: it
+   refused 52% of JGEX and **85% of IMO** configurations, which are correct by definition, and 14 of the
+   20 seeded constructions that yielded a goal. Whole-figure checks stay at Stage 3; the per-triple test
+   becomes data, acted on at Stage 5 where the goal is known.
+2. **Seed Stage 1 from the human configuration library** (doc 07 T24). 635 competition problems in the
+   reference clones, in our own JGEX syntax, realizing at ~100%. Decorated with Stage 2 givens: **33%
+   of skeletons yield a goal against clause growth's 5.4%, 25 distinct answers against 9, 11.1% modal
+   share against 36.0%,** depths spread 3–9 instead of piled at 4.
+3. **Difficulty ground truth** (doc 05 §5.1c): 404 olympiad vs 231 textbook skeletons — an external
+   hard/routine label. It cannot rank a puzzle; it can refute a scorer, which is the first automatable
+   claim about difficulty this project has had.
+4. **Promote the LLM oracle to a first-class difficulty signal** (doc 07 T25). Deferred to M7 with the
+   renderer, since both need the same cached-call infrastructure.
+5. **Keep filter 8 and the renderer; drop the learned value model** from near-term P5 — the library
+   supplies the configuration richness the value model was meant to search for.
+
+**AC:** end-to-end yield, answer entropy and band coverage at seed 42, committed, against the M5
+baseline; determinism unchanged; a build without the reference clones still produces puzzles.
+
+**M6b — Answer-entropy cap and the configuration table.** The two selection-time gates, unchanged in
+intent by the resequence and now tuned against a corpus worth tuning against.
 - *Filter 8*, bank-level, between `interest.select(...)` and the layout loop so the surplus dropped is
   the least interesting; `BuildReport.dropped_by_entropy` beside `dropped_by_interest`; config
   `max_answer_share`, `min_band_size_for_share`.
@@ -284,9 +310,13 @@ The response to doc 07 L4 — the sampler, not the translator or the scorer, is 
 - **Backward generation** (doc 07 T20): search from a target configuration, traceback to propose,
   forward-chain to prove — the TongGeometry and AlphaGeometry data-pipeline shape. Ideas only; that
   code is GPL (doc 07 P2).
-- **Interestingness proposer**: a learned value model guiding the search, trained against real
-  competition problems (IMO-AG-30, JGEX-AG-231, MO-TG-225). The difficulty score stays a downstream
-  judge the proposer cannot see — doc 07 T20's line.
+- ~~**Interestingness proposer**: a learned value model guiding the search, trained against real
+  competition problems (IMO-AG-30, JGEX-AG-231, MO-TG-225).~~ **Dropped from the near term 2026-08-05
+  (doc 07 T24).** The datasets it was to be *trained on* turned out to be directly usable as the
+  configuration library itself, which supplies the richness the value model was meant to search for at
+  none of the cost. Revisit only if seeded output plateaus and the plateau is measured — a learned
+  proposer is justified by a ceiling we have hit, not by one we anticipate. T20's line still holds
+  whenever it returns: the difficulty score stays a downstream judge the proposer cannot see.
 - **Auxiliary-construction hiding**: generate *with* the aux element (Newclid agent heuristics, then an
   LLM proposer through the same API, engine-verified), hide it, design the rediscovery hint UX.
   ~~*Detection* already landed in P3 M5; this is the hard half.~~ **Corrected by M5: there is no

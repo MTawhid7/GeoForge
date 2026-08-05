@@ -89,6 +89,16 @@ what it produces is degenerate (344 of 546 discards at seed 42 — degenerate_tr
 doc 09 P5 (configuration-seeded and backward generation); L4 is expected to be the standing limitation
 for the next several phases, and saying so is the point of recording it.
 
+**Amended 2026-08-05 (M6).** Two corrections, and the second shortens the expected life of this entry.
+First, **part of the "86% degenerate" was our own checker**, not the sampler: the whole-figure triple
+test refused figures at a rate that climbed with their richness, including 85% of IMO configurations
+(T23). The attrition number above was read as evidence about generation when it was partly evidence
+about measurement — the same confusion T22 records at the difficulty layer. Second, the mitigation
+arrived much cheaper than "the next several phases" implied: the configuration archetypes P5 proposed
+building already exist, Apache-2.0, in the reference clones (T24). L4 is now an *active* work item
+rather than a standing limitation. It is not yet closed — seeding raises configuration richness, and
+whether that converts into measured difficulty is doc 05 §5.1c's question, still open.
+
 ## 7.3 Accepted technical trade-offs (T)
 
 **T1 — Human-natural undirected angles in presentation.** Engines internally use robust representations;
@@ -535,3 +545,119 @@ dead it is the only remaining mechanism aimed at the sight-read failure.
 
 What this does **not** license is lowering a cut to fake a band (T10) or reading "the instrument is
 uninformative" as "the puzzles are fine". The playtest that opened this phase still stands.
+
+**T23 — The degeneracy check was combinatorially biased against rich figures; rescoped 2026-08-05.**
+`check_figure` rejected the *whole figure* if any one of its C(n,3) point triples was near-flat. The
+rejection probability therefore grew with the point count, so the check penalised exactly the figures
+the product needs — and it was invisible because our own sampler makes small figures, where the bias
+is weak.
+
+Ground truth exposed it. Run against human competition configurations, which are correct by
+definition, it rejected **52% of JGEX (`jgex_ag_231`)** and **85% of IMO (`imo_102_requires_aux`)**
+figures, on triples like `m1m2o1` in imo_1983_p2 — midpoints of two tangent segments and a circle
+centre, near-collinear because that is what the problem *is*. On our own decorated output it discarded
+14 of the 20 constructions that produced a goal.
+
+The fix is scope, not threshold — the thresholds are unchanged. Two questions were conflated:
+
+* *Is this figure broken?* Coincident points, nothing to draw, engine could not build it. Whole-figure,
+  cheap, still rejected at Stage 3 by `check_figure`.
+* *Is this triple too flat to carry a numeric check?* A property of a triple, and it only matters for
+  triples something downstream depends on. `degenerate_triples` reports them; Stage 5 refuses a goal
+  built on one (`ExtractionReason.DEGENERATE_GOAL`).
+
+Why a far-away flat triple is harmless: the proof is symbolic and numerics only ever verify (doc 02
+invariant 4). The exposure is to the *numeric* checks — the goal's own angle, and the configuration
+facts the derivation records — not to the deduction. The goal is checked; the configuration-fact case
+is left to the well-posedness gate and is watched rather than pre-empted, because pre-empting it would
+mean reinstating a whole-figure test to solve a problem no measurement has yet shown.
+
+Residual risk, stated plainly: a figure may now ship containing a flat triple the puzzle never mentions.
+That is a *drawing* concern, not a soundness one, and it belongs to the layout gate. If sampled review
+finds ugly figures, the answer is a layout term, not a return to the old check.
+
+**T24 — Stage 1 draws from a human configuration library as well as from clause growth
+(adopted 2026-08-05; the near-term answer to L4 and the replacement for P5's learned proposer).**
+Doc 07 T22 concluded that generation, not measurement, is the binding constraint, and doc 09 P5
+proposed fixing it with configuration archetypes plus a learned value model — a research project. The
+archetypes turned out to already exist: the Apache-2.0 reference clones carry **635 competition
+problems written in the same JGEX construction syntax this pipeline emits**, and they realize through
+the SAL at ~100%.
+
+They are not puzzles for us as they stand. Their goals are `perp`/`cyclic` statements to *prove*, and
+their figures are **metric-free** — `triangle a b c` samples generic angles, so nothing has a nice value
+and Stage 5 proposes nothing. Measured bare: 60 JGEX skeletons yielded 4 goals. So the skeleton supplies
+the shape and Stage 2 supplies the values, appending the same `s_angle` givens clause growth already
+uses. Measured decorated, over the same 60 skeletons:
+
+| | clause growth | seeded + decorated |
+|---|---|---|
+| Yielded a goal | 5.4% of constructions | **33% of skeletons** |
+| Distinct answers | 9 | **25** |
+| Modal answer share | 36.0% | **11.1%** |
+| Goal depths | piled at 4 | **3–9, spread** |
+
+`GENERATION.corpus_share` is a share and not a switch, because the two sources fail in opposite
+directions: the library is finite, so a bank built only from it repeats skeletons and its isomorphism
+dedupe bites; growth is unbounded but small and symmetric. `SamplerStats.origin` and
+`BatchReport.puzzle_origins` record which source produced each puzzle, so the split is retuned against
+measured yield rather than against this table.
+
+What this does **not** claim: that a puzzle built on an IMO skeleton is an IMO-hard puzzle. We ask an
+angle-value question the original never asked, and an easy chase bolted onto a famous figure is an easy
+puzzle. The skeleton buys *configuration richness*, which is what L4 says we lack; it does not buy
+difficulty, and doc 05 §5.1c exists to keep those separate.
+
+Two defects surfaced while adopting this, both from tests written against the boundary rather than the
+data: `load()` followed its argument order instead of sorting (a reproducibility hazard, since Stage 1
+indexes into the list), and the first parser kept only the first predicate of a multi-predicate clause,
+so `d = on_line d o h, on_line d a b` became `d = on_line d o h` and left `d` sliding along a line. The
+second is the dangerous kind — it realizes to a *different figure* rather than failing, so the 100%
+realize rate would have hidden it. `Step.extra` now carries the tail predicates.
+
+**P4 — Third-party problem corpora are read, never vendored (settled 2026-08-05; extends P2).**
+The configuration library lives in `alphageometry/` and `Newclid/newclid/`, both Apache-2.0, and the
+formalizations are the licensed artifact. Apache-2.0 §4(d) requires attribution, which `NOTICE` carries.
+Three rules, so this stays clean as the library grows:
+
+1. **Read from the clone, never copy into the repo.** `corpora.py` resolves paths at runtime and
+   degrades to an empty library when the clones are absent. Nothing is re-licensed by us, and a bank
+   build without the clones still produces puzzles by growth.
+2. **The construction only; never their goal.** We use the figure and ask our own question. A test
+   asserts no `?` survives parsing.
+3. **GPL sources stay ideas-only (P2).** `tong-geometry` and FormalGeo also ship problem sets. They are
+   not in `DATASETS` and must not be added.
+
+The underlying problems are competition mathematics and are not ours; puzzles derived from them cite
+their skeleton's provenance. Whether to surface that citation in the player UI is a product decision,
+not a licensing one, and it is open.
+
+**T25 — The LLM oracle is promoted from calibration column to a first-class difficulty signal
+(2026-08-05; amends T21's sibling reasoning and doc 05 §5.0).** Doc 09 M6b confined the oracle to a
+report column, writing no puzzle field, because it is non-deterministic and doc 02 invariant 2 requires
+a bank reproducible from `(generator_version, engine_version, seed)`. That reasoning was sound when
+there were deterministic instruments to prefer. M5 established there are none: filter 9 is unbuildable,
+`requires_auxiliary` is identically zero, `shortcut_margin` does not exist, and `unused_points`
+correlates with figure size (T22). Difficulty is currently scored by proof structure alone — the signal
+doc 07 T19 measured as *anti-correlated* in the expert band.
+
+Continuing to prefer a deterministic-but-wrong signal over a non-deterministic-but-informative one is a
+preference for the appearance of rigour. The determinism objection is also answerable, by the mechanism
+already shipping for prose: a **content-keyed cache committed with the bank**, with `--strict` treating
+a cache miss as a build error and no live call in any path a build depends on (doc 02 invariant 6). A
+cached verdict is exactly as reproducible as a threshold in `config/`.
+
+What the objection was really protecting is kept: the oracle is a **judge the generator cannot see**, so
+difficulty is never optimised against itself (T20). Promoting it changes what the score reads, not who
+gets to steer generation.
+
+Boundaries, unchanged and non-negotiable: text only — `given[].display`, `goal.question`, point labels.
+Never coordinates, never the figure, never the answer or the solution. Coordinates would make it a
+protractor that answers every angle puzzle, which measures nothing about difficulty. Temperature 0, a
+hard output-token cap, `k` samples with pass@k recorded, and **self-reported step counts ignored** —
+models confabulate them.
+
+Residual risk, accepted and worth naming: model deprecation invalidates the cache, and a rebuild then
+needs live calls. The cache is committed, so an *existing* bank stays reproducible forever; it is a
+future build that would need re-running. That is the same exposure the prose renderer already carries,
+and it is the price of having any difficulty signal at all.

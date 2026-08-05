@@ -6,6 +6,27 @@ every sample succeed.
 
 These checks *verify*, they never *derive* (docs/02 invariant 4): a rejection discards a
 candidate, it never asserts a geometric fact.
+
+**Rescoped in Phase 3 M6 (docs/07 T23).** This module used to reject the *whole figure* if any
+one of its C(n,3) point triples was near-flat. That is combinatorial in the point count, so the
+rejection probability climbed with figure richness and the check was structurally biased against
+exactly the figures the product needs. Measured against ground truth — human competition figures,
+which are correct by definition — it rejected **52% of JGEX** and **85% of IMO** configurations,
+and on our own hybrid output it discarded 14 of the 20 constructions that produced a goal.
+
+The fix is scope, not threshold. Two questions were conflated:
+
+* *Is this figure broken?* — coincident points, nothing to draw, the engine could not build it.
+  Whole-figure, cheap, and still rejected here.
+* *Is this particular triple too flat to be trusted?* — a property of a triple, which only
+  matters for the triples something downstream actually **uses**. A near-collinear triple in a
+  far corner of the figure harms nothing: the proof is symbolic, and numerics only ever verify
+  (docs/02 invariant 4), so the exposure is to the *numeric* checks — the goal's own angle, and
+  the configuration facts the derivation records.
+
+So `check_figure` keeps the whole-figure invariants and `degenerate_triples` reports the rest as
+data. Stage 5 refuses a goal built on a flat triple; that is where the goal is finally known,
+which is why the test could not simply be scoped in place.
 """
 
 from __future__ import annotations
@@ -85,30 +106,48 @@ def check_figure(figure: RealizedFigure) -> DegeneracyVerdict:
                 DegeneracyReason.COINCIDENT_POINTS, f"{names[i]}~{names[j]}"
             )
 
-    # Only *accidental* near-collinearity is a defect. Constructions like on_line, midpoint
-    # and foot declare collinearity on purpose, and a figure containing them is perfectly
-    # good — so declared triples are exempt (docs/04 Stage 3).
+    return DegeneracyVerdict.passed()
+
+
+def degenerate_triples(figure: RealizedFigure) -> frozenset[frozenset[str]]:
+    """Point triples too flat to carry a trustworthy numeric check (docs/04 Stage 3).
+
+    Reported rather than rejected on. A triple is flat if its area is below the scale-relative
+    floor or if any of its angles is within `DEGENERACY.min_angle_degrees` of 0 or 180 — the same
+    two tests this module has always applied, now returned as data so the caller can ask about
+    the triples it actually depends on.
+
+    Only *accidental* near-collinearity counts. Constructions like `on_line`, `midpoint` and
+    `foot` declare collinearity on purpose, and a figure containing them is perfectly good — so
+    declared triples are exempt, exactly as before.
+
+    Cost is unchanged at O(n^3) but the result is computed once per figure and reused, where the
+    old whole-figure test also paid O(n^3) and then threw the information away with the figure.
+    """
+    if not figure.ok or len(figure.points) < 3:
+        return frozenset()
+
+    names = [name for name, _, _ in figure.points]
+    coords = [(x, y) for _, x, y in figure.points]
+    scale = _scale(coords)
     declared_collinear = figure.declared_collinear()
     area_floor = DEGENERACY.min_triangle_area * scale * scale
     min_angle_rad = math.radians(DEGENERACY.min_angle_degrees)
 
+    flat: set[frozenset[str]] = set()
     for (i, a), (j, b), (k, c) in itertools.combinations(enumerate(coords), 3):
-        if frozenset((names[i], names[j], names[k])) in declared_collinear:
+        triple = frozenset((names[i], names[j], names[k]))
+        if triple in declared_collinear:
             continue
         if _triangle_area(a, b, c) < area_floor:
-            return DegeneracyVerdict.rejected(
-                DegeneracyReason.DEGENERATE_TRIANGLE, f"{names[i]}{names[j]}{names[k]}"
-            )
+            flat.add(triple)
+            continue
         for vertex, u, v in ((j, a, c), (i, b, c), (k, a, b)):
-            apex = coords[vertex]
-            angle = _angle_at(apex, u, v)
+            angle = _angle_at(coords[vertex], u, v)
             if angle < min_angle_rad or angle > math.pi - min_angle_rad:
-                return DegeneracyVerdict.rejected(
-                    DegeneracyReason.FLAT_ANGLE,
-                    f"at {names[vertex]}: {math.degrees(angle):.2f} deg",
-                )
-
-    return DegeneracyVerdict.passed()
+                flat.add(triple)
+                break
+    return frozenset(flat)
 
 
 def _angle_at(apex: tuple[float, float], u: tuple[float, float], v: tuple[float, float]) -> float:

@@ -88,6 +88,16 @@ class BandProfile:
     stated no angle, because a weighted draw that misses simply never comes back to it."""
     max_goals: int
     """Goal candidates kept per construction (docs/04 Stage 5)."""
+    max_givens: int
+    """How many angle givens `sampler.decorate` appends to a seeded human configuration
+    (docs/04 Stage 1b, docs/07 T24).
+
+    Distinct from `require_angle_given`, which forces *one* given into a grown construction. A
+    seeded skeleton is far richer — 7 to 17 points against our 3 to 9 — so one given often leaves
+    most of it undetermined and Stage 5 finds nothing. More givens pin more of the figure and
+    raise yield; too many make the answer a restatement of a given, which Stage 5's
+    `already_given` check then discards. Capped again inside `decorate` at half the skeleton's
+    point count, so a small skeleton is never over-constrained."""
 
 
 @dataclass(frozen=True)
@@ -103,6 +113,7 @@ class GenerationConfig:
                 angle_weight=6.0,
                 require_angle_given=True,
                 max_goals=3,
+                max_givens=1,
             ),
             "medium": BandProfile(
                 min_steps=4,
@@ -111,6 +122,7 @@ class GenerationConfig:
                 angle_weight=8.0,
                 require_angle_given=True,
                 max_goals=3,
+                max_givens=2,
             ),
             "hard": BandProfile(
                 min_steps=5,
@@ -119,6 +131,7 @@ class GenerationConfig:
                 angle_weight=10.0,
                 require_angle_given=True,
                 max_goals=3,
+                max_givens=2,
             ),
             "expert": BandProfile(
                 min_steps=6,
@@ -127,6 +140,7 @@ class GenerationConfig:
                 angle_weight=12.0,
                 require_angle_given=True,
                 max_goals=3,
+                max_givens=3,
             ),
         }
     )
@@ -139,6 +153,44 @@ class GenerationConfig:
     profile is an *input*, not the band a puzzle ends up in, and easy was oversupplied 23:6 over
     hard while expert was empty. Must be non-empty; values are normalized, so they need not
     sum to 1."""
+
+    max_seed_points: int = 12
+    """Largest human configuration Stage 1b will use (docs/04 Stage 1b, docs/07 T24).
+
+    MEASURED: the library runs to 31 points and engine closure cost is superlinear in the point
+    count, so the long tail dominates throughput. Uncapped seeding at `corpus_share` 0.5 took
+    batch throughput from 29.9 to 2.7 constructions/s — an 11x regression that also made the test
+    suite unusable. 12 keeps 514 of 635 configurations (81%) and drops the tail that pays least
+    per second. Not a difficulty judgement: a 20-point figure is not too hard, it is too slow, and
+    if throughput stops binding this should rise."""
+
+    corpus_share: float = 0.0
+    """Share of constructions seeded from the human configuration library rather than grown
+    (docs/04 Stage 1, docs/07 T24).
+
+    **Default 0.0 — seeding is built, tested and OFF, pending M7.** MEASURED at seed 42, n=3000,
+    `corpus_share` 0.5, before `max_seed_points` existed:
+
+    | source | constructions | puzzles | yield |
+    |---|---|---|---|
+    | grown  | 1530 | 86 | 5.6% |
+    | seeded | 1470 | 10 | 0.7% |
+
+    Seeded skeletons yield **6x better at goal extraction** (33% against 5.4%) and **8x worse
+    end to end**, and cost 11x throughput (29.9 -> 2.7 constructions/s). The goals are found and
+    then die downstream, concentrated in `translate:unknown_rule`,
+    `translate:unspeakable_conclusion` and `translate:ar_chain_too_long` — richer configurations
+    are proved by theorems the 19-rule whitelist cannot pronounce. That whitelist is exactly what
+    M7's LLM renderer retires (docs/07 T17), so seeding is gated on M7 rather than broken.
+
+    **This attribution is a hypothesis consistent with the aggregate attrition, not a measured
+    per-source split** — the run that would have separated the two was interrupted. Re-measure it
+    before turning this up, and re-measure throughput too: `max_seed_points` landed after the
+    numbers above and drops the 19% tail that cost the most.
+
+    A share and not a switch, because the two sources fail in opposite ways: the library is finite
+    so a bank built only from it repeats skeletons, while clause growth is unbounded but small and
+    symmetric. `BatchReport.sampled_origins` and `.puzzle_origins` keep both halves visible."""
 
     @property
     def min_construction_steps(self) -> int:

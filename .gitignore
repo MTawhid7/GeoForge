@@ -41,3 +41,6 @@ __pycache__/
 
 # Personal cross-project assistant defaults (belongs in ~/.claude/, not this repo)
 CLAUDE-global.md
+# Local assistant tooling config: a machine-local permission allowlist, nothing a
+# contributor needs. CLAUDE.md carries the project instructions that are shared.
+.claude/

@@ -50,14 +50,33 @@ class Step:
     outputs: tuple[str, ...]
     args: tuple[str, ...]
     """Full argument list in the primitive's own order, points and values interleaved."""
+    extra: tuple[tuple[str, ...], ...] = ()
+    """Further comma-separated predicates constraining the same output points.
+
+    Added in Phase 3 M6 for the human configuration library (docs/07 T24). Our own sampler emits
+    one predicate per clause, but JGEX allows several — `d = on_line d o h, on_line d a b` puts
+    `d` at the intersection of two lines — and dropping the tail leaves the point
+    **underdetermined**, which realizes to a different figure rather than failing. Each entry is
+    one predicate's whole token list, name first.
+    """
 
     def to_jgex(self) -> str:
-        return f"{' '.join(self.outputs)} = {self.construction} {' '.join(self.args)}".rstrip()
+        head = f"{' '.join(self.outputs)} = {self.construction} {' '.join(self.args)}".rstrip()
+        return ", ".join([head, *(" ".join(tokens) for tokens in self.extra)])
+
+    @property
+    def all_args(self) -> tuple[str, ...]:
+        """Every token this clause references, across all its predicates.
+
+        What dependency closure must read: a point named only by a trailing predicate is still a
+        point this clause needs, and pruning on `args` alone would drop its defining scaffolding.
+        """
+        return tuple(self.args) + tuple(token for tokens in self.extra for token in tokens[1:])
 
     @property
     def numeric_values(self) -> tuple[str, ...]:
         """Arguments that are values rather than point names, e.g. ('30o',)."""
-        return tuple(a for a in self.args if not a.isalnum() or a[0].isdigit())
+        return tuple(a for a in self.all_args if not a.isalnum() or a[0].isdigit())
 
 
 @dataclass(frozen=True, slots=True)

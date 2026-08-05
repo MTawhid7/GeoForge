@@ -23,6 +23,16 @@ Newclid (including Yuclid and ncdgen)
       - src/geoforge/generator/sampler.py follows the clause-by-clause diagram growth
         strategy of ncdgen.build_diagram. This is an independent implementation of that
         approach against GeoForge's own catalogue and configuration, not a code copy.
+      - newclid/problems_datasets/*.txt supply the human-authored configuration library
+        that src/geoforge/generator/corpora.py reads (docs/07 T24, P4). GeoForge uses the
+        JGEX *construction* of each problem as a figure skeleton and discards the problem's
+        own goal, then asks a different question of the figure. The problem statements are
+        competition mathematics (IMO, IMO shortlist, USAMO) and are not GeoForge's; the
+        formalizations are the Apache-2.0 licensed artifact and are read from the local
+        reference clone, never copied into this repository or redistributed by it.
+        The jgex_ag_231 collection originates with Java Geometry Expert (JGEX) and reached
+        us via AlphaGeometry; larger_imo_eval, imo_sl and imo_102_requires_aux were
+        gathered and formalized by the Newclid and Harmonic teams.
 
 --------------------------------------------------------------------------------
 Reference clones kept locally for study (never dependencies, never copied from):
