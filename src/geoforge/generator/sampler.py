@@ -83,16 +83,24 @@ def profile_for(band: Band) -> BandProfile:
 def _weights(defs: tuple[ConstructionDef, ...], profile: BandProfile) -> np.ndarray:
     """Pick weights for one band's profile.
 
-    Two primitives are up-weighted and everything else sits at 1.0: those that draw a circle,
-    and those that state an angle value. Both sets are tiny — 2 of 62 usable extensions each —
-    so without a weight they are effectively never sampled, which is exactly what produced a
-    corpus of squares answering 45 degrees with no angle given (docs/09 P3 M4).
+    Four small families are up-weighted and everything else sits at 1.0: those that draw a
+    circle, state an angle value, bound a closed region, or state a length. Every one of them is
+    tiny against ~62 usable extensions, so without a weight they are effectively never sampled —
+    which is exactly what produced a corpus of squares answering 45 degrees with no angle given
+    (docs/09 P3 M4), and what leaves a 6-step figure with no region to ask about (docs/10 §10.2).
+
+    `max`, not sum or product: a primitive in two families gets the stronger pull rather than
+    their compound, so adding a family cannot silently re-scale one that was already measured.
+    `region_weight` and `length_weight` default to 1.0, so every existing band's draw is
+    unchanged and only the `area` profile moves.
     """
     return np.array(
         [
             max(
                 profile.circle_weight if d.introduces_circle else 1.0,
                 profile.angle_weight if d.states_angle_value else 1.0,
+                profile.region_weight if d.bounds_region else 1.0,
+                profile.length_weight if d.states_length_value else 1.0,
             )
             for d in defs
         ],
@@ -193,6 +201,25 @@ def decorate(
         points.append(fresh)
         committed += 1
 
+    # Scale pinning (docs/10 §10.6). Area is the first *dimensional* quantity, so unlike angle it
+    # needs a stated unit; `lconst x a 3` introduces `x` at a fixed distance from an existing
+    # point, which fixes the figure's scale without constraining its shape.
+    #
+    # Deliberately ONE length by default (`max_length_givens` is 0 for every difficulty band and
+    # 1 for the area profile). Two independent pinned lengths over-determine a figure and are
+    # usually inconsistent, and the pinned length is a premise Stage 6 must keep, so each one
+    # costs a given that the puzzle then has to earn back.
+    for _ in range(profile.max_length_givens):
+        if not points:
+            break
+        attempted += 1
+        anchor = str(rng.choice(np.array(points)))
+        fresh = fresh_point_names(frozenset(points), 1)[0]
+        length = _render_numeric_param(rng, "lconst", band)
+        steps.append(Step(construction="lconst", outputs=(fresh,), args=(fresh, anchor, length)))
+        points.append(fresh)
+        committed += 1
+
     return (
         Construction(steps=tuple(steps)),
         SamplerStats(
@@ -245,6 +272,29 @@ def sample_construction(
                 steps.append(angle_step)
                 committed += 1
                 points.extend(angle_step.outputs)
+                break
+
+    # The same argument, for scale rather than for angle (docs/10 §10.6). An area is dimensional,
+    # so a figure that pins no length has no determined area at all — the question cannot be
+    # asked, let alone answered.
+    #
+    # A forced step rather than `length_weight` alone, because this repo has already measured
+    # that weighting does not get you a given: at `angle_weight` 6-12, 91% of surviving puzzles
+    # still stated no angle, since a weighted draw that misses never comes back to it. MEASURED
+    # here at `length_weight` 10.0: only **78 of 200** area-profile constructions pinned a scale.
+    if profile.require_length_given:
+        length_defs = tuple(
+            d for d in _usable(extension_defs, len(points)) if d.states_length_value
+        )
+        for _ in range(GENERATION.max_clause_attempts):
+            if not length_defs:
+                break
+            attempted += 1
+            length_step = _build_step(rng, _pick(rng, length_defs, profile), tuple(points), band)
+            if length_step is not None:
+                steps.append(length_step)
+                committed += 1
+                points.extend(length_step.outputs)
                 break
 
     while len(steps) < n_steps:

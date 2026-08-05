@@ -114,6 +114,42 @@ class BandProfile:
     Lowering this value raises the ratio and lowers the yield, and produces no more aux puzzles
     per unit compute — which is the only quantity that matters once M8 filters for aux anyway.
     Saturation barely moves because it is a property of the *skeleton*, not of the decoration."""
+    region_weight: float = 1.0
+    """Relative pick weight for primitives that bound a closed polygonal region
+    (`ConstructionDef.bounds_region`) — the regions an area puzzle can ask about (docs/10 §10.7).
+
+    MEASURED 2026-08-05, seed 42, 300 grown expert constructions: the region primitives appear
+    **10-20 times each** against `circle` at 283 and `on_circum` at 272, so at weight 1.0 a
+    6-step figure almost never contains one. The 635 seeded configurations are worse for this
+    specific purpose — triangle- and circle-rich but with `r_trapezoid` and `eqdia_quadrangle`
+    appearing **zero** times, `pentagon` and `rectangle` once each.
+
+    Default 1.0 keeps every existing band byte-identical; only the `area` profile raises it. This
+    is deliberate — `circle_weight` was once a global 2.0 spread across 37 mis-flagged primitives
+    and it bought nothing while looking like it worked (docs/09 P3 M4), so a new weight ships off
+    everywhere it has not been measured."""
+    length_weight: float = 1.0
+    """Relative pick weight for primitives that state a length value (`lconst`, `l2const`).
+
+    Area is dimensional and needs a pinned scale where angle forbids one (docs/07 T7). This is
+    the grown-construction counterpart of `max_length_givens`, which does the same job for seeded
+    skeletons. Same reasoning as `region_weight` for the 1.0 default."""
+    require_length_given: bool = False
+    """Force one step that states a length into a *grown* construction (docs/10 §10.6).
+
+    The scale counterpart of `require_angle_given`, and forced for the same measured reason: a
+    weighted draw that misses never comes back. MEASURED 2026-08-05 at `length_weight` 10.0,
+    only **78 of 200** area-profile constructions pinned a scale without this. An area puzzle over
+    an unpinned figure has no determined answer, so this is a correctness requirement for the
+    area profile rather than a yield tweak.
+
+    Default False: no difficulty band pins a scale, and none should start."""
+    max_length_givens: int = 0
+    """How many `lconst` givens `sampler.decorate` appends to a seeded skeleton (docs/10 §10.6).
+
+    **Default 0 — no existing band pins a scale, and angle puzzles must not start.** A stated
+    length is a premise Stage 6 must keep, and pinning two independent lengths over-determines a
+    figure, so this should stay at 0 or 1 until measured otherwise."""
 
 
 @dataclass(frozen=True)
@@ -158,9 +194,34 @@ class GenerationConfig:
                 max_goals=3,
                 max_givens=3,
             ),
+            # A sampling profile, not a difficulty band -- `Band` is `str` and `profile_for`
+            # falls back to easy for anything unknown, so this is inert until the area pipeline
+            # asks for it by name (docs/10 step A1).
+            "area": BandProfile(
+                min_steps=4,
+                max_steps=8,
+                circle_weight=8.0,
+                angle_weight=8.0,
+                require_angle_given=True,
+                max_goals=3,
+                max_givens=1,
+                region_weight=12.0,
+                length_weight=10.0,
+                require_length_given=True,
+                max_length_givens=1,
+            ),
         }
     )
-    """DOC docs/04 Stage 1. MEASURED at seed 42 — see the M4 attrition note in docs/09."""
+    """DOC docs/04 Stage 1. MEASURED at seed 42 — see the M4 attrition note in docs/09.
+
+    The four difficulty bands are measured. **The `area` profile's weights are NOT** — they are
+    starting values chosen to be re-measured by docs/10 step A1, and they are recorded as guesses
+    on purpose so nobody later reads them as evidence. The reasoning behind each: `region_weight`
+    dominates because regions are the *target* of an area question and are otherwise drawn 10-20
+    times per 300 constructions; `length_weight` and `max_length_givens=1` pin the scale a
+    dimensional quantity needs; `circle_weight` is 8 rather than expert's 20 because at 20 the
+    two circle primitives took 555 of ~1000 sampled steps and would crowd out the regions;
+    `angle_weight` stays up because ½·a·b·sin C needs a stated angle."""
 
     band_mix: dict[str, float] = field(
         default_factory=lambda: {"easy": 0.15, "medium": 0.25, "hard": 0.35, "expert": 0.25}

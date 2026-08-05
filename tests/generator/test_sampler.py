@@ -151,3 +151,65 @@ class TestSampling:
                         seen_any = True
                         assert angle in allowed, f"{angle} outside the {band} palette"
         assert seen_any, "expected at least one angle given across 60 samples"
+
+
+class TestAreaProfile:
+    """The region and length weighting that scale pinning and area regions need (docs/10 A1)."""
+
+    def test_region_flag_matches_known_polygon_families(self) -> None:
+        flagged = {d.name for d in catalog().values() if d.bounds_region}
+        # Trapezoids and the equilateral triangle are the point of the flag: the first give
+        # polygon regions, the second is the cheapest irrational area, (sqrt3/4)s^2.
+        assert {"trapezoid", "iso_trapezoid", "r_trapezoid", "ieq_triangle"} <= flagged
+        # A circle is not a polygonal region, and a bare point construction bounds nothing.
+        assert "circle" not in flagged
+        assert "on_line" not in flagged
+        assert "midpoint" not in flagged
+
+    def test_length_flag_is_exactly_the_length_valued_primitives(self) -> None:
+        flagged = {d.name for d in catalog().values() if d.states_length_value}
+        assert flagged == {"lconst", "l2const"}
+        # A ratio is dimensionless and pins no scale; an angle even less so.
+        assert not any(
+            d.states_length_value for d in catalog().values() if d.name in ("rconst", "s_angle")
+        )
+
+    def test_flags_are_disjoint_from_the_angle_family(self) -> None:
+        """A primitive that states an angle states no length -- otherwise `_weights`' `max`
+        would let one family silently inherit the other's measured weight."""
+        for definition in catalog().values():
+            assert not (definition.states_angle_value and definition.states_length_value)
+
+    def test_area_profile_draws_regions_far_more_often_than_expert(self) -> None:
+        """The whole point of `region_weight`: at 1.0 a 6-step figure almost never has a region
+        (measured 10-20 draws per 300 constructions against `circle` at 283)."""
+
+        def region_rate(band: str) -> int:
+            return sum(
+                1
+                for i in range(120)
+                if any(
+                    catalog()[s.construction].bounds_region
+                    for s in sample_construction(np.random.default_rng(i), band=band)[0].steps
+                    if s.construction in catalog()
+                )
+            )
+
+        expert, area = region_rate("expert"), region_rate("area")
+        assert area > expert, f"expert {expert}/120 vs area {area}/120"
+
+    def test_area_profile_pins_a_scale_and_other_bands_do_not(self) -> None:
+        """Area is dimensional and needs a stated unit; angle bands must not start pinning one,
+        because a pinned length is a premise Stage 6 then has to carry (docs/07 T7)."""
+        from geoforge.generator import corpora
+        from geoforge.generator.sampler import decorate
+
+        configuration = corpora.load()[0]
+
+        def length_givens(band: str) -> int:
+            construction, _ = decorate(np.random.default_rng(7), configuration, band)
+            return sum(1 for s in construction.steps if s.construction == "lconst")
+
+        assert length_givens("area") == 1
+        for band in ("easy", "medium", "hard", "expert"):
+            assert length_givens(band) == 0, f"{band} unexpectedly pinned a scale"

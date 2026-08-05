@@ -183,7 +183,7 @@ Each step is independently verifiable and each has a kill condition.
 
 | step | deliverable | kill condition |
 |---|---|---|
-| A1 | `sampler.decorate` appends one `lconst` given; measure the effect on yield and answer entropy at seed 42 | scale pinning collapses yield the way `corpus_share` did |
+| ~~A1~~ | **DONE 2026-08-05 — see §10.10a** | — |
 | A2 | `quantities/area.py`: `Triangle` only, three primitives (½ab sin C, Heron, ½·base·height), exact SymPy, shoelace check | the engine does not certify enough lengths per figure to close a triangle |
 | A3 | Register `area` in the QTR (`goal_extractor`, `dimension`, `nice_values`, `answer_policy`, `templates`, `marks`) and ship one band | answers cluster the way ratio's did — measure modal share before believing otherwise |
 | A4 | `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
@@ -192,6 +192,51 @@ Each step is independently verifiable and each has a kill condition.
 **Acceptance for the layer as a whole:** ≥1 irrational answer per band; modal answer share below
 angle's 36.0%; every emitted area independently re-checked; determinism unchanged; and a bank built
 without the layer still builds.
+
+## 10.10a A1 as built (2026-08-05)
+
+The figures an area question can be asked about, plus the scale it needs. Landed as an `area`
+*sampling profile* — `Band` is `str` and `profile_for` falls back to easy for anything unknown, so
+the four difficulty bands are untouched.
+
+**What went in.** Two new `ConstructionDef` flags, `bounds_region` and `states_length_value`, both
+named explicitly rather than derived from predicate heads — a trapezoid declares `para` and a square
+declares `cong`, exactly like a dozen primitives that bound nothing, and deriving the circle flag from
+predicates is what produced the first bank (docs/09 P3 M4). Two new `BandProfile` weights
+(`region_weight`, `length_weight`), both defaulting to 1.0. `require_length_given` forces one
+length-stating step into a grown construction, and `max_length_givens` appends one `lconst` to a
+seeded skeleton.
+
+**Why the forced step, and not just the weight.** MEASURED: at `length_weight = 10.0`, only **78 of
+200** area-profile constructions pinned a scale. That is the same failure `require_angle_given`
+already records — a weighted draw that misses never comes back to it. An area over an unpinned figure
+has no determined answer at all, so this is a correctness requirement, not a yield tweak.
+
+**Measured, seed 42:**
+
+| | before | after |
+|---|---|---|
+| constructions containing a region | 10–20 draws per 300 (weight 1.0) | **198/200** |
+| constructions pinning a scale | 0 | **200/200** |
+| both (the minimum for an askable area question) | 0 | **198/200** |
+| area-profile constructions that realize | — | **120/120, zero failures** |
+
+Declared fact supply on realized area figures, per figure: `cong` 4.14, `perp` 1.77, `para` 1.48,
+`aconst` 1.23, `lconst` 0.78, `l2const` 0.61. Every input the §10.5 triangle primitives need is
+present — ½ab·sin C wants `aconst` plus two lengths, Heron wants three, ½·base·height wants `perp`.
+
+**The four difficulty bands are provably unchanged**: sha256 over 200 constructions each is
+byte-identical before and after (`easy f642c9b1…`, `medium 9162e3c2…`, `hard ede47bca…`,
+`expert 191ba3df…`). `max(circle, angle, region, length)` reduces to the old `max(circle, angle)`
+when the two new weights are 1.0.
+
+**A trade-off this exposed, to be settled at A4, not now.** Area-profile figures are polygon-rich and
+**circle-poor**: `cyclic` runs 0.09/figure here against 4.00/figure on seeded skeletons, because
+`circle_weight` is 8 rather than expert's 20 and the regions crowd in. That is right for A2, which
+only needs triangles — but **sectors, arcs and segments need circles with named centres**, so A4 will
+need either its own profile or seeded skeletons rather than grown ones. Do not raise
+`circle_weight` on the `area` profile to fix this without re-measuring the region rate: at 20 the two
+circle primitives took 555 of ~1000 sampled steps.
 
 ## 10.11 Deliberately not in scope
 
