@@ -11,15 +11,48 @@ our own catalogue and configuration; see NOTICE.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
 from geoforge.config import GENERATION
 from geoforge.config.thresholds import BandProfile
 from geoforge.generator.construction import Construction, Step, fresh_point_names
+from geoforge.generator.corpora import Configuration, load
 from geoforge.solvers.catalog import ConstructionDef, catalog
 
 Band = str
+
+
+def draw(rng: np.random.Generator, *, band: Band = "easy") -> tuple[Construction, SamplerStats]:
+    """Stage 1: produce one candidate construction, from either source (docs/04 Stage 1).
+
+    `GENERATION.corpus_share` decides how often the figure comes from the human configuration
+    library rather than from clause growth. It is a share and not a switch because the two
+    sources fail differently — the library is finite and its skeletons repeat, growth is
+    unbounded and mostly poor — and a bank wants both. Both draws come from the construction's
+    own rng, so the choice stays a pure function of `(seed, index)` (docs/02 invariant 2).
+
+    Falls back to growth when the reference clones are absent: the corpora are optional developer
+    checkouts and a build without them must still produce puzzles (docs/07 P4).
+    """
+    library = _library()
+    if library and rng.random() < GENERATION.corpus_share:
+        configuration = library[int(rng.integers(0, len(library)))]
+        construction, stats = decorate(rng, configuration, band)
+        if construction.steps:
+            return construction, stats
+    return sample_construction(rng, band=band)
+
+
+@lru_cache(maxsize=1)
+def _library() -> tuple[Configuration, ...]:
+    """The configuration library, read once, capped by size.
+
+    Empty when the clones are not checked out. The size cap is `GENERATION.max_seed_points`; see
+    there for the throughput measurement behind it.
+    """
+    return tuple(c for c in load() if len(c.points) <= GENERATION.max_seed_points)
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +63,10 @@ class SamplerStats:
     steps_committed: int = 0
     no_candidate: int = 0
     """No primitive could be applied with the points available."""
+    origin: str = "grown"
+    """`grown` for clause growth, or the seed configuration's name (docs/07 T24). Carried into
+    the attrition report so the two sources can be compared without a separate run — the whole
+    argument for seeding is a yield and answer-entropy comparison, and it should stay visible."""
 
 
 def _usable(defs: tuple[ConstructionDef, ...], n_points: int) -> tuple[ConstructionDef, ...]:
@@ -117,13 +154,60 @@ def _build_step(
     return Step(construction=definition.name, outputs=new_points, args=args)
 
 
+def decorate(
+    rng: np.random.Generator, configuration: Configuration, band: Band
+) -> tuple[Construction, SamplerStats]:
+    """Stage 2 over a human-authored skeleton (docs/04 Stage 1b, docs/07 T24).
+
+    Competition configurations are *metric-free*: `triangle a b c` samples generic angles, so no
+    angle in the figure has a nice value and Stage 5 has nothing to propose. Measured bare, 60
+    JGEX skeletons yielded 4 goals. The skeleton supplies the shape; this supplies the values, by
+    appending the same `s_angle` given clause growth already uses — the band's palette, unchanged
+    (docs/04 Stage 2).
+
+    Decorating rather than replacing is the whole idea: their configurations are richer than
+    anything our grammar reaches, and our question is one they never ask.
+    """
+    profile = profile_for(band)
+    base = configuration.to_construction()
+    if not base.steps:
+        return Construction(steps=()), SamplerStats(origin=configuration.name)
+
+    points = list(base.points)
+    steps = list(base.steps)
+    attempted = committed = len(steps)
+
+    # One given per band step-budget bracket, capped by what the skeleton can carry. More than
+    # one pins the figure harder and yields more goals; too many make the answer a restatement
+    # of a given, which Stage 5's `already_given` then discards.
+    wanted = max(1, min(profile.max_givens, len(points) // 2))
+    for _ in range(wanted):
+        if len(points) < 2:
+            break
+        attempted += 1
+        chosen = rng.choice(np.array(points), size=2, replace=False)
+        a, b = str(chosen[0]), str(chosen[1])
+        fresh = fresh_point_names(frozenset(points), 1)[0]
+        degrees = _render_numeric_param(rng, "s_angle", band)
+        steps.append(Step(construction="s_angle", outputs=(fresh,), args=(a, b, fresh, degrees)))
+        points.append(fresh)
+        committed += 1
+
+    return (
+        Construction(steps=tuple(steps)),
+        SamplerStats(
+            steps_attempted=attempted, steps_committed=committed, origin=configuration.name
+        ),
+    )
+
+
 def sample_construction(
     rng: np.random.Generator,
     *,
     band: Band = "easy",
     n_steps: int | None = None,
 ) -> tuple[Construction, SamplerStats]:
-    """Draw one candidate construction (docs/04 Stage 1).
+    """Draw one candidate construction by clause growth (docs/04 Stage 1a).
 
     The result is pure data and has not been realized: whether it describes a valid figure is
     decided when the SAL tries to instantiate it (Stage 3).

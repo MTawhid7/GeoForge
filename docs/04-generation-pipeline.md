@@ -39,10 +39,29 @@ sample construction ─▶ assign numeric givens ─▶ numeric pre-checks ─�
   ─▶ emit CandidatePuzzle ─▶ (scoring/filters, doc 05) ─▶ (bank build + cross-engine validation, §V)
 ```
 
-### Stage 1 — Sample construction
-3–9 JGEX-compatible steps from a weighted grammar (weights in `config/`; start from `ncdgen`'s sampler
-and re-weight). Difficulty targeting starts here: deeper constructions and circle steps correlate with
-harder puzzles.
+### Stage 1 — Obtain a construction (**two sources since M6 — doc 07 T24**)
+`sampler.draw` produces one construction per index from one of two sources, chosen by
+`GENERATION.corpus_share` on the construction's own rng so the choice stays a pure function of
+`(seed, index)`.
+
+**Stage 1a — clause growth.** 3–9 JGEX-compatible steps from a weighted grammar (weights in `config/`;
+follows `ncdgen`'s sampler, re-weighted). Unbounded and cheap; produces small, symmetric,
+right-angle-heavy figures, which is doc 07 L4.
+
+**Stage 1b — configuration seeding.** Take a human-authored competition configuration from
+`generator/corpora.py` — 635 problems in the reference clones, in this same JGEX syntax — and discard
+its goal. Their goals are `perp`/`cyclic` statements to *prove*; ours are values to *find*, and Stage 5
+picks one. The skeleton is richer than anything Stage 1a reaches: 7–17 points against 3–9, with
+incentres, orthocentres, tangent circles and spiral similarities the grammar never assembles.
+
+Seeded figures are **metric-free** and yield nothing on their own — `triangle a b c` samples generic
+angles, so no angle has a nice value. Stage 2 is what makes them puzzles, which is why the two stages
+must be read together. Measured over 60 JGEX skeletons: 4 goals bare, 20 decorated.
+
+Neither source is sufficient alone. The library is finite, so a bank built only from it repeats
+skeletons and its isomorphism dedupe bites; growth is unbounded but poor. `BatchReport.sampled_origins`
+and `puzzle_origins` report the split and its yield on every build, so `corpus_share` is retuned against
+data rather than taste.
 
 **Measured verdict on random clause growth (2026-08-04): it is the binding constraint on puzzle quality,
 and it does not work well enough.** At seed 42 over 400 constructions, 344 of 546 discards — 86% of all
@@ -85,6 +104,13 @@ Choose 1–3 free parameters; assign exact values from the target quantity type'
 for the band (angles: multiples of 10 → arbitrary integers; lengths: small integers/surds; ratios: small
 fractions). Remaining parameters stay free — they power the well-posedness check.
 
+**For a seeded skeleton (Stage 1b) this stage is what creates the puzzle.** `sampler.decorate` appends
+`BandProfile.max_givens` `s_angle` clauses from the same per-band palette — 1 for easy up to 3 for
+expert, capped at half the skeleton's point count so a small figure is never over-constrained. A
+competition configuration states no angle values at all, so without this Stage 5 has nothing to propose;
+with too many, the answer becomes a restatement of a given and Stage 5's `already_given` check discards
+it. The count is a config knob for exactly that reason.
+
 **The band was never passed here, and it was a contributing cause of the 45° bank (fixed M4).**
 `_render_numeric_param` falls back to `nice_angle_degrees["easy"]` when no band is given, and Stage 1
 never gave one — so every angle in every band came from multiples of 10. The palette now differs per
@@ -107,11 +133,24 @@ the target quantity type is dimensional (`length`, `area`), exactly one given mu
 scale (a stated segment length); scale-free types must have *no* length givens (they'd be redundant and
 fail Stage-6 minimization anyway).
 
-### Stage 3 — Numeric pre-checks (before the engine call)
-Instantiate once with a fixed reference seed. Reject: point pairs closer than ε_sep; triangle areas below
-ε_area; angles within ε_deg of 0°/180°; **undeclared near-coincidences** (accidental near-collinearity /
-near-equality the construction didn't declare — they confuse diagrams and destabilize side conditions).
-All thresholds in `config/`, never inline.
+### Stage 3 — Numeric pre-checks (before the engine call) — **rescoped M6, doc 07 T23**
+Instantiate once with a fixed reference seed, then ask two different questions with two different
+consequences. Thresholds are unchanged and still live in `config/`, never inline.
+
+**Rejected here (whole-figure):** the engine could not instantiate it; fewer than 3 points; any point
+pair closer than ε_sep. These say the figure is broken, and a broken figure has nothing to offer.
+
+**Reported here, acted on later (per-triple):** `degenerate_triples` returns every undeclared triple
+whose area is below ε_area or whose angle is within ε_deg of 0°/180°. Declared collinearity is exempt —
+`on_line`, `midpoint` and `foot` create it on purpose. Stage 5 refuses a *goal* built on such a triple;
+nothing else is refused for it.
+
+This used to be one whole-figure rejection, and that was a defect rather than a strictness choice: the
+probability of rejecting climbs with C(n,3), so the check was hardest on the richest figures. It threw
+away 85% of IMO configurations — figures correct by definition — and 14 of the 20 seeded constructions
+that produced a goal. A flat triple in a far corner cannot corrupt a *symbolic* proof (doc 02
+invariant 4); it can only mislead a *numeric* check, and the numeric check that matters is the one about
+the goal. See doc 07 T23 for the residual risk this accepts.
 
 ### Stage 4 — Closure via SAL
 One `solve()` call (doc 03). Discard on resource-cap hit (logged with seed). A numeric contradiction

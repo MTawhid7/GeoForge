@@ -33,6 +33,29 @@ So difficulty is now decided by three things in strict priority order:
 The calibration protocol governs all three, and no weight may be changed without citing a spot-check
 batch — that requirement predates this revision and is the reason the revision was possible.
 
+**AMENDED 2026-08-05 (M5's result; doc 07 T22, T25).** The order above survives; its contents did not.
+Filter 9 cannot be built on this engine and every §5.1a feature specified alongside it is dead or
+uninformative, so **layer 1 is down to one gate and layer 2 is empty**. Difficulty is currently decided
+by layer 3 alone — the layer this section demoted for being anti-correlated in the regime that matters.
+That is not a tenable resting place, and pretending the priority order is intact because it is still
+written down would be the exact failure this document exists to prevent.
+
+Two things fill the gap, neither of them a deterministic function of the proof:
+
+* **§5.1c difficulty ground truth** — an external hard/routine label, corpus-level, automatable.
+  Refutes a scorer; cannot rank a puzzle.
+* **The LLM oracle, promoted from calibration column to a first-class signal (T25).** Doc 09 M6b
+  originally confined it to a report column because it is non-deterministic. That objection is answered
+  by the same mechanism that makes prose reproducible: a content-keyed cache committed with the bank,
+  with `--strict` treating a miss as a build error (doc 02 invariant 6). A cached verdict is as
+  deterministic as a threshold. What the objection was *really* protecting — that difficulty must not be
+  optimised against itself (T20) — is preserved by keeping the oracle a **judge that the generator
+  cannot see**.
+
+The oracle's input rules are unchanged and non-negotiable: text only (`given[].display`, `goal.question`,
+point labels), never coordinates, never the figure, never the answer or solution. Handing it coordinates
+builds an expensive protractor.
+
 ## 5.1 Difficulty score
 
 Input: the minimal translated solution sub-DAG. All features are quantity-generic (they read DAG
@@ -115,6 +138,30 @@ else's — the calibration protocol below is what settles them.
 - `answer_surprise` — subtractive, and the honest name for the 45° problem. How predictable the answer
   is given the bank's own answer distribution for the band. Filter 8 caps the pathological case; this
   scores the rest of the range.
+
+## 5.1c Difficulty ground truth (added 2026-08-05 — doc 07 T24)
+
+M5 established that every deterministic difficulty instrument this project specified is dead (T22), and
+the honest consequence is that **we have no way to tell whether a difficulty change helped**. §5.1b's
+spot check is a human reading 50 puzzles; it is the right instrument and it does not scale, and it
+cannot be run in CI.
+
+The configuration library supplies an external label. Of its 635 problems, **404 are IMO, IMO-shortlist
+or USAMO** and 231 are JGEX's textbook collection — a hard/routine split made by competition setters
+rather than by us. `corpora.by_provenance` exposes it.
+
+What it can and cannot settle, stated up front because the temptation to overclaim here is strong:
+
+* **It cannot say an olympiad-seeded puzzle is olympiad-hard.** We ask an angle-value question the
+  original never asked. An easy chase bolted onto a famous figure is an easy puzzle, and doc 07 T24 says
+  the same thing from the generator's side.
+* **It can refute a scorer.** If puzzles built on olympiad skeletons do not score above puzzles built on
+  textbook skeletons *on average*, the scorer is not reading configuration richness at all. That is a
+  falsifiable, automatable, corpus-level claim — the first one this project has had about difficulty.
+
+Reported as a distribution comparison, never as a per-puzzle assertion: the label belongs to the
+skeleton, not to our question about it. The measurement lands with the seeding milestone; the direction
+is **not** assumed here, for the reason `unused_points` exists (§5.1a).
 
 ## 5.1b Calibration protocol
 

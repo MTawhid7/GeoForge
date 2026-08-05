@@ -1,7 +1,11 @@
 # GeoForge — Session Onboarding
 
 **Read this first in every new session.** It is the current state of the project, written from
-what has actually been built and measured — not from plans. Last updated: **2026-08-04**.
+what has actually been built and measured — not from plans. Last updated: **2026-08-05**.
+
+**If work is in flight, read `HANDOVER.md` before this file.** There is uncommitted,
+not-fully-verified work on `feat/generation-rebuild`; `HANDOVER.md` says exactly what state it
+is in and what to verify first.
 
 ---
 
@@ -19,7 +23,7 @@ plan they imply is superseded — go to `docs/09` for the current sequence.
 | Circles in any figure | **0 of 98** |
 | Distinct solution shapes, easy band | **2**, across 56 puzzles |
 | Playtest | *expert* and *hard* puzzles solved by inspection |
-| Attrition | 86% degeneracy — the sampler is the bottleneck |
+| Attrition | 86% degeneracy — read as "the sampler is the bottleneck"; **partly our own checker**, corrected in M6 (`docs/07` T23) |
 
 **Four things you must not re-derive from the old text** (full record in `docs/07`):
 
@@ -44,15 +48,22 @@ plan they imply is superseded — go to `docs/09` for the current sequence.
 4. **The bottleneck is now Stage 1** (L4). Random clause growth cannot produce the deliberate
    arrangements that make good puzzles. Configuration archetypes and backward generation are P5.
 
-**P3 M4, M4a and M5 are done, and P3 has been cut short as a result** (`docs/07` T22). Each milestone
+**P3 M4, M4a and M5 are done, and P3 was cut short as a result** (`docs/07` T22). Each milestone
 measured a different difficulty signal and each came back dead: the sampler caused the answer
 monoculture, ratio/length narrow the answer space rather than widening it, `requires_auxiliary` is zero
 by definition, the shortcut filter cannot be asked of this engine, and its replacement feature
 correlates with figure size rather than difficulty. One cause behind all four — L4, the generator.
 
-**Next up is P3 M6:** the answer-entropy cap plus the configuration table, then M7's LLM renderer (the
-only remaining item that *adds* puzzles), then straight into P5's generator rebuild. Expect the bank to
-keep shrinking until P5 — that is the pass condition, not a regression.
+**M6 is in progress and rebuilds generation** (`docs/07` T23, T24). Two changes, both measured before
+adoption:
+- The Stage-3 degeneracy check rejected a whole figure for any one flat triple among C(n,3), which is
+  hardest on the richest figures — it refused **85% of IMO configurations**, which are correct by
+  definition. Now rescoped: whole-figure checks stay, the per-triple test is data acted on at Stage 5.
+- Stage 1 can seed from **635 human competition configurations** in the Apache-2.0 reference clones,
+  already in our JGEX syntax, decorated with our own angle givens.
+
+Fifth thing you must not re-derive: **`requires_auxiliary` and the shortcut filter cannot be built.**
+Read `docs/07` T22 before proposing either; both have been tried and the reasons are recorded.
 
 ---
 
@@ -133,17 +144,28 @@ as not existing, and `scoring/bands.py` as the provisional banding to replace. A
 Phase 2 M1–M3: `schema.py` + generated TS types, `bank/layout.py` + `bank/build.py`, the full `web/`
 frontend, and `scoring/{features,score,filters,interest,report}.py` — `scoring/bands.py` is deleted.
 
-## 4. What's next — Phase 3 M4, the validity gates (doc 09 P3)
+## 4. What's next (doc 09 P3)
 
-**Resequenced 2026-08-04 — see §0.** The old text here pointed at "scoring/filters/elegance ratio,
-isomorphism dedupe, layout + anti-leak, the bank builder, CI, frontend v1". The first and last are
-done; dedupe, anti-leak, the parallel builder and CI are **deferred to P4** because they industrialise
-a bank the measurements in §0 rejected.
+**Resequenced twice — 2026-08-04 and again 2026-08-05. See §0, and read `HANDOVER.md` first if you are
+picking up mid-stream: there is uncommitted, not-fully-verified work on `feat/generation-rebuild`.**
 
-Next is **P3 M4**: the shortcut check (`docs/04` §stage-6b), the answer-entropy cap (`docs/05` §5.2
-filter 8), passing the band through to `sample_construction` — it never has been, which is why every
-angle came from the easy palette — and non-round angle values for the upper bands. Then M5
-auxiliary-construction detection, M6 LLM rendering, M7 ratio and length goals.
+M4, M4a and M5 are done. Dedupe, anti-leak, the parallel builder and CI stay **deferred to P4** because
+they industrialise a bank the measurements in §0 rejected.
+
+Immediate order:
+
+1. **Verify and land `feat/generation-rebuild`** — the degeneracy rescope (a measured 0.83% → 5.6%
+   yield improvement, expert band no longer empty) plus configuration seeding, which is built and
+   switched **off** pending M7. `HANDOVER.md` §1 and §4 have the detail.
+2. **Measure the seeded-vs-grown attrition split.** ~20 lines, and it decides whether seeding is gated
+   on M7 or is a dead end.
+3. **M7 — the LLM renderer** (Gemini 3.6 Flash, content-keyed cache committed with the bank, `--strict`
+   forbidding live calls, no test making a network call). The only remaining item that *adds* puzzles.
+4. **The LLM difficulty oracle** (`docs/07` T25) — same cache mechanism, so same milestone.
+5. **M6b** — answer-entropy cap (`docs/05` §5.2 filter 8) and the configuration table.
+
+Cross-engine validation is **already built** — `make bank` wires the existing `bank/validate.py` into
+the bank build rather than writing it.
 
 Cross-engine validation is **already built** — `make bank` wires the existing `bank/validate.py` into
 the bank build rather than writing it.
@@ -206,6 +228,17 @@ The underlying engine API, for reference (`JGEXProblemBuilder` → `GeometricSol
 
 ## 6. Gotchas that cost real time — do not rediscover these
 
+0. **Budget for runtime: the suite and every batch measurement run the real engine, and engine
+   closure cost is superlinear in figure point count.** Baseline is `pytest -q` at **148 s / 538
+   tests** and batch throughput at **29.9 constructions/s**. Anything that enlarges figures multiplies
+   both at once — `GENERATION.corpus_share = 0.5` took the suite past **25 minutes** (never completed)
+   and throughput down to **2.7/s**. If a suite appears to hang, check that setting first; it is the one
+   knob worth an order of magnitude. Give `pytest -q` **1800 s** after touching anything upstream of
+   Stage 3, run long measurements in the **background** from the start (>500 constructions will exceed
+   a 600 s foreground timeout), and kill in-flight measurements when you change generator code rather
+   than reading numbers produced against code that no longer exists. **Run one suite at a time** — two
+   concurrent pytest processes compete for CPU and produce timings that mean nothing.
+   `HANDOVER.md` §6a has the table.
 1. **`solver.proof()`**, not `write_proof_steps()` — the upstream README is stale.
 2. **Yuclid rejects `acompute`/`lcompute`/`rcompute`.** Don't use them. Measure the value
    yourself and verify an explicit `aconst`/`lconst`/`rconst` (`docs/03 §3.3a`).

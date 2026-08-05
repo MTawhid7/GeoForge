@@ -231,7 +231,7 @@ def prune_figure(construction: Construction, needed: frozenset[str]) -> FigurePr
         for step in construction.steps:
             if required.isdisjoint(step.outputs):
                 continue
-            for arg in step.args:
+            for arg in step.all_args:
                 if arg not in required and any(arg in s.outputs for s in construction.steps):
                     required.add(arg)
                     grew = True

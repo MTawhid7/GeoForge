@@ -37,7 +37,7 @@ from geoforge.generator.construction import Construction
 from geoforge.generator.degeneracy import check_figure
 from geoforge.generator.emit import assemble
 from geoforge.generator.extract import ExtractedGoal, extract_goals
-from geoforge.generator.sampler import profile_for, sample_construction
+from geoforge.generator.sampler import draw, profile_for
 from geoforge.generator.traceback import Derivation, derive, prune_figure
 from geoforge.generator.translation import (
     Translation,
@@ -189,6 +189,14 @@ class BatchReport:
     """How the Stage-1 profile budget was actually spent (docs/04 Stage 1). Distinct from
     `by_band`, which reports the band each *surviving* puzzle scored into — comparing the two is
     how you see which profile is paying for itself."""
+    sampled_origins: dict[str, int] = field(default_factory=dict)
+    """`seeded` vs `grown` construction counts (docs/07 T24). The same comparison one level up:
+    seeding was adopted on a 60-skeleton probe, and this is what keeps the claim under
+    measurement on every build rather than in the commit message that introduced it."""
+    puzzle_origins: dict[str, int] = field(default_factory=dict)
+    """The other half of that comparison — which source the *surviving* puzzles came from. A
+    source can be sampled often and yield nothing, which is precisely the failure mode the
+    grown sampler had and the reason this pair of counters exists rather than one."""
     wall_seconds: float = 0.0
 
     def by_stage(self) -> dict[str, int]:
@@ -215,6 +223,8 @@ class BatchReport:
             "unused_given_bugs": len(self.bugs),
             "underdetermined": len(self.underdetermined),
             "sampled_bands": dict(sorted(self.sampled_bands.items())),
+            "sampled_origins": dict(sorted(self.sampled_origins.items())),
+            "puzzle_origins": dict(sorted(self.puzzle_origins.items())),
             "by_band": self.by_band(),
             "attrition_by_stage": self.by_stage(),
             "attrition_by_reason": self.by_reason(),
@@ -264,16 +274,19 @@ def run(
     for index in range(n):
         rng = construction_rng(seed, index)
         band = band_for_index(rng)
-        construction, _ = sample_construction(rng, band=band)
+        construction, stats = draw(rng, band=band)
         case_seed = case_seed_for(seed, index)
         report.constructions += 1
         report.sampled_bands[band] = report.sampled_bands.get(band, 0) + 1
+        origin = "seeded" if stats.origin != "grown" else "grown"
+        report.sampled_origins[origin] = report.sampled_origins.get(origin, 0) + 1
         _run_one(
             backend,
             construction,
             case_seed,
             report,
             band=band,
+            origin=origin,
             check_wellposed=check_wellposed,
             reject_sight_readable=reject_sight_readable,
         )
@@ -319,6 +332,7 @@ def _run_one(
     report: BatchReport,
     *,
     band: str = "easy",
+    origin: str = "grown",
     check_wellposed: bool,
     reject_sight_readable: bool = True,
 ) -> None:
@@ -443,6 +457,7 @@ def _run_one(
                     score(features),
                 )
             )
+            report.puzzle_origins[origin] = report.puzzle_origins.get(origin, 0) + 1
         except SchemaError as exc:
             report.discards.append(Discard("emit", _emit_reason(exc), case_seed, str(exc)[:200]))
 

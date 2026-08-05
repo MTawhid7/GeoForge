@@ -163,6 +163,14 @@ class TestAdmissibilityCanReject:
         almost exclusively, so the test silently had nothing to check and said so. Any
         configuration fact naming two distinct points will do — collapsing them degenerates the
         triangle the fact is about, which is what admissibility must refuse.
+
+        **Widened again in Phase 3 M6.** It used to collapse `pairs[0]` and require *that* pair
+        to be refused, which held only while every puzzle's first configuration fact happened to
+        be load-bearing. Seeded figures (docs/07 T24) carry many more configuration facts, some
+        of them genuinely slack, so the first pair is no longer a fair representative — and a
+        test that fails because the corpus got richer is testing the corpus, not the gate. The
+        property that actually has to hold is that a recorded configuration fact constrains
+        *something*: for each puzzle, at least one collapse it records must be refused.
         """
         checked = 0
         for candidate in candidates:
@@ -178,12 +186,20 @@ class TestAdmissibilityCanReject:
             reference = _reference(candidate)
             angle = angle_of(candidate.derivation.goal, reference)
             assert angle is not None
-            first, second = pairs[0]
-            collapsed = dict(reference)
-            collapsed[second] = reference[first]
-            assert not _admissible(
-                backend, collapsed, candidate.derivation, candidate.translation, angle
-            ), f"{candidate.id}: collapsing {first} onto {second} was accepted"
+
+            refused = False
+            for first, second in pairs:
+                collapsed = dict(reference)
+                collapsed[second] = reference[first]
+                if not _admissible(
+                    backend, collapsed, candidate.derivation, candidate.translation, angle
+                ):
+                    refused = True
+                    break
+            assert refused, (
+                f"{candidate.id}: no collapse of any pair its configuration facts name was "
+                f"refused, so those facts constrain nothing"
+            )
             checked += 1
         assert checked, "no puzzle carried a usable configuration fact, so nothing was tested"
 
