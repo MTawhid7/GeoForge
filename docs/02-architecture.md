@@ -213,9 +213,15 @@ GeoForge/
 
 **Reference-clone policy:** the cloned repos are for study and vendored use only. Never modify them in
 place; never copy code from `tong-geometry/` (GPL-3.0 — ideas only, doc 07 P2); `penrose/` and
-`mathlib4/` are reading material. `Newclid` and `alphageometry2` are Apache-2.0 and may be depended on
-(via pip pin / vendored fork) and patched via upstream PRs. Add all clones to `.gitignore` when the repo
-is initialized; pin exact versions in `pyproject.toml` / a vendor manifest instead.
+`mathlib4/` are reading material. `Newclid`, `alphageometry2` and `GenesisGeo` are Apache-2.0 and may be
+depended on (via pip pin / vendored fork) and patched via upstream PRs. Add all clones to `.gitignore`
+when the repo is initialized; pin exact versions in `pyproject.toml` / a vendor manifest instead.
+
+`GenesisGeo/` was added 2026-08-05 (doc 07 T27) for its **generation** half:
+`src/newclid/generation/auxiliary/` proposes auxiliary points by *coordinate coincidence* — a candidate
+is where lines and circles spanned by existing points happen to meet, and it carries several
+construction statements at once — rather than by the fixed midpoint/foot heuristics in
+`newclid.heuristics`. That is the one auxiliary-proposal method GeoForge has not tried (doc 07 T26).
 
 ## Key architectural invariants
 

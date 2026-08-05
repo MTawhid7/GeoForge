@@ -234,6 +234,97 @@ matters to a solver. What is *not* optional is determinism, so the ordering is c
 incidental (doc 02 invariant 2). Revisit only if generated puzzles are observed carrying givens a
 human would call redundant.
 
+**T26 — Auxiliary-construction puzzles are generable, but only at ~2% of goals, and no lever
+tried moves that number. The cause is measured: our figures are metrically saturated.**
+*(2026-08-05, supersedes the mechanism half of T22 without reversing its conclusion.)*
+
+T22 recorded that `requires_auxiliary` "cannot be non-empty" and read the cause as forward
+chaining. **That reading is wrong, and the corrected one matters.** The metric is empty because
+GeoForge *states the whole construction*, so the setup is the goal's own ancestor closure and
+nothing is withheld. Change what the statement contains and the metric fires. Newclid's own
+Apache-2.0 `ncdgen` package computes exactly this split
+(`ncdgen/src/ncdgen/aux_discriminators/newclid_traceback.py`):
+
+```
+setup = points named by the GOAL, closed over construction inputs
+aux   = points the PROOF needs, minus setup
+```
+
+**Measured on GeoForge output, seed 42.** Non-empty and ablation-confirmed (the goal does not
+follow from the reduced statement) on real puzzles — the best being `aux = {p, q}`, goal
+`aconst(k,x,h,k) = 23/90` (46°) at depth 19: two withheld points, a 19-step proof, a non-round
+answer, and not sight-readable because two points its proof needs are not on the page.
+
+Rate, pooled over ~280 goals from four samples: **≈1.8% of extracted goals.** Throughput on the
+seeded path is ~2 constructions/s and ~0.62 goals/construction, so ~80 aux puzzles/hour
+single-threaded. Volume is workable; the rate is the problem.
+
+**Four levers were tried and measured. Do not re-propose any of them without new evidence.**
+
+| lever | measured result |
+|---|---|
+| Bigger figures | **0/17 aux at 17+ points.** `prune_figure` closes a goal's points *downward* over construction inputs, and in a JGEX chain a late point's closure is nearly the whole prefix. Enlarging adds points *inside* the closure |
+| Heuristic figure enrichment (`newclid.heuristics`) | **Halves goal yield and lowers the rate: 3.0% → 1.9%** over 148 identical skeletons |
+| Adding a point and asking what it unlocks | **Zero delta.** 217/217 angle goals and 281/281 prove-type goals derivable from `F + x` were already derivable from `F` alone |
+| Decoration sparsity (1→4 `s_angle` givens) | Rate falls 8.3% → 4.9%, but the **absolute count is invariant at 2 per 40 figures**. Sparsity suppresses easy goals; it does not create aux ones |
+| Seeding from the *certified* aux-requiring problems (`imo_102_requires_aux.txt`, 101 problems DDAR cannot solve without a construction) | **0/117 goals — strictly worse than the rest of the library at 3/170 (1.8%).** Those problems need a construction for *their own* prove-goal; discard that goal and ask an angle-value question instead, and the aux requirement does not transfer. `corpora.py` excluded them for the wrong reason and reached the right answer |
+
+**The cause, from the third row.** Of prove-type facts numerically true in a decorated figure,
+**76.6% are already derivable**; of angle goals, **97.7%**. The closure is fat, so an auxiliary
+point has nothing left to unlock. The systems that succeed at this generate from figures carrying
+**no metric givens at all** — `ncdgen`'s baseline is 20–40 points with zero decoration, and
+GenesisGeo the same — which is why their closures are thin enough for aux to matter. Ours is not
+thin, and `GENERATION.max_givens` currently gives the *upper* bands **more** givens (1, 2, 2, 3),
+which is backwards on this evidence even though the sweep shows the effect is dilution rather
+than suppression.
+
+**Two corollaries worth keeping.** The cheap split and the expensive ablation identify the same
+goals (1/31 each, same case), so the split is a valid pre-filter — `minimal_subdag` picking the
+cheapest derivation does not hide real aux, because a goal with a direct route genuinely does not
+need the construction. And naive point-adding proposes clauses whose output names collide with
+existing points, which produces duplicate assumptions and triggers Yuclid's
+`"Trying to re-prove a statement"` **process** abort (ONBOARDING 4c); any point-adding code needs
+a name-collision guard.
+
+**Where the aux puzzles actually come from.** Every ablation-confirmed case in every sample traces
+to two IMO-shortlist configurations — `imo_sl_2008_g3` and `imo_sl_2011_g5` — at proof **depth
+18–19**, with answers 19/45 (76°), 13/90 (26°) and 23/90 (46°). Aux is not a rate the sampler
+achieves; it is a property of a handful of configurations, and the deep ones. That is consistent
+across five independent samples and is the most reliable signal this investigation produced.
+
+**Status: open, and the cheap ideas are exhausted.** Aux is real and reproducible at ~1.8%, five
+levers have been measured, and none moved it. What remains untried is coordinate-coincidence
+proposal (T27) and mining a pre-built corpus (T27) — neither of which is a figure or a decoration
+change, which is the class this table has now closed off. The strategic alternative, which does
+not depend on solving this at all, is the quantity layer (doc 03 §3.7a, doc 09 P6): it is the only
+planned work that changes what a puzzle can *ask* rather than how hard its proof is.
+
+**T27 — Third-party corpora: `GenesisGeo` added as a reference clone (Apache-2.0).**
+*(2026-08-05, extends P4.)*
+
+`GenesisGeo/` (ZJUVAI, arXiv 2509.21896, **Apache-2.0**, verified in `GenesisGeo/LICENSE`) is a
+Newclid-lineage neuro-symbolic prover whose value here is its **generation** half, not its solver.
+Read-only reference clone under the same rules as the others (P4): read from the clone, never
+vendored, never a dependency.
+
+What it contributes:
+
+- `src/newclid/generation/auxiliary/` (C++) — `add_potential_points(point_names, coords,
+  max_points, seed)`. Aux candidates are found **by coordinate coincidence**: intersections of
+  lines and circles spanned by existing points, and a returned point carries **several**
+  construction statements at once. That is materially different from `newclid.heuristics`, which
+  adds midpoints and feet mechanically; a point sitting on three objects simultaneously encodes a
+  non-trivial theorem.
+- `--seed_cache`, documented as "skip seeds without real auxiliary points". **Independent
+  corroboration of T26's central finding**: they too find aux rare enough to be worth caching
+  which seeds produce it.
+- A released dataset of 21.8M problems, >3M with auxiliary constructions
+  (`huggingface.co/datasets/ZJUVAI/GenesisGeo`). **Not yet examined**; if usable it is a source
+  of aux structure we have failed to manufacture.
+
+Recorded so the clone's licence is not re-litigated and so the coordinate-coincidence idea is not
+lost: it is the one aux-proposal method not yet tried here.
+
 ## 7.4 Open risks (monitored, not yet mitigated)
 
 - ~~**O1 — Translation coverage unknown.**~~ **RESOLVED by Phase 0 (2026-08-01).** Measured: 86% of

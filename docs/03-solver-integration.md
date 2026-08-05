@@ -329,6 +329,30 @@ quantities, every step translates through the readability gate, numeric checks v
 and the cross-engine validator re-certifies the underlying engine facts. "SymPy computed it" is
 acceptable only for *arithmetic on already-certified quantities*, never for geometric truth.
 
+### 3.7a Feasibility spike, 2026-08-05 — the layer's foundation holds
+
+The design above rests on one assumption: that the **engine certifies the geometric structure** the
+layer computes on, so the layer only ever does arithmetic. Spiked and confirmed.
+
+On `a b = segment a b; c = on_tline c a a b`, the engine declares `perp('a','b','a','c')` as a
+construction premise. That is exactly the input the layer needs — the right angle is engine-certified,
+and computing the hypotenuse from two certified leg lengths is then arithmetic, not geometry. SymPy
+represents every value the product wants and the engine cannot:
+
+| target | engine | layer |
+|---|---|---|
+| 7π/8 | **already free** — `aconst` holds a `Fraction`, so a rational multiple of π costs what 90° costs (T18) | — |
+| √3/2, 1/√3 | unrepresentable (`rconst.value`, `lconst.length` are `Fraction`); `r2const`/`l2const` can *state* a squared constant but nothing derives one (T21) | `sqrt(3)/2`, `sqrt(3)/3` |
+| √2 hypotenuse | Pythagoras (`r57`) routes through `lconst` and never fires under Yuclid | `sqrt(1**2 + 1**2)` |
+| √3·π² (areas, arcs) | no area or arc predicate exists in any engine | `sqrt(3)*pi**2` |
+
+**One defect surfaced by the spike.** `Fact(kind=CONSTANT_LENGTH, value=sympy.sqrt(2))` is **accepted**
+by `solvers/types.py` — our `Fact` does not enforce the `Fraction` constraint the engine imposes, so a
+surd-valued fact can be constructed today and would only fail at the engine boundary. That permissiveness
+is what the quantity layer will eventually *need*, but until the layer exists it is an unguarded gap
+rather than a feature. Either validate the value against the quantity type's exactness class at
+construction time, or make the layer's own fact type distinct from the engine-facing one.
+
 ## 3.8 What we explicitly do NOT build
 
 Deduction rules; algebraic angle reasoning; proof search; auxiliary-point heuristics (Newclid's agent API
