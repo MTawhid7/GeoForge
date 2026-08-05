@@ -325,6 +325,71 @@ What it contributes:
 Recorded so the clone's licence is not re-litigated and so the coordinate-coincidence idea is not
 lost: it is the one aux-proposal method not yet tried here.
 
+**T28 — P3 ("engines are consumed, not extended") is a policy, not a technical limit — and
+relaxing it does NOT unlock irrational answers.** *(2026-08-05. Tested rather than argued,
+because P3 has been read as the cause of several ceilings and it is the cause of fewer than
+assumed.)*
+
+`GeometricSolverBuilder.with_rules(rules: list[Rule])` is a **first-class upstream API**, and a
+`Rule` is declarative data — `premises_txt` and `conclusions_txt`, both tuples of predicate
+strings. Supplying our own rules is *configuration*, not a fork, and needs no engine change.
+So P3 never technically forbade a rule set of our own; it was a self-imposed scope decision.
+
+**What was measured:**
+
+| probe | result |
+|---|---|
+| Custom rule with an `rconst` conclusion | **fires** — the API genuinely extends the deduction set |
+| Custom rule with an `r2const` conclusion | **does not fire**, even for the trivially-true `midp M B C ⊢ r2const M B B C 1/4` |
+| `DEFAULT_RULES` | **58**, not 87 — 28 sit in `TRIAGE_LEAVE_RULE_OUT` and one in `DEACTIVATED_RULES` |
+| Re-enabling a deactivated named theorem (r45, Simson's line) | **no change** — derivable either way; AR already subsumes it |
+| Centroid median ratio 2:1, two-midpoint ratio 1/4 | derivable **by default** |
+
+Three consequences, and the second is the one that matters:
+
+1. **The excluded 28 are excluded because AR subsumes them, not because they are unavailable.**
+   Re-enabling them buys better *step naming* — a proof that says "Simson's line" instead of
+   "AR" — which is a docs/03 §3.5 translation concern, not a capability one.
+2. **A custom rule set cannot produce an irrational answer.** `r2const` conclusions do not fire,
+   and every other valued predicate (`aconst`, `lconst`, `rconst`) holds a `Fraction` by type.
+   **The quantity ceiling is the predicate value type, and no rule can change a type.** T21 and
+   T18 recorded the symptom; this records the mechanism, and it closes the rule-extension route
+   to √3/2 for good.
+3. **The verified quantity layer is therefore not one option among several — it is the only route
+   to irrational answers**, which is why docs/10 exists and why P6 was promoted.
+
+Where custom rules *are* still worth spending on: naming steps a human would name (rule 1), and
+possibly enriching closures enough to move docs/07 T26's auxiliary-construction rate — untested,
+and T26's five dead levers argue for measuring before building.
+
+**T29 — The player is shown the whole construction because we chose that, and it is the largest
+untried difficulty lever.** *(2026-08-05.)*
+
+T22 traced `requires_auxiliary ≡ 0` to the pipeline drawing every point, and T26 measured that
+withholding the goal's ancestor-closure complement yields an aux requirement on only **1.8%** of
+goals. Both took the *rule for choosing what to withhold* as given. It is not given — it is ours.
+
+The 1.8% is the rate at which a withheld point is **accidentally** load-bearing. Nothing forces
+us to withhold accidentally. A puzzle may name a point **descriptively instead of drawing it** —
+"the midpoint of BC", "the foot of the perpendicular from A", "the second intersection of AI with
+the circumcircle" — and then the solver must construct it to answer at all. That is an auxiliary
+construction by *design*, at 100%, and the engine still certifies the whole derivation because the
+point exists in the construction we solved.
+
+This costs nothing technically and is a **product** decision: it changes what the figure shows and
+what the statement says, not what is true. It also composes with docs/10 — an area question whose
+region is defined descriptively ("the triangle formed by A and the midpoint of BC") hides the
+region itself, which §10.10d names as the gap between the current two-step area puzzles and
+olympiad ones.
+
+Two things it must not become: a puzzle that is hard because the *wording* is obscure rather than
+the geometry (docs/05 §5.5 anti-goal), and a figure whose withheld point makes the statement
+ill-posed (Stage 8 still governs). Both are gates that already exist.
+
+**Not yet built or measured.** Recorded here because T22 and T26 read as "auxiliary constructions
+are capped at 1.8%", and that conclusion is true only under a withholding rule we are free to
+change.
+
 ## 7.4 Open risks (monitored, not yet mitigated)
 
 - ~~**O1 — Translation coverage unknown.**~~ **RESOLVED by Phase 0 (2026-08-01).** Measured: 86% of
