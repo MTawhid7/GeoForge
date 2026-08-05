@@ -54,6 +54,13 @@ class AreaTemplate:
     exercise; the midpoint templates are two."""
     uses: frozenset[str] = field(default_factory=lambda: frozenset({"p", "q", "t"}))
     """Which placeholders the template actually consumes."""
+    hideable: tuple[str, ...] = ()
+    """Region points this template can name in prose instead of drawing (docs/07 T29).
+
+    Empty for the one-step templates: their region IS the pinned triangle, and hiding a vertex
+    of it would leave nothing to ask about. The median templates hide `m` (and `n`), which turns
+    "find the area of ABM" into "M is the midpoint of BC -- find the area of ABM", so the solver
+    has to construct the point before the region even exists for them."""
 
 
 #: The reviewed library. Every entry was instantiated 20 times and measured before landing
@@ -93,6 +100,7 @@ TEMPLATES: tuple[AreaTemplate, ...] = (
         region=("a", "b", "m"),
         irrational=True,
         steps_to_solve=2,
+        hideable=("m",),
     ),
     AreaTemplate(
         name="equilateral_median",
@@ -103,6 +111,7 @@ TEMPLATES: tuple[AreaTemplate, ...] = (
         irrational=True,
         steps_to_solve=2,
         uses=frozenset({"p"}),
+        hideable=("m",),
     ),
     AreaTemplate(
         name="sas_two_medians",
@@ -113,6 +122,7 @@ TEMPLATES: tuple[AreaTemplate, ...] = (
         region=("a", "b", "n"),
         irrational=True,
         steps_to_solve=3,
+        hideable=("m", "n"),
     ),
 )
 

@@ -386,9 +386,48 @@ Two things it must not become: a puzzle that is hard because the *wording* is ob
 the geometry (docs/05 §5.5 anti-goal), and a figure whose withheld point makes the statement
 ill-posed (Stage 8 still governs). Both are gates that already exist.
 
-**Not yet built or measured.** Recorded here because T22 and T26 read as "auxiliary constructions
-are capped at 1.8%", and that conclusion is true only under a withholding rule we are free to
-change.
+**BUILT AND MEASURED 2026-08-05** (`src/geoforge/generator/withhold.py`, 19 tests). Over 300
+template draws at seed 42:
+
+| | |
+|---|---|
+| puzzles with a computed area | 300 |
+| **auxiliary construction required by design** | **154 (51.3%)** |
+| …and an irrational answer | 117 |
+| nothing legally hideable | 146 |
+
+**Against T26's 1.8% accidental rate, that is a 28× improvement, and it is by construction rather
+than by luck.** Every template that *can* hide does: 154 of 154. The 146 that cannot are the
+one-step templates whose region **is** the pinned triangle — hiding a vertex of it would leave
+nothing to ask about, which is a correct refusal rather than a miss.
+
+A generated example, verbatim:
+
+```
+shown: A, B, C
+M is the midpoint of BC
+find [ABM] = 5√2/2
+```
+
+Three refusals carry the design, and the first is the one that makes this honest:
+
+1. **No visible point may depend on a hidden one.** If `n = midpoint n b m` is drawn while `m` is
+   hidden, the figure shows where `n` is and `m` is recoverable by eye — the puzzle would *look*
+   like it hides a construction while giving it away. The hidden set must be closed downward
+   under "is used by".
+2. **Only uniquely-pinning constructions are describable.** `DESCRIPTIONS` is a whitelist:
+   `on_line` is absent because "a point on BC" does not say *which* point, so hiding it would make
+   the statement ill-posed rather than hard.
+3. **Only region points are hidden.** Hiding a point the question never mentions adds reading
+   difficulty rather than geometry, which docs/05 §5.5 rules out.
+
+The description is **correctness-bearing and therefore never LLM-written** — a phrase that defines
+a point is part of the statement's meaning, so it comes from the table, exactly as translation
+templates do. docs/02 invariant 5 is unchanged by this work.
+
+**What this does not yet claim.** These are two- and three-step puzzles that now genuinely require
+a construction. That is a real difficulty mechanism where none existed; it is not by itself
+olympiad grade, and the honest ceiling in docs/10 §10.10d still stands.
 
 ## 7.4 Open risks (monitored, not yet mitigated)
 
