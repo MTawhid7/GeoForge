@@ -35,6 +35,17 @@ Newclid (including Yuclid and ncdgen)
         gathered and formalized by the Newclid and Harmonic teams.
 
 --------------------------------------------------------------------------------
+GenesisGeo
+    Copyright the GenesisGeo authors (ZJUVAI)
+    Licensed under the Apache License, Version 2.0
+    Source: https://github.com/ZJUVAI/GenesisGeo
+    Used in: read-only reference clone at GenesisGeo/ (docs/07 T27). Studied for its
+        generation half — src/newclid/generation/auxiliary/ finds auxiliary-point
+        candidates by coordinate coincidence rather than by fixed heuristics. No code
+        copied and no dependency taken; if that approach is adopted it will be an
+        independent implementation, as sampler.py already is for ncdgen.
+
+--------------------------------------------------------------------------------
 Reference clones kept locally for study (never dependencies, never copied from):
 tong-geometry and FormalGeo are GPL-3.0 and are used for ideas only. No code from a
 GPL-licensed project is present in GeoForge (docs/07 P2).

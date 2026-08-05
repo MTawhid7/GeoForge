@@ -97,7 +97,23 @@ class BandProfile:
     most of it undetermined and Stage 5 finds nothing. More givens pin more of the figure and
     raise yield; too many make the answer a restatement of a given, which Stage 5's
     `already_given` check then discards. Capped again inside `decorate` at half the skeleton's
-    point count, so a small skeleton is never over-constrained."""
+    point count, so a small skeleton is never over-constrained.
+
+    MEASURED 2026-08-05, seed 42, n=40 expert-band figures per row (docs/07 T26). Sweeping this
+    value trades goal yield against the auxiliary-construction rate:
+
+    | givens | goals | aux | aux rate | structural saturation |
+    |---|---|---|---|---|
+    | 1 | 24 | 2 | 8.3% | 84.1% |
+    | 2 | 28 | 2 | 7.1% | 84.0% |
+    | 3 | 39 | 2 | 5.1% | 83.2% |
+    | 4 | 41 | 2 | 4.9% | 82.6% |
+
+    Read this carefully before "tuning for aux": the **absolute aux count is invariant at 2**.
+    Extra givens do not destroy aux puzzles, they add easy ones, so the rate falls by dilution.
+    Lowering this value raises the ratio and lowers the yield, and produces no more aux puzzles
+    per unit compute — which is the only quantity that matters once M8 filters for aux anyway.
+    Saturation barely moves because it is a property of the *skeleton*, not of the decoration."""
 
 
 @dataclass(frozen=True)

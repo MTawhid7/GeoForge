@@ -149,9 +149,16 @@ were not actually doing anything.
 |---|---|---|---|
 | **Invalid** | *(what unguided sampling actually produced)* | — | 72% of answers 45°, no circles, expert puzzles solved by inspection. Recorded so the baseline is not re-discovered |
 | Easy–hard, honest | Shortcut filter + answer entropy + non-round values + all 93 rules | P3 | Real practice material; a competition solver has to read the figure rather than glance at it |
-| Expert | Non-angle goals (ratio/length) + **auxiliary-construction detection** — surfacing the puzzles whose minimal derivation already needs a point no given names | P3 | The mechanism behind AlphaGeometry's own training corpus. Detection is cheap; we simply never looked (doc 07 T10) |
-| Olympiad-entry | Auxiliary-construction **hiding** (generate-with, hide, rediscover) + configuration-seeded figures | P5 | The known difficulty multiplier; needs figures rich enough to contain aux points (doc 07 L4) |
+| Expert | ~~Non-angle goals (ratio/length) + **auxiliary-construction detection**~~ | P3 | **Both struck 2026-08-05.** Ratio/length answers are {2, ½} at 52.9% modal share (T21). Detection is not a thing that exists — nothing is detectable until something is hidden (T22), and once hiding is built the rate is ~1.8% (T26) |
+| Olympiad-entry | Auxiliary-construction **hiding** (generate-with, hide, rediscover) + configuration-seeded figures | P5 | **The mechanism now works and is ablation-confirmed** — best case two withheld points, depth 19, a 46° answer. **The rate is the open problem**: ≈1.8% of goals, and four levers were measured without moving it (doc 07 T26) |
 | Olympiad-grade | Backward/value-guided proposing at scale | P5+ | TongGeometry demonstrated it and got three problems into real competitions. We commit to the architecture, not to its compute |
+
+**The ladder's unstated assumption, made explicit 2026-08-05.** Every rung above "easy–hard" is about
+proof *structure*, and none of them changes what a puzzle can **ask**. The answer space is
+rationals × π and nothing else: √3/2, 1/√3 and every area are unrepresentable by any engine in the
+lineage, not merely underived (doc 03 §3.7, §3.7a). 7π/8 is already free. The verified quantity layer
+(P6) is therefore not a late nicety — it is the only planned work that widens the *question*, and it is
+independent of the auxiliary-construction problem that has absorbed P3 and P5.
 
 Three commitments hold at every rung: difficulty comes from proof structure and never from presentation
 obstacles (doc 05 §5.5); bands mean what they say, and a thin honest expert band beats an inflated one

@@ -324,9 +324,47 @@ The response to doc 07 L4 — the sampler, not the translator or the scorer, is 
   something is hidden — hiding *creates* the signal rather than exposing one (doc 07 T22, L1). This
   bullet is therefore the whole of the auxiliary work, not the second half of it.
 
+  **AMENDED 2026-08-05 by the T26 measurements — the hiding mechanism is built and works, and the
+  problem moved.** `ncdgen`'s setup/aux split, run over GeoForge output, is non-empty and
+  ablation-confirmed on real puzzles (best case: two withheld points, depth 19, a 46° answer). So the
+  mechanism is no longer the open question. **The rate is:** ≈1.8% of extracted goals, and four levers
+  — bigger figures, heuristic enrichment, adding-a-point-and-measuring-the-delta, and decoration
+  sparsity — were each measured and none moved it. Cause: our figures are metrically saturated (76.6%
+  of true prove-facts and 97.7% of angle goals are already derivable), so an auxiliary point has
+  nothing to unlock. Full table in doc 07 T26; do not re-propose those four.
+
 **AC:** expert band populated at target volume from figures containing genuine auxiliary points;
 degeneracy attrition materially below the measured 86%; hidden-construction hint UX validated by
 dogfooding.
+
+### P5 open directions (2026-08-05) — ordered by evidence, not by appeal
+
+Everything cheap has been tried. What is left, in the order the measurements justify:
+
+1. ~~**Change the source: seed from `imo_102_requires_aux.txt`.**~~ **MEASURED AND REFUTED
+   2026-08-05: 0/117 goals, against 3/170 (1.8%) for the rest of the library.** Those 101 problems
+   need a construction for *their own* prove-goal; discard that goal and ask an angle-value question
+   instead and the aux requirement does not transfer. Keep them out of seeding.
+
+   What survives from this line: aux-yielding really is a property of particular configurations —
+   every confirmed case traces to `imo_sl_2008_g3` or `imo_sl_2011_g5`, at proof depth 18–19. A
+   **ranked table of per-configuration aux yield** over the whole 635 is still worth building, but
+   as a bias for Stage 1b, not as a new dataset.
+2. **Coordinate-coincidence aux proposal** (doc 07 T27, GenesisGeo). The one proposal method not yet
+   tried: candidates are points where lines and circles spanned by existing points *happen* to meet,
+   carrying several incidences at once, rather than mechanical midpoints and feet. Whether it survives
+   the saturation problem is unknown — the delta experiment says any point unlocks nothing in a fat
+   closure — so test it on sparse figures, not on decorated ones.
+3. **Mine GenesisGeo's released dataset** (21.8M problems, >3M with auxiliary constructions,
+   Apache-2.0). Not yet examined. This is the only route that does not require us to *manufacture* the
+   property.
+4. **Accept ~2% and industrialise it.** ~80 aux puzzles/hour single-threaded is ~25 CPU-hours for a
+   2,000-puzzle bank, which is a normal offline build. If the rate cannot be raised, the honest move is
+   to filter for aux and pay the compute rather than keep hunting for a lever.
+
+**The strategic alternative, which does not depend on any of the above:** the quantity layer (P6). It
+is the only change that alters what a GeoForge puzzle can *ask*, and it is independent of the aux
+problem. See P6.
 
 ## P6 — Areas
 
