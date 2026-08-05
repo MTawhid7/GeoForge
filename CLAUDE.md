@@ -8,7 +8,7 @@ pipeline (sampler → Solver Abstraction Layer [Newclid/Yuclid primary, AG2 DDAR
 puzzle former → gates → bank) produces validated puzzle JSON; static React/TS frontend renders it.
 Authoritative specs live in docs/ — read the doc for the subsystem you're touching:
 overview 01, architecture 02, solver integration 03, generation 04, scoring 05, frontend 06,
-recorded trade-offs 07 (do not reverse silently), guidelines 08, roadmap 09.
+recorded trade-offs 07 (do not reverse silently), guidelines 08, roadmap 09, area layer 10.
 research/ is the frozen research record behind the 2026 pivot — reference, don't rewrite.
 
 ## Commands

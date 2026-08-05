@@ -311,6 +311,7 @@ gitignored, never modified in place, never dependencies.
 | `docs/07` | **Recorded decisions — do not reverse silently** |
 | `docs/08` | Coding standards, testing policy, session workflow |
 | `docs/09` | Roadmap and phase acceptance criteria |
+| `docs/10` | **Area layer** (design, not built): exact area/arc/sector/curvature computed on engine-certified structure |
 | `research/` | Frozen research behind the 2026 pivot (reference, don't rewrite) |
 | `spikes/p0/REPORT.md` | Phase 0 measured evidence |
 
