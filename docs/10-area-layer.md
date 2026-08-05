@@ -183,8 +183,9 @@ Each step is independently verifiable and each has a kill condition.
 
 | step | deliverable | kill condition |
 |---|---|---|
-| ~~A1~~ | **DONE 2026-08-05 — see §10.10a** | — |
-| A2 | `quantities/area.py`: `Triangle` only, three primitives (½ab sin C, Heron, ½·base·height), exact SymPy, shoelace check | the engine does not certify enough lengths per figure to close a triangle |
+| ~~A1~~ | **DONE 2026-08-05 — see §10.10a. Its sampling half is superseded by §10.10b.** | — |
+| ~~A2~~ | **DONE 2026-08-05 — module built and tested; see §10.10b.** Its kill condition *fired* and the fix is A1b | ~~the engine does not certify enough lengths per figure to close a triangle~~ **THIS HAPPENED** |
+| A1b | Area construction **templates** replacing weighted random growth (§10.10b) | templated figures fail Stage 8 well-posedness or collapse to one answer |
 | A3 | Register `area` in the QTR (`goal_extractor`, `dimension`, `nice_values`, `answer_policy`, `templates`, `marks`) and ship one band | answers cluster the way ratio's did — measure modal share before believing otherwise |
 | A4 | `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
 | A5 | Arc length, perimeter, curvature — all reuse A4's machinery | — |
@@ -237,6 +238,65 @@ only needs triangles — but **sectors, arcs and segments need circles with name
 need either its own profile or seeded skeletons rather than grown ones. Do not raise
 `circle_weight` on the `area` profile to fix this without re-measuring the region rate: at 20 the two
 circle primitives took 555 of ~1000 sampled steps.
+
+## 10.10b A2 as built, and the finding that redefines A1 (2026-08-05)
+
+`generator/area.py` is built, tested (23 tests) and type-clean: three primitives, exact SymPy,
+shoelace verification that **raises** on disagreement, and the mod-π invariance of ½ab·sin C
+asserted by a parametrised test rather than assumed.
+
+**Then it produced zero areas on 150 real area-profile figures.** A2's own kill condition, fired
+on the first honest measurement. The diagnosis matters more than the module:
+
+1. **The pin dangles.** `lconst f d 4` introduces a *fresh* point `f` that participates in nothing
+   else. MEASURED: 27 of 40 figures carry exactly one declared length fact, and only **6 of 40**
+   have two pinned segments sharing an endpoint — the minimum a triangle needs.
+2. **Scale does not propagate.** In a sample figure, exactly **one** segment in the whole diagram
+   had a known length: the pin itself. `lconst` holds a `Fraction`, so from one pinned length the
+   engine reaches only rationally-related lengths — via `cong` (equal) or `midp` (half). This is
+   docs/07 T21's "powers of 2" wall, reappearing for lengths instead of ratios.
+3. **The deepest reason, and the one that changes the design: a generically-grown region has no
+   determined area at all.** `on_tline c a a b` places `c` on a perpendicular but leaves `|ac|`
+   free, so triangle `abc`'s area is not a function of the givens. There is nothing for any layer
+   to compute, and Stage 8 well-posedness would reject it regardless.
+
+**So area cannot come from weighted random growth.** It needs constructions whose region is pinned
+by design. MEASURED over four templates, 25 instantiations each, values drawn at random:
+
+| source | areas computed | irrational | distinct values | modal share |
+|---|---|---|---|---|
+| random clause growth (the A1 profile) | **0 / 150** | — | — | — |
+| pinned templates | **95 / 100** | 61 | **38** | **10.5%** |
+
+Against angle's 9 distinct values at 36.0% modal share, that is a decisive improvement on exactly
+the guessability metric that invalidated the first bank (docs/07 T5) — and the values are the ones
+no engine can represent: `5√3/2`, `25√2/4`, `6√3`, `9√2`, `3√3/2`.
+
+The four templates, with what each buys:
+
+| template | JGEX shape | yields |
+|---|---|---|
+| SAS | `a = free a; b = lconst b a P; c = s_angle b a c THETAo, lconst c a Q` | 25/25, 16 irrational — the workhorse |
+| equilateral | `a = free a; b = lconst b a P; c = lconst c a P, lconst c b P` | 25/25, **all irrational** — (√3/4)P² |
+| isosceles | `a = free a; b = lconst b a P; c = lconst c a P, lconst c b Q` | 20/25, all irrational |
+| right legs | `a = free a; b = lconst b a P; c = on_tline c a a b, lconst c a Q` | 25/25, **0 irrational** — ½PQ is rational, so this is easy-band filler |
+
+**A1's flags and weights are still right and stay** — `bounds_region` and `states_length_value` are
+what a template selector reads, and the four difficulty bands remain byte-identical. What is
+superseded is the assumption that *weighting* a random walk would produce askable area figures.
+It produced figures containing regions, which is what §10.10a measured and claimed, and none of
+those regions had a determined area — the gap between those two statements is the lesson.
+
+**This is docs/07 L4 again** ("the difficulty ceiling is the generator"), in a new quantity type:
+random clause growth cannot produce the deliberate arrangements a good puzzle needs. The response
+here is the same one docs/09 P5 reaches for — a reviewed library of archetypes — at much smaller
+scale, because an area template is four clauses rather than a competition configuration.
+
+**Open question for A1b, to be measured and not assumed:** whether templated figures survive
+Stage 8 well-posedness, and whether a template with *decoration grown on top of it* still has a
+determined area. A four-clause template is a puzzle nobody would call hard; the interesting figure
+is a template plus enough structure to hide where the region is, and nothing yet shows that
+survives.
 
 ## 10.11 Deliberately not in scope
 

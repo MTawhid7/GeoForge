@@ -725,8 +725,34 @@ class BankConfig:
     replaces this once the scorer redistributes the bands (docs/09 P2)."""
 
 
+@dataclass(frozen=True)
+class AreaConfig:
+    """The area layer (docs/10). Arithmetic on engine-certified quantities, never derivation."""
+
+    verification_tolerance: float = 1e-7
+    """How far an exactly-computed area may sit from the shoelace area of the reference diagram
+    before the computation is treated as WRONG (docs/10 §10.8).
+
+    This is a soundness check, not a snapping tolerance: it never rounds a value into
+    acceptability, it only decides whether an already-exact result agrees with the diagram. A
+    disagreement is a bug in the layer or a mis-certified premise, so the layer raises rather
+    than discards — the opposite of `EXTRACTION.angle_snap_tolerance_degrees`, which filters
+    candidates.
+
+    1e-7 sits between realized-figure construction error (~1e-13 residual on exact quantities,
+    the same measurement behind the angle snap tolerance) and the ~1e-2 scale of a genuinely
+    different value. Tighter risks false alarms from accumulated float error in Heron on large
+    figures; looser would admit a wrong decomposition."""
+
+    max_region_vertices: int = 6
+    """Largest polygon the layer will fan-decompose. Beyond this the figure is too busy for the
+    region to be legible in the statement, which is a docs/06 concern rather than a mathematical
+    one — the arithmetic scales fine."""
+
+
 SOLVER = SolverConfig()
 TOLERANCE = ToleranceConfig()
+AREA = AreaConfig()
 DEGENERACY = DegeneracyConfig()
 GENERATION = GenerationConfig()
 EXTRACTION = ExtractionConfig()

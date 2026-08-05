@@ -52,6 +52,19 @@ files = ["src/geoforge"]
 module = ["newclid.*", "py_yuclid.*", "sympy.*"]
 ignore_missing_imports = true
 
+# sympy 1.14 ships no py.typed, so `ignore_missing_imports` alone leaves the top-level module as
+# `types.ModuleType` and every `sympy.sqrt` reads as a missing attribute under --strict. Following
+# the untyped source gives real signatures instead of silencing the checker with per-call ignores,
+# which matters because the area layer (docs/10) is correctness-path code.
+#
+# Scoped to sympy alone, deliberately: applying it to newclid as well makes mypy analyse the
+# engine's source and surface upstream export errors inside `_patches.py`, which is exactly the
+# churn the hard pin exists to keep out (docs/07 P1a).
+[[tool.mypy.overrides]]
+module = ["sympy", "sympy.*"]
+ignore_missing_imports = true
+follow_untyped_imports = true
+
 # Same rationale as the ruff per-file-ignore above: this module mirrors upstream bodies over
 # untyped sympy internals and rebinds module attributes by design. Kept verbatim rather than
 # re-typed so it stays diffable against upstream.
@@ -60,6 +73,16 @@ module = ["geoforge.solvers._patches"]
 disallow_untyped_defs = false
 warn_unused_ignores = false
 disable_error_code = ["name-defined", "attr-defined", "no-any-return", "misc"]
+
+# The area layer computes with sympy, which ships no type information, so every call into it is
+# an untyped call returning Any. Exactly two checks are relaxed and only for this module —
+# everything else --strict enforces (untyped defs, missing annotations, unreachable code) stays
+# on, because this is correctness-path code (CLAUDE.md). The alternative was a `# type: ignore`
+# on ~20 individual sympy calls, which would hide real errors as well as these.
+[[tool.mypy.overrides]]
+module = ["geoforge.generator.area"]
+disallow_untyped_calls = false
+warn_return_any = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

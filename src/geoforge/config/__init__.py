@@ -6,6 +6,7 @@ rather than superstition. Values marked PHASE0 were measured in spikes/p0/REPORT
 """
 
 from geoforge.config.thresholds import (
+    AREA,
     BANDING,
     BANK,
     DEGENERACY,
@@ -25,6 +26,7 @@ from geoforge.config.thresholds import (
 )
 
 __all__ = [
+    "AREA",
     "BANDING",
     "BANK",
     "DEGENERACY",
