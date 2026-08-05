@@ -188,3 +188,80 @@ class TestAgainstTheEngine:
         assert sympy.simplify(result.exact - sympy.sqrt(3)) == 0
         assert result.is_irrational, "the whole point: an answer no engine can represent"
         assert result.approx == pytest.approx(math.sqrt(3))
+
+
+class TestDecomposition:
+    """Area by ratio against a larger triangle (docs/10 §10.5).
+
+    The direct primitives compute 0 of 20 sub-triangle areas on a decorated figure, because the
+    sub-triangle's sides are irrational and `lconst` holds a `Fraction`. Decomposition needs no
+    length at all, which is the whole point.
+    """
+
+    SAS = (
+        lconst("a", "b", 6),
+        lconst("a", "c", 2),
+        aconst("a", "b", "a", "c", Fraction(1, 3)),
+    )
+
+    def midp(self, m: str, u: str, v: str) -> Fact:
+        return Fact(kind=FactKind.MIDPOINT, args=(m, u, v))
+
+    def test_a_median_halves_the_triangle(self) -> None:
+        whole = triangle_area(("a", "b", "c"), self.SAS)
+        half = triangle_area(("a", "b", "m"), (*self.SAS, self.midp("m", "b", "c")))
+        assert whole is not None and half is not None
+        assert half.route == "area_median_split"
+        assert sympy.simplify(half.exact - whole.exact / 2) == 0
+
+    def test_it_works_from_either_endpoint_of_the_split_segment(self) -> None:
+        facts = (*self.SAS, self.midp("m", "b", "c"))
+        for region in (("a", "b", "m"), ("a", "c", "m")):
+            result = triangle_area(region, facts)
+            assert result is not None, region
+            assert result.route == "area_median_split"
+
+    def test_two_midpoints_compose_to_a_quarter(self) -> None:
+        """Depth > 1: the medial sub-triangle is a quarter of the original."""
+        facts = (*self.SAS, self.midp("m", "b", "c"), self.midp("n", "b", "m"))
+        whole = triangle_area(("a", "b", "c"), self.SAS)
+        quarter = triangle_area(("a", "b", "n"), facts)
+        assert whole is not None and quarter is not None
+        assert sympy.simplify(quarter.exact - whole.exact / 4) == 0
+
+    def test_the_midpoint_fact_is_kept_as_a_consumed_input(self) -> None:
+        """It is a premise the puzzle must state and Stage 6 must not drop."""
+        result = triangle_area(("a", "b", "m"), (*self.SAS, self.midp("m", "b", "c")))
+        assert result is not None
+        assert any(f.kind is FactKind.MIDPOINT for f in result.inputs)
+
+    def test_a_midpoint_of_an_uncomputable_parent_yields_nothing(self) -> None:
+        """Decomposition is not a way to conjure an area the parent never had."""
+        assert triangle_area(("a", "b", "m"), (self.midp("m", "b", "c"),)) is None
+
+    def test_decomposition_terminates_on_cyclic_midpoint_facts(self) -> None:
+        """A bound is required, not merely tidy: these facts are mutually recursive."""
+        facts = (*self.SAS, self.midp("m", "b", "n"), self.midp("n", "b", "m"))
+        assert triangle_area(("a", "b", "m"), facts) is None
+
+    def test_verified_against_the_engine_and_the_diagram(self) -> None:
+        from geoforge.solvers.interface import get_backend
+        from geoforge.solvers.types import ProblemSpec, SolveOptions
+
+        backend = get_backend()
+        figure = backend.realize(
+            ProblemSpec(
+                construction=(
+                    "a = free a; b = lconst b a 6; c = s_angle b a c 60o, lconst c a 2;"
+                    " m = midpoint m b c"
+                )
+            ),
+            SolveOptions(seed=42),
+        )
+        coords = {name: (x, y) for name, x, y in figure.points}
+        # area_of verifies against the diagram and raises on disagreement.
+        result = area_of(("a", "b", "m"), tuple(figure.declared), coords)
+        assert result is not None
+        assert result.route == "area_median_split"
+        assert sympy.simplify(result.exact - 3 * sympy.sqrt(3) / 2) == 0
+        assert result.is_irrational

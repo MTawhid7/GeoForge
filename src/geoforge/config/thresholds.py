@@ -744,6 +744,18 @@ class AreaConfig:
     different value. Tighter risks false alarms from accumulated float error in Heron on large
     figures; looser would admit a wrong decomposition."""
 
+    max_decomposition_depth: int = 3
+    """How far `area._decompose` may recurse through certified midpoint splits (docs/10 §10.5).
+
+    Each level is one area-ratio step in the solution, so this is a difficulty knob as much as a
+    termination bound: depth 1 is "a median halves the triangle", depth 2 reaches the medial
+    triangle at a quarter. A bound is required regardless, because a cyclic set of midpoint facts
+    would otherwise recurse forever.
+
+    3 is a starting value, not a measurement — beyond that the solution's chain of ratio steps
+    gets long enough that the puzzle is arithmetic rather than insight, which is the thin-layer
+    constraint in docs/10 §10.3."""
+
     max_region_vertices: int = 6
     """Largest polygon the layer will fan-decompose. Beyond this the figure is too busy for the
     region to be legible in the statement, which is a docs/06 concern rather than a mathematical

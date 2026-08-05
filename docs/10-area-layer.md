@@ -292,11 +292,46 @@ random clause growth cannot produce the deliberate arrangements a good puzzle ne
 here is the same one docs/09 P5 reaches for — a reviewed library of archetypes — at much smaller
 scale, because an area template is four clauses rather than a competition configuration.
 
-**Open question for A1b, to be measured and not assumed:** whether templated figures survive
-Stage 8 well-posedness, and whether a template with *decoration grown on top of it* still has a
-determined area. A four-clause template is a puzzle nobody would call hard; the interesting figure
-is a template plus enough structure to hide where the region is, and nothing yet shows that
-survives.
+## 10.10c Decomposition: what makes a decorated template a puzzle (2026-08-05)
+
+§10.10b asked whether a template with structure grown on top still has a determined area. It does
+not, by the direct primitives — **0 of 20** on every decorated case:
+
+| case | direct primitives | with decomposition |
+|---|---|---|
+| base (the pinned triangle itself) | 20/20 | 20/20 |
+| + midpoint of a side | **0/20** | **20/20** |
+| + two midpoints | 2/20 | 20/20 |
+| equilateral + midpoint | **0/20** | 20/20 |
+| right triangle + midpoint | **0/20** | 20/20 |
+
+**Why the direct route fails, and why it is not fixable by trying harder.** For the sub-triangle
+`abm` with `m` the midpoint of `bc`: `|bc|` is irrational (law of cosines on the pinned SAS), so
+`|bm| = |bc|/2` is unreachable and the median `|am|` more so. `lconst` holds a `Fraction` and
+cannot express any of them. Asking the engine for those lengths asks its predicates for values
+they cannot hold — the same wall as docs/07 T21.
+
+**None of it is needed.** If `m` is the midpoint of `bc`, then `abm` and `abc` share the apex `a`
+and the second has twice the base, so `[abm] = ½[abc]` **exactly** — an area-*ratio* argument over
+certified structure, using no length at all. Verified against the diagram on 6 of 6 instantiations
+before a line of it was written, then on 20 of 20 after.
+
+This is the Chou–Gao–Zhang area-method idea that docs/03 §3.7 names as a candidate *engine*, used
+here as a decomposition rule instead. `AREA.max_decomposition_depth` bounds the recursion — a
+requirement, not tidiness, since mutually-recursive midpoint facts would otherwise spin, and the
+bound doubles as a difficulty knob because each level is one ratio step in the solution.
+
+**Answer quality across all five cases: 100 areas, 45 distinct values, 6.0% modal share** —
+against angle's 9 values at 36.0%. Sample: `2√3`, `√3/2`, `9√3/2`, `5√3/2`, `3/2`, `5`.
+
+Note the `right+mid` row yields **0 irrational** — ½·p·q halved is still rational. It is honest
+easy-band filler, not a defect, but a band built only from right triangles would reproduce
+angle's guessability problem in a new unit.
+
+**Still open, and now the top A1b question:** whether these figures survive Stage 8 well-posedness,
+and whether the *region itself* can be hidden well enough that finding it is the puzzle. A pinned
+SAS triangle with one midpoint is a two-step problem; that is a real puzzle where §10.10b's bare
+template was not, but it is not yet an olympiad one.
 
 ## 10.11 Deliberately not in scope
 

@@ -240,13 +240,69 @@ def _facts_used(facts: tuple[Fact, ...], tri: tuple[str, str, str]) -> tuple[Fac
     return tuple(f for f in facts if f.args and set(f.args) <= points)
 
 
-def triangle_area(tri: tuple[str, str, str], facts: tuple[Fact, ...]) -> AreaResult | None:
-    """Exact area of a triangle, or None when the engine did not certify enough to find one.
+def _midpoint_splits(facts: tuple[Fact, ...]) -> tuple[tuple[str, str, str], ...]:
+    """Certified midpoints, as (m, u, v) meaning m is the midpoint of segment uv."""
+    return tuple(
+        (fact.args[0], fact.args[1], fact.args[2])
+        for fact in facts
+        if fact.kind is FactKind.MIDPOINT and len(fact.args) == 3
+    )
 
-    Primitives are tried cheapest-first, and the order is deliberate: the right-angle route uses
-    two facts, Heron three, and SAS three including an angle. Returning None is ordinary
-    attrition -- most triangles in a figure have no certified sides at all.
+
+def _decompose(tri: tuple[str, str, str], facts: tuple[Fact, ...], depth: int) -> AreaResult | None:
+    """Area by RATIO against a larger triangle, when a certified midpoint relates the two.
+
+    This is what makes a decorated figure workable, and it is the difference between a puzzle
+    and an arithmetic exercise. MEASURED: on an SAS-pinned triangle with a midpoint added, the
+    direct primitives compute **0 of 20** sub-triangle areas -- because |bc| is irrational, so
+    |bm| = |bc|/2 is unreachable and the median |am| more so, and `lconst` holds a `Fraction`
+    and cannot express any of them.
+
+    None of that is needed. If m is the midpoint of bc then triangles abm and abc share the apex
+    a and the second has twice the base, so [abm] = (1/2)[abc] exactly -- an area-ratio argument
+    over certified structure, using no length at all. Verified against the diagram on 6 of 6
+    instantiations before this was written.
+
+    This is the Chou-Gao-Zhang area-method idea that docs/03 §3.7 names as an alternative engine,
+    used here as a decomposition rule rather than adopted as a backend.
+
+    Recursion is depth-bounded so two midpoints compose (the medial triangle is a quarter) while
+    a cyclic set of midpoint facts cannot spin.
     """
+    if depth <= 0:
+        return None
+    for m, u, v in _midpoint_splits(facts):
+        if m not in tri:
+            continue
+        rest = tuple(p for p in tri if p != m)
+        if len(rest) != 2:
+            continue
+        # The triangle must have one of the segment's endpoints as a vertex; the parent is the
+        # same triangle with the midpoint replaced by the far endpoint.
+        for near, far in ((u, v), (v, u)):
+            if near not in rest:
+                continue
+            apex = next((p for p in rest if p != near), None)
+            if apex is None or apex in (u, v):
+                continue
+            parent = (apex, near, far)
+            whole = _triangle_area(parent, facts, depth - 1)
+            if whole is None:
+                continue
+            return AreaResult(
+                exact=sympy.simplify(whole.exact / 2),
+                route="area_median_split",
+                inputs=whole.inputs
+                + tuple(
+                    f for f in facts if f.kind is FactKind.MIDPOINT and tuple(f.args) == (m, u, v)
+                ),
+            )
+    return None
+
+
+def _triangle_area(
+    tri: tuple[str, str, str], facts: tuple[Fact, ...], depth: int
+) -> AreaResult | None:
     if len(set(tri)) != 3:
         return None
     lengths = certified_lengths(facts)
@@ -254,7 +310,18 @@ def triangle_area(tri: tuple[str, str, str], facts: tuple[Fact, ...]) -> AreaRes
         _right_angle_area(tri, lengths, certified_right_angles(facts), facts)
         or _heron(tri, lengths, facts)
         or _sas(tri, lengths, certified_vertex_angles(facts), facts)
+        or _decompose(tri, facts, depth)
     )
+
+
+def triangle_area(tri: tuple[str, str, str], facts: tuple[Fact, ...]) -> AreaResult | None:
+    """Exact area of a triangle, or None when the engine did not certify enough to find one.
+
+    Primitives are tried cheapest-first, and the order is deliberate: the right-angle route uses
+    two facts, Heron three, SAS three including an angle, and decomposition recurses. Returning
+    None is ordinary attrition -- most triangles in a figure have no certified sides at all.
+    """
+    return _triangle_area(tri, facts, AREA.max_decomposition_depth)
 
 
 # ----------------------------------------------------------------------------------------
