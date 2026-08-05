@@ -328,10 +328,50 @@ Note the `right+mid` row yields **0 irrational** — ½·p·q halved is still ra
 easy-band filler, not a defect, but a band built only from right triangles would reproduce
 angle's guessability problem in a new unit.
 
-**Still open, and now the top A1b question:** whether these figures survive Stage 8 well-posedness,
-and whether the *region itself* can be hidden well enough that finding it is the puzzle. A pinned
-SAS triangle with one midpoint is a two-step problem; that is a real puzzle where §10.10b's bare
-template was not, but it is not yet an olympiad one.
+## 10.10d A1b as built (2026-08-05)
+
+`generator/templates.py` — a **reviewed** library of six area archetypes and `draw_area`, which
+replaces weighted random growth as the source of area figures. Reviewed is load-bearing here for
+the same reason it is for the translation table and the configuration library: a template nobody
+has checked is a figure nobody can vouch for, so each entry records what it yields.
+
+| template | region | steps | irrational |
+|---|---|---|---|
+| `sas` | the pinned triangle | 1 | yes |
+| `equilateral` | the pinned triangle | 1 | yes |
+| `right_legs` | the pinned triangle | 1 | **no** — ½pq over integers |
+| `sas_median` | sub-triangle at a midpoint | 2 | yes |
+| `equilateral_median` | sub-triangle at a midpoint | 2 | yes |
+| `sas_two_medians` | sub-triangle at two midpoints | 3 | yes |
+
+**MEASURED, 300 draws at seed 42:**
+
+| | |
+|---|---|
+| realized | **300/300**, zero failures |
+| area computed | **300/300**, zero verification errors |
+| irrational | 201 (**67.0%**) |
+| distinct values | **65** |
+| modal share | **6.0%** (angle: 36.0%) |
+
+`TEMPLATE_ANGLES` excludes 90° deliberately: a right angle makes the SAS area rational *and* is
+its own supplement, which is how two separate defects hid themselves before (ONBOARDING gotcha 6).
+Multiples of 30 and 45 stay in, because an area of `5√3/2` is not sight-readable just because the
+angle behind it was 60°.
+
+**Well-posedness — the gate §10.10c left open — passes.** A template claims to *pin* its region,
+so the area must be the same number in every figure the construction realizes to; a value that
+moved with the seed was never determined by the givens. Asserted per template across four seeds,
+and `area_of` verifies against each diagram along the way, so the test also re-checks the exact
+value four times over. All six hold.
+
+**Still open, and now the honest ceiling.** These are two- and three-step puzzles with irrational
+answers and 6.0% modal share — a real improvement on angle, and genuinely not sight-readable. They
+are **not olympiad problems**. The region is stated plainly and the solver's work is "recognise the
+median, halve the area". Making them hard needs the region *hidden* — asked about a sub-figure the
+solver must first identify — which is the same hide/rediscover mechanism docs/07 T26 records as
+capped at ~1.8% for auxiliary points. Nothing here shows that transfers to regions; it is the next
+thing to measure, not to assume.
 
 ## 10.11 Deliberately not in scope
 
