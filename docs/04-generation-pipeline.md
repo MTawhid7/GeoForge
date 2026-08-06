@@ -12,6 +12,25 @@ special-case "angle". Each registered type declares:
 | Field | Meaning | `angle` | `ratio` / `length` | `area` (later) |
 |---|---|---|---|---|
 | `goal_extractor` | Which derived facts qualify as goals | numeric-valued angle atoms (`aconst`), proposed then verified — the closure emits none | AR length/ratio atoms (`rconst`, `lconst`), **harvested from the closure**, which emits them directly (M4a). Not `r2const`/`l2const`: nothing derives those | custom area layer output (doc 03 §3.7) |
+
+**`goal_extractor` signature, widened 2026-08-06.** It takes a **`FigureView`** — the reference
+coordinates *and* the engine's certified facts — where it previously took coordinates alone:
+
+```python
+goal_extractor: Callable[[FigureView], tuple[Proposal, ...]]
+```
+
+The original signature encoded `angle`'s workflow as though it were every type's: measure the
+diagram, propose a value, let the engine verify. That is right for any quantity the engine can
+*evaluate*, and wrong for one it cannot. An area is computed from certified facts — a right angle
+here, a midpoint there (doc 10 §10.5) — and a coordinates-only extractor would have to re-derive
+that geometry from numbers, which invariant 4 forbids outright.
+
+A dataclass rather than a second positional argument, so that the next field a quantity type needs
+is an addition rather than another signature break. Two properties are asserted by tests rather
+than assumed: `angle` ignores `facts` entirely (it reads the diagram, and a version that started
+depending on facts would be a design change, not a refactor), and **every** registered type
+accepts a view — the contract belongs to the registry, not to `angle`.
 | `dimension` | Scale behavior | scale-free | ratio: scale-free; length: **scale-pinned** | scale-pinned (dimension 2) |
 | `nice_values` | Given-value palette per band | rationals × π — round for easy, **non-round for the upper bands** (doc 07 T18) | small integers/surds, small fractions | — (derived) |
 | `answer_policy` | Exactness class + input mode (doc 02) | integer degrees, keypad | fraction / decimal+tolerance, exact surd revealed on solve | decimal+tolerance |

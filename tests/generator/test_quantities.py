@@ -17,6 +17,7 @@ from geoforge.generator.quantities import (
     ANGLE,
     Dimension,
     Exactness,
+    FigureView,
     enabled_types,
     propose_angles,
     registry,
@@ -83,45 +84,56 @@ class TestSnapping:
         assert snap_to_integer_degrees(180.0) is None
 
 
+def view(coords: dict[str, tuple[float, float]]) -> FigureView:
+    """Wrap bare coordinates for `propose_angles`.
+
+    The extractor takes a `FigureView` since 2026-08-06 (docs/04 §QTR) so that a quantity the
+    engine cannot evaluate can read certified facts. `angle` reads only the coordinates, so
+    these fixtures pass no facts — which is itself worth asserting: an angle extractor that
+    started depending on facts would be a design change, not a refactor.
+    """
+    return FigureView(coords=coords, facts=())
+
+
 class TestAngleProposals:
     def test_finds_the_round_angles(self) -> None:
-        by_subject = {p.subject: p for p in propose_angles(RIGHT_ISOSCELES)}
+        by_subject = {p.subject: p for p in propose_angles(view(RIGHT_ISOSCELES))}
         assert set(by_subject) == {("b", "a", "c"), ("a", "b", "c"), ("a", "c", "b")}
         assert by_subject[("b", "a", "c")].fact.degrees() == 90
         assert by_subject[("a", "b", "c")].fact.degrees() == 45
 
     def test_generic_figure_proposes_nothing(self) -> None:
-        assert propose_angles(GENERIC) == ()
+        assert propose_angles(view(GENERIC)) == ()
 
     def test_fact_value_equals_the_vertex_angle(self) -> None:
         """The spelling must be chosen so the directed fact's value *is* the vertex angle, not
         its supplement — otherwise the puzzle's answer would differ from what is proved."""
-        for proposal in propose_angles(RIGHT_ISOSCELES):
+        for proposal in propose_angles(view(RIGHT_ISOSCELES)):
             u, vertex, v = proposal.subject
             expected = _vertex_degrees(RIGHT_ISOSCELES, u, vertex, v)
             assert proposal.fact.degrees() == pytest.approx(expected, abs=1e-9)
 
     def test_proposals_are_constant_angle_facts(self) -> None:
-        for proposal in propose_angles(RIGHT_ISOSCELES):
+        for proposal in propose_angles(view(RIGHT_ISOSCELES)):
             assert proposal.fact.kind is FactKind.CONSTANT_ANGLE
             assert proposal.fact.value is not None
 
     def test_proposals_are_deterministic_and_sorted(self) -> None:
-        first, second = propose_angles(RIGHT_ISOSCELES), propose_angles(RIGHT_ISOSCELES)
+        first, second = propose_angles(view(RIGHT_ISOSCELES)), propose_angles(view(RIGHT_ISOSCELES))
         assert first == second
         assert list(first) == sorted(first)
 
     def test_scale_invariant(self) -> None:
         """A figure drawn a thousand times larger is the same figure."""
         big = {name: (x * 1000, y * 1000) for name, (x, y) in RIGHT_ISOSCELES.items()}
-        assert [p.fact.degrees() for p in propose_angles(big)] == [
-            p.fact.degrees() for p in propose_angles(RIGHT_ISOSCELES)
+        assert [p.fact.degrees() for p in propose_angles(view(big))] == [
+            p.fact.degrees() for p in propose_angles(view(RIGHT_ISOSCELES))
         ]
 
     def test_obtuse_angle_is_proposed_as_obtuse(self) -> None:
         """An angle of 135 degrees must not be proposed as its 45-degree supplement."""
         coords = {"a": (0.0, 0.0), "b": (1.0, 0.0), "c": (-1.0, 1.0)}
-        by_subject = {p.subject: p for p in propose_angles(coords)}
+        by_subject = {p.subject: p for p in propose_angles(view(coords))}
         assert by_subject[("b", "a", "c")].fact.degrees() == 135
 
 
@@ -131,3 +143,38 @@ def _vertex_degrees(coords: dict[str, tuple[float, float]], u: str, vertex: str,
     vx, vy = coords[v][0] - ax, coords[v][1] - ay
     cosine = (ux * vx + uy * vy) / (math.hypot(ux, uy) * math.hypot(vx, vy))
     return math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+
+
+class TestFigureViewSeam:
+    """The §QTR seam every quantity type reaches through (widened 2026-08-06).
+
+    `angle` measures the diagram and lets the engine verify, so it needs only coordinates. Any
+    quantity the engine cannot evaluate -- `area` is the first -- must read what was *certified*
+    instead, because re-deriving geometry from coordinates is what docs/02 invariant 4 forbids.
+    These tests pin the seam so a later change cannot quietly narrow it back.
+    """
+
+    def test_the_view_carries_facts_as_well_as_coordinates(self) -> None:
+        from geoforge.solvers.types import Fact, FactKind
+
+        fact = Fact(kind=FactKind.PERPENDICULAR, args=("a", "b", "a", "c"))
+        v = FigureView(coords={"a": (0.0, 0.0)}, facts=(fact,))
+        assert v.coords == {"a": (0.0, 0.0)}
+        assert v.facts == (fact,)
+
+    def test_angle_ignores_facts(self) -> None:
+        """Passing facts must not change what `angle` proposes -- it reads the diagram only."""
+        from geoforge.solvers.types import Fact, FactKind
+
+        noise = (Fact(kind=FactKind.PERPENDICULAR, args=("a", "b", "a", "c")),)
+        assert propose_angles(view(RIGHT_ISOSCELES)) == propose_angles(
+            FigureView(coords=RIGHT_ISOSCELES, facts=noise)
+        )
+
+    def test_every_registered_type_accepts_a_view(self) -> None:
+        """The registry's contract, not angle's: no extractor may take bare coordinates."""
+        from geoforge.generator.quantities import enabled_types
+
+        empty = FigureView(coords={}, facts=())
+        for quantity_type in enabled_types():
+            assert quantity_type.goal_extractor(empty) == ()

@@ -61,6 +61,32 @@ class AnswerPolicy:
     `approx` and `display` separate."""
 
 
+@dataclass(frozen=True, slots=True)
+class FigureView:
+    """Everything a `goal_extractor` may look at (docs/04 §QTR).
+
+    **Widened 2026-08-06 from bare coordinates.** The original signature took only
+    `Mapping[str, tuple[float, float]]`, which suited `angle` — it measures the diagram and
+    proposes a value for the engine to verify. It does not suit any quantity the engine cannot
+    evaluate: an area is computed from *certified facts* (a right angle here, a midpoint there),
+    and a coordinates-only extractor would have to re-derive that geometry from numbers, which
+    docs/02 invariant 4 forbids outright.
+
+    A dataclass rather than a second positional argument, because this is the seam every future
+    quantity type reaches through and the last widening should be the last one. Adding a field
+    here does not change any existing extractor's signature.
+    """
+
+    coords: Mapping[str, tuple[float, float]]
+    """Reference-diagram coordinates. Numerics may **propose** from these, never conclude."""
+    facts: tuple[Fact, ...]
+    """What the engine certified about this figure — premises and configuration facts.
+
+    An extractor that reads these is doing what the pipeline is for; one that reads `coords` to
+    decide whether something is *true* is deriving from numerics and is a bug.
+    """
+
+
 @dataclass(frozen=True, slots=True, order=True)
 class Proposal:
     """A candidate goal read off the reference diagram. **Not yet true.**
@@ -96,8 +122,12 @@ class QuantityType:
     """Which readable-step template family covers it (docs/03 §3.5). M4 consumes this."""
     marks: tuple[str, ...]
     """Figure mark kinds this type may state (docs/02 highlight ID grammar)."""
-    goal_extractor: Callable[[Mapping[str, tuple[float, float]]], tuple[Proposal, ...]]
-    """Proposes candidate goals from the reference coordinates."""
+    goal_extractor: Callable[[FigureView], tuple[Proposal, ...]]
+    """Proposes candidate goals from the figure — its coordinates *and* its certified facts.
+
+    Takes a `FigureView` rather than bare coordinates (widened 2026-08-06): a quantity the engine
+    cannot evaluate, such as `area`, is computed from certified facts, and reading coordinates to
+    decide what is true would violate docs/02 invariant 4."""
     nice_values: Callable[[str], tuple[int, ...]]
     """Given-value palette for a difficulty band (docs/04 Stage 2)."""
     format_answer: Callable[[Fraction], str]
@@ -159,7 +189,7 @@ def _vertex_angle(
     return math.degrees(math.acos(cosine))
 
 
-def propose_angles(coords: Mapping[str, tuple[float, float]]) -> tuple[Proposal, ...]:
+def propose_angles(view: FigureView) -> tuple[Proposal, ...]:
     """Propose vertex angles that measure a whole number of degrees.
 
     Only *vertex* angles are enumerated — pairs of lines through a shared point — because that
@@ -174,6 +204,7 @@ def propose_angles(coords: Mapping[str, tuple[float, float]]) -> tuple[Proposal,
     configuration question, settled by the configuration facts in M4's translator and held
     fixed by the M5 well-posedness gate.
     """
+    coords = view.coords
     out: list[Proposal] = []
     for vertex in sorted(coords):
         others = sorted(n for n in coords if n != vertex)

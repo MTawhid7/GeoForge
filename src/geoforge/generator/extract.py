@@ -25,7 +25,12 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from geoforge.config import EXTRACTION, GENERATION
-from geoforge.generator.quantities import Proposal, QuantityType, enabled_types
+from geoforge.generator.quantities import (
+    FigureView,
+    Proposal,
+    QuantityType,
+    enabled_types,
+)
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import (
     Fact,
@@ -128,11 +133,17 @@ class ExtractionReport:
 def propose(
     figure: RealizedFigure, types: tuple[QuantityType, ...] | None = None
 ) -> tuple[Proposal, ...]:
-    """Run every enabled quantity type's `goal_extractor` over the reference coordinates."""
-    coords = figure.coords()
+    """Run every enabled quantity type's `goal_extractor` over the figure.
+
+    The extractor receives a `FigureView` — coordinates *and* the engine's certified facts —
+    rather than coordinates alone (docs/04 §QTR, widened 2026-08-06). `angle` reads only the
+    coordinates, because it measures the diagram and lets the engine verify; a quantity the
+    engine cannot evaluate has to read what was certified instead.
+    """
+    view = FigureView(coords=figure.coords(), facts=tuple(figure.declared))
     out: list[Proposal] = []
     for quantity_type in types or enabled_types():
-        out.extend(quantity_type.goal_extractor(coords))
+        out.extend(quantity_type.goal_extractor(view))
     return tuple(sorted(out))
 
 
