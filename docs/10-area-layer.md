@@ -493,6 +493,61 @@ cannot read an area as an answer. That is counted attrition with a named reason,
 closes it, and the remaining work is the translation table plus generalizing the answer path — not
 another §QTR widening.
 
+## 10.10g A4's first half: area steps clear the readability gate (2026-08-06)
+
+An area derivation now becomes solution prose. **MEASURED, 60 template draws at seed 42: 136
+goals, 136/136 translated, zero `unknown_rule`, zero unspeakable givens.**
+
+```
+∠BAC = 45°, AB = 6 and AC = 2, so the area is half the product of the two sides and
+the sine of the angle between them: [ABC] = 3√2.
+[ABC] = 3√2 and M is the midpoint of BC, and a median divides a triangle into two of
+equal area, so [ABM] = 3√2/2.
+```
+
+**The whitelist is keyed by route name, not by an engine rule id**, because no engine rule fired
+— there is no area predicate, so `area.proof_dag` names its own steps. Template id and key are
+deliberately the same string: `solution[].rule` is public API (CLAUDE.md) and an alias would give
+one step two public names. Tiers: the direct formulas 1–2, the two ratio rules 3, because applying
+½ab·sin C is routine while seeing that a median halves an area — with no length available at all —
+is the step these puzzles turn on.
+
+**`exact_text` is not `str(expr)`, and that distinction is load-bearing.** SymPy prints
+`25*sqrt(3)/4`; the schema's term grammar is coefficient-first, so the same number must be written
+`25/4*sqrt(3)`. This would not have failed in the layer — it would have failed at the schema
+boundary with a puzzle already built. The check is structural on the SymPy expression rather than a
+regex over the printed form, so a printer change cannot silently alter what is accepted. A value
+outside the closed grammar (a cube root) raises `UnrepresentableArea` and renders as unspeakable:
+attrition, never a float called exact.
+
+**`schema.parse_exact` now returns `Exact` rather than `Fraction`.** Its own docstring had promised
+this — "a `length` goal arrives in P3 with the exact layer that can carry it" — and that layer now
+exists. `Exact` is a sum of `(coefficient, radicand)` terms and is deliberately **not** SymPy:
+`schema.py` is the boundary the bank validator and the frontend contract both stand on, and it must
+stay parseable from JSON alone with no CAS in the loop. `Exact.rational` returns `None` for a surd
+rather than an approximation, so a caller that needs a `Fraction` is told no instead of being
+handed a lossy answer.
+
+**Three defects the first honest run surfaced**, all fixed rather than noted:
+
+1. `_decompose` emitted `[ACB]` where the extractor asked for `[ABC]` — one region, two `fact_id`s,
+   two DAG nodes that never share, and two identical puzzles. Triangle vertices are now canonically
+   ordered, guarded on `len == 3` because for a polygon the vertex order *is* the boundary.
+2. `_EXACT_TERM` matched `-?\d+…` while `_split_terms` emits every term after the first with an
+   explicit `+`, so **no multi-term exact value was ever parseable**. Latent since v1, because
+   `angle` cannot produce a sum; the area layer is the first quantity that can.
+3. A route's `inputs` over-collected (see §10.10f), which would have shipped stated-but-unused
+   givens.
+
+**What is left before an area puzzle reaches a bank**, and it is one thing, not several:
+the **answer path**. `batch` reads the goal through `angle_of` and hands a `VertexAngle` to
+`wellposed.check` and to `_emit`; an area has no vertex-angle reading, so it is discarded at
+`goal_unreadable`. The well-posedness question generalizes cleanly — "is the published value the
+same in every configuration-matching resample?" — and for an area it is *simpler* than for an
+angle, since the shoelace area needs no mod-π resolution. The work is to give `wellposed` a
+quantity-generic notion of "what this puzzle claims and how to re-measure it", rather than a
+`VertexAngle`. That is A4's second half.
+
 ## 10.11 Deliberately not in scope
 
 - **The Chou–Gao–Zhang area method** as a second SAL backend (docs/03 §3.7). It proves area statements

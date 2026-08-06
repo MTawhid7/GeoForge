@@ -9,6 +9,8 @@ whose refusals are never exercised is a parser that has only been tested on the 
 from __future__ import annotations
 
 import json
+import math
+from fractions import Fraction
 from typing import Any
 
 import pytest
@@ -110,11 +112,18 @@ class TestRejections:
         with pytest.raises(SchemaError, match="exact-value grammar"):
             Puzzle.from_json(raw)
 
-    def test_a_surd_is_refused_until_the_exact_layer_exists(self) -> None:
-        """Syntactically inside the grammar, semantically unrepresentable in v1. Refusing beats
-        returning a float and calling it exact."""
-        with pytest.raises(SchemaError, match="surd"):
-            schema.parse_exact("3*sqrt(2)")
+    def test_a_surd_is_now_represented_rather_than_refused(self) -> None:
+        """This test used to assert the opposite, and the reversal is the point (docs/10 A4).
+
+        `parse_exact` returned a `Fraction` and rejected every surd, with a docstring naming the
+        exact layer that would one day carry one. That layer exists, and an area is `25/4*sqrt(3)`
+        — a value no engine predicate can hold, which is why the layer was built at all.
+        """
+        value = schema.parse_exact("3*sqrt(2)")
+        assert value.terms == ((Fraction(3), 2),)
+        assert float(value) == pytest.approx(3 * math.sqrt(2))
+        assert value.rational is None, "asked for a Fraction, told no — not given a float"
+        assert not value.is_rational
 
     def test_a_given_that_claims_a_form_it_does_not_carry(
         self, payloads: list[dict[str, Any]]
@@ -418,3 +427,51 @@ class TestManifest:
         raw["shards"] = ["easy-000.json"]
         with pytest.raises(SchemaError, match="shards entry"):
             schema.Manifest.from_json(raw)
+
+
+class TestExactCarriesSurds:
+    """The closed grammar's surd branch, now represented (docs/10 A4).
+
+    `Exact` is deliberately not SymPy: this module is the boundary the bank validator and the
+    frontend contract both stand on, and it has to be parseable from JSON alone with no CAS in
+    the loop.
+    """
+
+    @pytest.mark.parametrize(
+        ("text", "terms", "approx"),
+        [
+            ("1*sqrt(3)", ((Fraction(1), 3),), math.sqrt(3)),
+            ("25/4*sqrt(3)", ((Fraction(25, 4), 3),), 25 / 4 * math.sqrt(3)),
+            ("3/2*sqrt(2)", ((Fraction(3, 2), 2),), 1.5 * math.sqrt(2)),
+            ("6", ((Fraction(6), 1),), 6.0),
+        ],
+    )
+    def test_parsed(
+        self, text: str, terms: tuple[tuple[Fraction, int], ...], approx: float
+    ) -> None:
+        value = schema.parse_exact(text)
+        assert value.terms == terms
+        assert float(value) == pytest.approx(approx)
+
+    def test_a_rational_still_answers_as_a_fraction(self) -> None:
+        """Angle's whole answer path reads this, so it must not have become lossy."""
+        assert schema.parse_exact("7/3").rational == Fraction(7, 3)
+        assert schema.parse_exact("-30").rational == Fraction(-30)
+
+    def test_a_sum_of_a_rational_and_a_surd(self) -> None:
+        value = schema.parse_exact("2+3*sqrt(5)")
+        assert value.terms == ((Fraction(2), 1), (Fraction(3), 5))
+        assert value.rational is None
+
+    def test_the_area_layer_and_the_schema_agree_on_every_route(self) -> None:
+        """The two tables that must not drift: `area.exact_text` writes the string and
+        `schema.parse_exact` reads it. A mismatch fails at the schema boundary with a puzzle
+        already built, which is the expensive place to find out."""
+        import sympy
+
+        from geoforge.generator.area import exact_text
+
+        for source in ("sqrt(3)", "3*sqrt(2)", "25*sqrt(3)/4", "25*sqrt(2)/16", "6", "3/2"):
+            expression = sympy.sympify(source)
+            parsed = schema.parse_exact(exact_text(expression))
+            assert float(parsed) == pytest.approx(float(expression))

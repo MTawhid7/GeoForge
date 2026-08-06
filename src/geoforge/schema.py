@@ -71,7 +71,12 @@ HIGHLIGHT_GRAMMAR = re.compile(
 #: The closed exact-value grammar (docs/02): integers, rationals `p/q`, and quadratic surd
 #: terms `a*sqrt(b)`, summed. Deliberately closed — a value we cannot parse is a value we
 #: cannot promise the frontend can render or compare.
-_EXACT_TERM = re.compile(r"^-?\d+(?:/\d+)?(?:\*sqrt\(\d+\))?$")
+#
+# The sign is `[+-]?`, not `-?`. `_split_terms` keeps each term's sign, so every term of a sum
+# after the first arrives with an explicit `+` — which the `-?` form rejected, making a
+# multi-term value unparseable however well-formed it was. Latent until the area layer became
+# the first quantity able to produce one (docs/10 A4).
+_EXACT_TERM = re.compile(r"^[+-]?\d+(?:/\d+)?(?:\*sqrt\(\d+\))?$")
 
 
 def validate_highlight(highlight: str) -> str:
@@ -84,25 +89,60 @@ def validate_highlight(highlight: str) -> str:
     return highlight
 
 
-def parse_exact(text: str) -> Fraction:
+@dataclass(frozen=True, slots=True, order=True)
+class Exact:
+    """A value in docs/02's closed grammar: a sum of `a/b*sqrt(c)` terms.
+
+    **The type that replaced `Fraction` here** (docs/10 A4). `parse_exact` used to return a
+    `Fraction` and reject every surd, with a docstring saying so and naming the exact layer that
+    would eventually carry one. That layer exists: an area is `25/4*sqrt(3)`, and it is the
+    whole reason the layer was built, since no engine predicate can hold a value that is not
+    rational (docs/07 T18, T21).
+
+    Deliberately not SymPy. This module is the boundary the bank validator and the frontend
+    contract both stand on, and it must stay parseable from JSON alone with no CAS in the loop.
+    Two coefficients and a radicand are all the grammar admits.
+    """
+
+    terms: tuple[tuple[Fraction, int], ...]
+    """`(coefficient, radicand)` per term; radicand 1 means the term is rational."""
+
+    def __float__(self) -> float:
+        return sum(float(coeff) * math.sqrt(radicand) for coeff, radicand in self.terms)
+
+    @property
+    def rational(self) -> Fraction | None:
+        """The value as a `Fraction`, or None when it is irrational.
+
+        Callers that genuinely need a rational — angle arithmetic, the mutation helpers — ask
+        for one and get `None` rather than a lossy approximation.
+        """
+        if any(radicand != 1 for _, radicand in self.terms):
+            return None
+        return sum((coeff for coeff, _ in self.terms), Fraction(0))
+
+    @property
+    def is_rational(self) -> bool:
+        return self.rational is not None
+
+
+def parse_exact(text: str) -> Exact:
     """Parse an `exact` string, raising on anything outside the closed grammar.
 
-    v1 enables `angle` only, whose values are rational degrees, so the surd branch of the
-    grammar is accepted syntactically and rejected as unrepresentable here — a `length` goal
-    arrives in P3 with the exact layer that can carry it (docs/09). Refusing loudly beats
-    returning a float and calling it exact.
+    The grammar is closed on purpose: a value we cannot parse is a value we cannot promise the
+    frontend will render or compare correctly. Surds inside it are now *represented* rather than
+    refused — see `Exact`.
     """
-    total = Fraction(0)
+    terms: list[tuple[Fraction, int]] = []
     for term in _split_terms(text):
         if not _EXACT_TERM.match(term):
             raise SchemaError(f"{text!r} is outside the exact-value grammar (docs/02)")
-        if "sqrt" in term:
-            raise SchemaError(
-                f"{text!r} carries a surd; no quantity type enabled in v1 produces one "
-                "(docs/09 P3 brings the exact layer that does)"
-            )
-        total += Fraction(term)
-    return total
+        head, _, radical = term.partition("*sqrt(")
+        radicand = int(radical.rstrip(")")) if radical else 1
+        terms.append((Fraction(head), radicand))
+    if not terms:
+        raise SchemaError("empty exact value")
+    return Exact(terms=tuple(terms))
 
 
 def _split_terms(text: str) -> list[str]:
