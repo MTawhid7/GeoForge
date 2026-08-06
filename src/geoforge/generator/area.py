@@ -624,7 +624,7 @@ def area_of(
 # ----------------------------------------------------------------------------------------
 
 
-def proof_dag(result: AreaResult) -> ProofDAG:
+def proof_dag(result: AreaResult, configuration: tuple[Fact, ...] = ()) -> ProofDAG:
     """Reconstitute the decomposition as a `ProofDAG`, so Stage 6 onward needs no special case.
 
     This is the hinge of A3. Everything after Stage 5 -- premise minimization, the translator,
@@ -642,12 +642,27 @@ def proof_dag(result: AreaResult) -> ProofDAG:
     Justification is `RULE_APPLICATION`, not a new kind. A route *is* a theorem application --
     "the median halves the area" is a rule with premises and a conclusion -- and inventing a
     kind for it would only make every consumer grow a branch for the same thing.
+
+    **`configuration` is not optional bookkeeping, and leaving it empty was a measured bug.**
+    An engine proof records the numerical checks its rules needed; the layer's routes consume
+    only metric facts, so an early version emitted a DAG with no configuration at all. Stage 8's
+    `same_configuration` then accepted *every* resample, including mirrored ones -- and while the
+    area is mod-pi invariant (sin(theta) = sin(pi - theta), §10.5), the sentence naming the angle
+    is not. MEASURED: 70 of 94 area puzzles were discarded as `step_underdetermined` with
+    "angle BAC = 45" becoming "angle BAC = 135". The figure's configuration facts are true of the
+    reference diagram and are premises for correctness, so they belong here.
     """
     nodes = result.walk()
     facts: dict[FactId, Fact] = {}
     steps: list[ProofStep] = []
     assumptions: list[FactId] = []
-    configuration: list[FactId] = []
+    checks: list[FactId] = []
+
+    for fact in configuration:
+        if fact.is_configuration:
+            facts[fact.fact_id] = fact
+            if fact.fact_id not in checks:
+                checks.append(fact.fact_id)
 
     for node in nodes:
         conclusion = node.fact
@@ -658,7 +673,7 @@ def proof_dag(result: AreaResult) -> ProofDAG:
             premises.append(source.fact_id)
             if source.is_layer:
                 continue  # an intermediate area, concluded by another step
-            target = configuration if source.is_configuration else assumptions
+            target = checks if source.is_configuration else assumptions
             if source.fact_id not in target:
                 target.append(source.fact_id)
         steps.append(
@@ -677,7 +692,7 @@ def proof_dag(result: AreaResult) -> ProofDAG:
         facts=tuple(sorted(facts.values())),
         steps=tuple(sorted(steps)),
         assumptions=tuple(sorted(assumptions)),
-        numerical_checks=tuple(sorted(configuration)),
+        numerical_checks=tuple(sorted(checks)),
         trivial=(),
         proved_goals=(result.fact.fact_id,),
         unproved_goals=(),

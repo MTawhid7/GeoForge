@@ -38,8 +38,7 @@ EN: dict[str, str] = {
     # Area (docs/10 A4). The two ratio rules name the insight rather than the arithmetic,
     # because the arithmetic is the easy half — "a median halves the area" is the step a
     # solver either sees or does not.
-    "area_right_triangle": "{premises}, so the area is half the product of the legs: "
-    "{conclusion}.",
+    "area_right_triangle": "{premises}, so the area is half the product of the legs: {conclusion}.",
     "area_heron": "{premises}, so Heron's formula gives {conclusion}.",
     "area_sas": "{premises}, so the area is half the product of the two sides and the sine of "
     "the angle between them: {conclusion}.",

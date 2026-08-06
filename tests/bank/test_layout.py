@@ -19,9 +19,9 @@ import pytest
 
 from geoforge.bank.layout import _admissible, _candidates, lay_out, place_labels
 from geoforge.config import LAYOUT
+from geoforge.generator import quantities
 from geoforge.generator.batch import BatchReport, CandidatePuzzle, run
 from geoforge.generator.emit import frame
-from geoforge.generator.translation.phrases import angle_of
 from geoforge.solvers.interface import SolverBackend, get_backend
 from geoforge.solvers.types import fact_from_id
 
@@ -52,14 +52,16 @@ def _reference(candidate: CandidatePuzzle) -> dict[str, tuple[float, float]]:
 
 
 def _laid(backend: SolverBackend, candidate: CandidatePuzzle):  # type: ignore[no-untyped-def]
-    angle = angle_of(candidate.derivation.goal, _reference(candidate))
-    assert angle is not None
+    claim = quantities.get(candidate.quantity_type).claim_of(
+        candidate.derivation.goal, _reference(candidate)
+    )
+    assert claim is not None
     return lay_out(
         backend,
         candidate.pruned,
         candidate.derivation,
         candidate.translation,
-        angle,
+        claim,
         _reference(candidate),
         candidate.puzzle.figure.segments,
         candidate.seed,
@@ -119,11 +121,13 @@ class TestAdmissibilityCanReject:
         half the candidate space to protect against nothing."""
         for candidate in candidates:
             reference = _reference(candidate)
-            angle = angle_of(candidate.derivation.goal, reference)
-            assert angle is not None
+            claim = quantities.get(candidate.quantity_type).claim_of(
+                candidate.derivation.goal, reference
+            )
+            assert claim is not None
             mirrored = {name: (-x, y) for name, (x, y) in reference.items()}
             assert _admissible(
-                backend, mirrored, candidate.derivation, candidate.translation, angle
+                backend, mirrored, candidate.derivation, candidate.translation, claim
             ), candidate.id
 
     def test_a_figure_where_the_goal_moved_is_refused(
@@ -134,17 +138,22 @@ class TestAdmissibilityCanReject:
         refused = 0
         for candidate in candidates:
             reference = _reference(candidate)
-            angle = angle_of(candidate.derivation.goal, reference)
-            assert angle is not None
-            vertex = reference[angle.vertex]
+            claim = quantities.get(candidate.quantity_type).claim_of(
+                candidate.derivation.goal, reference
+            )
+            assert claim is not None
+            vertex = reference[claim.angle.vertex]
             moved = dict(reference)
-            arm = reference[angle.p]
+            arm = reference[claim.angle.p]
             # Rotate P 30 degrees about the vertex: distances to the vertex are untouched, so
             # only the angle itself changes.
             dx, dy = arm[0] - vertex[0], arm[1] - vertex[1]
             cos, sin = math.cos(math.radians(30)), math.sin(math.radians(30))
-            moved[angle.p] = (vertex[0] + dx * cos - dy * sin, vertex[1] + dx * sin + dy * cos)
-            if not _admissible(backend, moved, candidate.derivation, candidate.translation, angle):
+            moved[claim.angle.p] = (
+                vertex[0] + dx * cos - dy * sin,
+                vertex[1] + dx * sin + dy * cos,
+            )
+            if not _admissible(backend, moved, candidate.derivation, candidate.translation, claim):
                 refused += 1
         assert refused == len(candidates), "moving the goal angle was not refused"
 
@@ -184,15 +193,17 @@ class TestAdmissibilityCanReject:
             if not pairs:
                 continue
             reference = _reference(candidate)
-            angle = angle_of(candidate.derivation.goal, reference)
-            assert angle is not None
+            claim = quantities.get(candidate.quantity_type).claim_of(
+                candidate.derivation.goal, reference
+            )
+            assert claim is not None
 
             refused = False
             for first, second in pairs:
                 collapsed = dict(reference)
                 collapsed[second] = reference[first]
                 if not _admissible(
-                    backend, collapsed, candidate.derivation, candidate.translation, angle
+                    backend, collapsed, candidate.derivation, candidate.translation, claim
                 ):
                     refused = True
                     break
@@ -209,10 +220,12 @@ class TestAdmissibilityCanReject:
         """The near-miss: without this the reflection test could pass by refusing everything."""
         for candidate in candidates:
             reference = _reference(candidate)
-            angle = angle_of(candidate.derivation.goal, reference)
-            assert angle is not None
+            claim = quantities.get(candidate.quantity_type).claim_of(
+                candidate.derivation.goal, reference
+            )
+            assert claim is not None
             assert _admissible(
-                backend, reference, candidate.derivation, candidate.translation, angle
+                backend, reference, candidate.derivation, candidate.translation, claim
             ), candidate.id
 
     def test_candidates_are_genuinely_different_figures(

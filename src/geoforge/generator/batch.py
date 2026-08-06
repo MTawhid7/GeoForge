@@ -32,7 +32,7 @@ import numpy as np
 
 from geoforge import schema
 from geoforge.config import GENERATION, SOLVER
-from geoforge.generator import wellposed
+from geoforge.generator import quantities, wellposed
 from geoforge.generator.construction import Construction
 from geoforge.generator.degeneracy import check_figure
 from geoforge.generator.emit import assemble
@@ -44,8 +44,6 @@ from geoforge.generator.translation import (
     translate,
     unspeakable_givens,
 )
-from geoforge.generator.translation.phrases import angle_of
-from geoforge.generator.translation.vertex_angles import VertexAngle
 from geoforge.schema import SchemaError
 from geoforge.scoring import filters
 from geoforge.scoring.features import Features, measure
@@ -382,8 +380,10 @@ def _run_one(
                 report.discards.append(Discard("translate", "no_steps", case_seed))
             continue
 
-        angle = angle_of(goal.fact, coords)
-        if angle is None or angle.degrees is None:
+        # How the goal reads as a published answer is the quantity type's business, not this
+        # loop's (docs/10 A4). `angle` supplies a vertex-angle reading, `area` a shoelace one.
+        claim = quantities.get(goal.quantity_type).claim_of(goal.fact, coords)
+        if claim is None:
             report.discards.append(Discard("translate", "goal_unreadable", case_seed))
             continue
 
@@ -400,7 +400,7 @@ def _run_one(
 
         if check_wellposed:
             wp = wellposed.check(
-                backend, construction, derivation, translation, angle, coords, case_seed
+                backend, construction, derivation, translation, claim, coords, case_seed
             )
             if not wp.ok:
                 report.discards.append(Discard("wellposed", str(wp.reason), case_seed, wp.detail))
@@ -446,7 +446,7 @@ def _run_one(
                     derivation,
                     translation,
                     goal,
-                    angle,
+                    claim,
                     coords,
                     figure.declared,
                     case_seed,
@@ -500,7 +500,7 @@ def _emit(
     derivation: Derivation,
     translation: Translation,
     goal: ExtractedGoal,
-    angle: VertexAngle,
+    claim: quantities.Claim,
     coords: dict[str, tuple[float, float]],
     declared: tuple[Fact, ...],
     case_seed: int,
@@ -523,7 +523,7 @@ def _emit(
         pruned=pruned,
         derivation=derivation,
         translation=translation,
-        goal_angle=angle,
+        claim=claim,
         reference_coords={p: xy for p, xy in coords.items() if p in drawn},
         difficulty=schema.Difficulty(
             band=scored.band,

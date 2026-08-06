@@ -31,9 +31,9 @@ from geoforge import schema
 from geoforge.bank import validate as cross
 from geoforge.bank.layout import lay_out
 from geoforge.config import BANK, SOLVER, VALIDATION
+from geoforge.generator import quantities
 from geoforge.generator.batch import generator_version, run
 from geoforge.generator.emit import assemble
-from geoforge.generator.translation.phrases import angle_of
 from geoforge.scoring import filters, interest
 from geoforge.scoring.score import BAND_ORDER
 from geoforge.solvers.interface import SolverBackend, get_backend
@@ -134,8 +134,10 @@ def build(
 
 def _laid_out(backend: SolverBackend, candidate: Any) -> tuple[schema.Puzzle, Any] | None:
     """Re-assemble one candidate over its chosen display coordinates."""
-    goal_angle = angle_of(candidate.derivation.goal, _reference(candidate))
-    if goal_angle is None or goal_angle.degrees is None:  # pragma: no cover - gated at Stage 7
+    claim = quantities.get(candidate.quantity_type).claim_of(
+        candidate.derivation.goal, _reference(candidate)
+    )
+    if claim is None:  # pragma: no cover - gated at Stage 7
         return None
 
     result = lay_out(
@@ -143,7 +145,7 @@ def _laid_out(backend: SolverBackend, candidate: Any) -> tuple[schema.Puzzle, An
         candidate.pruned,
         candidate.derivation,
         candidate.translation,
-        goal_angle,
+        claim,
         _reference(candidate),
         candidate.puzzle.figure.segments,
         candidate.seed,
@@ -157,7 +159,7 @@ def _laid_out(backend: SolverBackend, candidate: Any) -> tuple[schema.Puzzle, An
         pruned=candidate.pruned,
         derivation=candidate.derivation,
         translation=candidate.translation,
-        goal_angle=goal_angle,
+        claim=claim,
         reference_coords=_reference(candidate),
         difficulty=candidate.puzzle.difficulty,
         display_coords=result.coords,

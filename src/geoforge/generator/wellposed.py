@@ -38,11 +38,11 @@ import json
 from dataclasses import dataclass
 from enum import StrEnum
 
-from geoforge.config import TRANSLATION, WELLPOSED
+from geoforge.config import WELLPOSED
 from geoforge.generator.construction import Construction
+from geoforge.generator.quantities import Claim
 from geoforge.generator.traceback import Derivation
 from geoforge.generator.translation import Translation, translate
-from geoforge.generator.translation.vertex_angles import VertexAngle, measure
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import Fact, SolveOptions
 
@@ -111,31 +111,36 @@ def check(
     construction: Construction,
     derivation: Derivation,
     translation: Translation,
-    goal_angle: VertexAngle,
+    claim: Claim,
     reference_coords: dict[str, tuple[float, float]],
     seed: int,
 ) -> WellPosedVerdict:
     """Resample the construction and require the published answer to be invariant.
 
-    `goal_angle` is the vertex angle actually published as the question, carrying the exact answer
-    the reference diagram gave.
+    `claim` is what the puzzle publishes, together with a way to re-measure it in another figure
+    (docs/10 A4). It replaced a `VertexAngle`, which had assumed the goal is an angle, that its
+    value is degrees, and that re-measuring means reading three points off a diagram.
     """
     configuration = derivation.configuration
 
     # The engine's symbolic claim must hold of the diagram it made the claim about. This is the
     # only failure here that indicts the engine rather than the puzzle, and nothing downstream
     # could compensate for it (docs/02 invariant 4).
+    # A layer-computed goal has no engine predicate to check (docs/10 §10.3) — `PremiseSpec`
+    # refuses the call. It is not unchecked: the layer verified this exact value against this
+    # exact diagram and raises rather than discards on a mismatch (docs/10 §10.8), which is a
+    # stronger guarantee than this branch provides, not a weaker one.
     try:
-        if not all(backend.check_facts(_as_points(reference_coords), (derivation.goal,))):
+        if not derivation.goal.is_layer and not all(
+            backend.check_facts(_as_points(reference_coords), (derivation.goal,))
+        ):
             return WellPosedVerdict(
                 ok=False,
                 samples_accepted=0,
                 samples_rejected=0,
                 reason=WellPosedReason.ENGINE_CONTRADICTS_DIAGRAM,
                 detail=f"{derivation.goal.fact_id} is false in the reference figure",
-                reproduction=_reproduction(
-                    construction, derivation, goal_angle, 0.0, 0.0, seed, seed
-                ),
+                reproduction=_reproduction(construction, derivation, claim, 0.0, 0.0, seed, seed),
             )
     except Exception as exc:
         return WellPosedVerdict(
@@ -144,15 +149,6 @@ def check(
             samples_rejected=0,
             reason=WellPosedReason.UNMEASURABLE,
             detail=f"goal not numerically checkable: {type(exc).__name__}",
-        )
-
-    if goal_angle.degrees is None:
-        return WellPosedVerdict(
-            ok=False,
-            samples_accepted=0,
-            samples_rejected=0,
-            reason=WellPosedReason.UNMEASURABLE,
-            detail="goal has no vertex-angle value",
         )
 
     # What must hold of every admissible figure is **the sentences we publish**, so the check is
@@ -167,18 +163,14 @@ def check(
 
     # The published answer must be what the reference figure actually shows. If these disagree,
     # every later comparison is against the wrong number, and no amount of resampling notices.
-    measured_goal = measure(reference_coords, goal_angle.p, goal_angle.vertex, goal_angle.q)
-    published = float(goal_angle.degrees)
-    if (
-        measured_goal is None
-        or abs(measured_goal - published) > TRANSLATION.angle_render_tolerance_degrees
-    ):
+    measured_goal = claim.measure(reference_coords)
+    if measured_goal is None or abs(measured_goal - claim.approx) > claim.render_tolerance:
         return WellPosedVerdict(
             ok=False,
             samples_accepted=0,
             samples_rejected=0,
             reason=WellPosedReason.UNMEASURABLE,
-            detail=f"published answer {goal_angle.degrees}° is not what the reference figure shows",
+            detail=f"published answer {claim.display} is not what the reference figure shows",
         )
 
     accepted = 0
@@ -201,20 +193,20 @@ def check(
             continue
 
         # The answer itself must not move.
-        observed_goal = measure(coords, goal_angle.p, goal_angle.vertex, goal_angle.q)
+        observed_goal = claim.measure(coords)
         if observed_goal is None:
             rejected += 1
             continue
-        if abs(observed_goal - measured_goal) > WELLPOSED.relative_tolerance * 180.0:
+        if abs(observed_goal - measured_goal) > claim.drift_tolerance:
             return _underdetermined(
                 WellPosedReason.GOAL_UNDERDETERMINED,
                 accepted,
                 rejected,
-                f"{goal_angle.text}: {measured_goal:.6f}° here, {observed_goal:.6f}° in a figure "
+                f"{claim.question}: {measured_goal:.6f} here, {observed_goal:.6f} in a figure "
                 "satisfying everything the puzzle states",
                 construction,
                 derivation,
-                goal_angle,
+                claim,
                 measured_goal,
                 observed_goal,
                 seed,
@@ -231,7 +223,7 @@ def check(
                 _first_difference(reference_text, sample_text),
                 construction,
                 derivation,
-                goal_angle,
+                claim,
                 measured_goal,
                 observed_goal,
                 seed,
@@ -271,7 +263,7 @@ def _underdetermined(
     detail: str,
     construction: Construction,
     derivation: Derivation,
-    angle: VertexAngle,
+    claim: Claim,
     expected: float,
     observed: float,
     seed: int,
@@ -284,7 +276,7 @@ def _underdetermined(
         reason=reason,
         detail=detail,
         reproduction=_reproduction(
-            construction, derivation, angle, expected, observed, seed, sample_seed
+            construction, derivation, claim, expected, observed, seed, sample_seed
         ),
     )
 
@@ -314,31 +306,10 @@ def same_configuration(
         return False
 
 
-def _stated_angles(translation: Translation, goal_angle: VertexAngle) -> tuple[VertexAngle, ...]:
-    """Every vertex angle the published puzzle asserts: the goal, plus each step's angles.
-
-    Step angles are recovered from the normative `angle:<P>:<VERTEX>:<P>` highlights (docs/02),
-    which is exactly the set of angles a step puts in front of the player.
-    """
-    # Values are stripped: the gate compares measurement against measurement, and a value would
-    # make the goal a different dict key from the same angle named by a step's highlight.
-    angles: dict[VertexAngle, None] = {
-        VertexAngle(p=goal_angle.p, vertex=goal_angle.vertex, q=goal_angle.q): None
-    }
-    for step in translation.steps:
-        for highlight in step.highlights:
-            parts = highlight.split(":")
-            if parts[0] != "angle" or len(parts) != 4:
-                continue
-            p, vertex, q = (part.lower() for part in parts[1:])
-            angles[VertexAngle(p=p, vertex=vertex, q=q)] = None
-    return tuple(angles)
-
-
 def _reproduction(
     construction: Construction,
     derivation: Derivation,
-    angle: VertexAngle,
+    claim: Claim,
     expected: float,
     observed: float,
     seed: int,
@@ -351,9 +322,9 @@ def _reproduction(
             "construction": construction.to_jgex(),
             "generation_seed": seed,
             "resample_seed": sample_seed,
-            "angle": angle.text,
-            "expected_degrees": expected,
-            "observed_degrees": observed,
+            "question": claim.question,
+            "expected": expected,
+            "observed": observed,
             "goal": derivation.goal.fact_id,
             "premises": [f.fact_id for f in derivation.premises],
             "configuration": [f.fact_id for f in derivation.configuration],

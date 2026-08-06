@@ -31,7 +31,6 @@ from geoforge.generator.construction import Construction
 from geoforge.generator.traceback import Derivation
 from geoforge.generator.translation import Translation
 from geoforge.generator.translation.phrases import angle_of, describe
-from geoforge.generator.translation.vertex_angles import VertexAngle
 from geoforge.schema import (
     AngleArc,
     DisplayCircle,
@@ -120,14 +119,15 @@ def segments_of(
     pruned: Construction,
     givens: Sequence[Fact],
     highlights: Sequence[str],
-    goal_angle: VertexAngle,
+    claim: quantities.Claim,
 ) -> tuple[tuple[str, str], ...]:
     """Which segments the figure draws.
 
     Three sources, each answering a different failure:
 
-    1. **Every `seg:` a given or a solution step highlights**, plus the goal angle's two rays.
-       If the text names it, the figure must show it — otherwise a step highlights nothing.
+    1. **Every `seg:` a given or a solution step highlights**, plus the goal's own boundary —
+       an angle's two rays, a region's edges. If the text names it, the figure must show it —
+       otherwise a step highlights nothing.
     2. **Maximal chords through each collinear set.** Three collinear points drawn as two
        abutting segments is a rendering artefact, not a figure.
     3. **Polygon skeletons** the construction declares. A `triangle a b c` whose text happens
@@ -142,8 +142,14 @@ def segments_of(
         parts = highlight.split(":")
         if parts[0] == "seg":
             out.add((min(parts[1], parts[2]), max(parts[1], parts[2])))
-    out.add(_seg_id(goal_angle.p, goal_angle.vertex))
-    out.add(_seg_id(goal_angle.q, goal_angle.vertex))
+    # An angle claims two rays from its vertex; a region claims its whole boundary. Both are
+    # "the segments the question is about", which is why one line covers each (docs/10 A4).
+    if claim.angle is not None:
+        out.add(_seg_id(claim.angle.p, claim.angle.vertex))
+        out.add(_seg_id(claim.angle.q, claim.angle.vertex))
+    else:
+        for index, point in enumerate(claim.subject):
+            out.add(_seg_id(point, claim.subject[(index + 1) % len(claim.subject)]))
 
     for fact in givens:
         if fact.kind in (FactKind.COLLINEAR, FactKind.MIDPOINT):
@@ -270,7 +276,7 @@ def _groups(pairs: Sequence[Pair]) -> tuple[tuple[str, ...], ...]:
     return tuple(sorted(tuple(v) for v in clusters.values() if len(v) > 1))
 
 
-def marks_of(givens: Sequence[Fact], goal_angle: VertexAngle, coords: Coords) -> Marks:
+def marks_of(givens: Sequence[Fact], claim: quantities.Claim, coords: Coords) -> Marks:
     """What the figure asserts visually, derived from the *stated* facts and nothing else.
 
     Each mark is a claim, so its only legitimate source is a given or the goal — the invariant
@@ -308,17 +314,22 @@ def marks_of(givens: Sequence[Fact], goal_angle: VertexAngle, coords: Coords) ->
                     )
                 )
 
-    arcs.append(
-        AngleArc(
-            at=(
-                schema.display_label(goal_angle.p),
-                schema.display_label(goal_angle.vertex),
-                schema.display_label(goal_angle.q),
-            ),
-            label="?",
-            kind="goal",
+    # The goal arc exists only when the goal *is* an angle. A quantity with no vertex-angle
+    # reading asks its question in the statement text instead of on the figure — which is what
+    # the reference puzzles of docs/10 §10.1 do anyway. Shading a region is a `Marks` change and
+    # a real improvement; drawing an arc that means nothing is not.
+    if claim.angle is not None:
+        arcs.append(
+            AngleArc(
+                at=(
+                    schema.display_label(claim.angle.p),
+                    schema.display_label(claim.angle.vertex),
+                    schema.display_label(claim.angle.q),
+                ),
+                label="?",
+                kind="goal",
+            )
         )
-    )
     return Marks(
         equal_segments=_groups(congruent),
         parallel=_groups(parallel),
@@ -343,7 +354,7 @@ def assemble(
     pruned: Construction,
     derivation: Derivation,
     translation: Translation,
-    goal_angle: VertexAngle,
+    claim: quantities.Claim,
     reference_coords: Coords,
     difficulty: schema.Difficulty,
     *,
@@ -397,12 +408,12 @@ def assemble(
         difficulty=difficulty,
         figure=Figure(
             points=points,
-            segments=segments_of(pruned, givens, highlights, goal_angle),
+            segments=segments_of(pruned, givens, highlights, claim),
             circles=circles_of(declared, drawn),
-            marks=marks_of(givens, goal_angle, reference_coords),
+            marks=marks_of(givens, claim, reference_coords),
         ),
         given=tuple(rendered),
-        goal=_goal(derivation.goal, goal_angle, kind),
+        goal=_goal(derivation.goal, claim, kind),
         solution=steps,
         configuration=tuple(f.fact_id for f in derivation.configuration),
         reference_figure=schema.ReferenceFigure(
@@ -448,24 +459,23 @@ def _given(fact: Fact, coords: Coords) -> Given:
     )
 
 
-def _goal(fact: Fact, angle: VertexAngle, kind: quantities.QuantityType) -> Goal:
-    if angle.degrees is None:  # pragma: no cover - the Stage 7 gate rejects these
-        raise SchemaError(f"goal {fact.fact_id} has no resolved vertex-angle value")
+def _goal(fact: Fact, claim: quantities.Claim, kind: quantities.QuantityType) -> Goal:
+    """The published question and answer, read entirely off the claim (docs/10 A4).
+
+    Every field here used to be computed from a `VertexAngle`, which is why `angle` was the only
+    quantity that could reach Stage 9. The claim carries the same information for any quantity,
+    already in the schema's exact-value grammar.
+    """
     policy = kind.answer_policy
-    exact = _exact(angle.degrees)
     return Goal(
         fact=fact.fact_id,
-        question=angle.text,
+        question=claim.question,
         quantity=Quantity(
             kind=kind.name,
-            at=(
-                schema.display_label(angle.p),
-                schema.display_label(angle.vertex),
-                schema.display_label(angle.q),
-            ),
+            at=tuple(schema.display_label(point) for point in claim.subject),
         ),
-        answer=ExactValue(exact=exact, approx=float(angle.degrees)),
-        display=f"{exact}°",
+        answer=ExactValue(exact=claim.exact, approx=claim.approx),
+        display=claim.display,
         input=GoalInput(
             mode=policy.input_mode.value,
             exactness=policy.exactness.value,
@@ -476,4 +486,9 @@ def _goal(fact: Fact, angle: VertexAngle, kind: quantities.QuantityType) -> Goal
 
 
 def _exact(degrees: Fraction) -> str:
+    """An angle *given*'s value, in the schema's exact grammar.
+
+    Still angle-specific, and correctly so: this renders a stated `aconst`, not the goal. The
+    goal's value comes off the claim.
+    """
     return str(degrees.numerator) if degrees.denominator == 1 else str(degrees)

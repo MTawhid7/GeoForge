@@ -360,3 +360,124 @@ class TestAreaRegistration:
         }
         proposals = propose_areas(FigureView(coords=crowded, facts=self.EQUILATERAL_FACTS))
         assert [p.subject for p in proposals] == [("a", "b", "c")]
+
+
+class TestClaimSeam:
+    """`Claim` is what let Stage 8 and Stage 9 stop being angle-shaped (docs/10 A4).
+
+    Both took a `VertexAngle`, which bundled three assumptions at once: that a goal is an angle,
+    that its value is degrees, and that re-measuring it means reading three points off a diagram.
+    These tests pin the replacement so it cannot narrow back.
+    """
+
+    RIGHT = {"a": (0.0, 0.0), "b": (4.0, 0.0), "c": (0.0, 3.0)}
+
+    def test_every_registered_type_supplies_a_claim(self) -> None:
+        """Required, not defaulted: a type without one is discarded as `goal_unreadable` on
+        every puzzle it produces, and the report reads as a hard corpus rather than a gap."""
+        for quantity_type in registry().values():
+            assert callable(quantity_type.claim_of)
+
+    def test_an_angle_claim_measures_the_vertex_angle(self) -> None:
+        from geoforge.generator.quantities import ANGLE
+
+        fact = Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "b", "a", "c"), value=Fraction(1, 2))
+        claim = ANGLE.claim_of(fact, self.RIGHT)
+        assert claim is not None
+        assert claim.question == "∠BAC"
+        assert claim.exact == "90" and claim.display == "90°"
+        assert claim.measure(self.RIGHT) == pytest.approx(90.0)
+        assert claim.angle is not None, "an angle claim draws a goal arc"
+
+    def test_an_area_claim_measures_by_shoelace(self) -> None:
+        from geoforge.generator.quantities import AREA
+
+        fact = Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="6")
+        claim = AREA.claim_of(fact, self.RIGHT)
+        assert claim is not None
+        assert claim.question == "[ABC]"
+        assert claim.exact == "6" and claim.display == "6"
+        assert claim.measure(self.RIGHT) == pytest.approx(6.0)
+
+    def test_an_area_claim_draws_no_goal_arc(self) -> None:
+        """A quantity with no vertex-angle reading asks in the statement text. Drawing an arc
+        that means nothing would be worse than drawing none."""
+        from geoforge.generator.quantities import AREA
+
+        fact = Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="6")
+        claim = AREA.claim_of(fact, self.RIGHT)
+        assert claim is not None and claim.angle is None
+
+    def test_a_claim_measures_none_when_the_figure_omits_the_subject(self) -> None:
+        """A resample to discard, not a failure."""
+        from geoforge.generator.quantities import AREA
+
+        fact = Fact(kind=FactKind.AREA, args=("a", "b", "z"), exact="6")
+        claim = AREA.claim_of(fact, self.RIGHT)
+        assert claim is not None
+        assert claim.measure(self.RIGHT) is None
+
+    def test_the_area_claim_needs_no_mod_pi_resolution(self) -> None:
+        """The generalization deleted a special case rather than adding one: a shoelace area has
+        one reading where a directed angle mod pi has two (docs/03 §3.5 item 2c)."""
+        from geoforge.generator.quantities import AREA
+
+        fact = Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="6")
+        mirrored = {"a": (0.0, 0.0), "b": (4.0, 0.0), "c": (0.0, -3.0)}
+        claim = AREA.claim_of(fact, self.RIGHT)
+        assert claim is not None
+        assert claim.measure(mirrored) == pytest.approx(claim.measure(self.RIGHT))
+
+    def test_an_area_outside_the_exact_grammar_has_no_claim(self) -> None:
+        from geoforge.generator.quantities import AREA
+
+        assert (
+            AREA.claim_of(
+                Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="2**(1/3)"), self.RIGHT
+            )
+            is None
+        )
+        assert AREA.claim_of(Fact(kind=FactKind.AREA, args=("a", "b", "c")), self.RIGHT) is None
+
+
+class TestLayerDerivationsCarryConfiguration:
+    """MEASURED (docs/10 §10.10h): the layer's routes consume only metric facts, so an early
+    `area.proof_dag` emitted a DAG with no configuration at all — and Stage 8's
+    `same_configuration` then accepted every resample, mirrored ones included.
+    """
+
+    def test_the_figures_configuration_travels_with_the_derivation(self) -> None:
+        from geoforge.generator.quantities import AREA, FigureView, propose_areas
+        from geoforge.solvers.types import RealizedFigure, SolveOptions
+
+        ncoll = Fact(kind=FactKind.N_COLLINEAR, args=("a", "b", "c"))
+        facts = (
+            Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "b"), value=Fraction(2)),
+            Fact(kind=FactKind.CONSTANT_LENGTH, args=("b", "c"), value=Fraction(2)),
+            Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "c"), value=Fraction(2)),
+            ncoll,
+        )
+        coords = {"a": (0.0, 0.0), "b": (2.0, 0.0), "c": (1.0, math.sqrt(3.0))}
+        figure = RealizedFigure(
+            points=tuple((n, x, y) for n, (x, y) in sorted(coords.items())), declared=facts
+        )
+        proposal = propose_areas(FigureView(coords=coords, facts=facts))[0]
+        verification = AREA.verifier(None, figure, proposal, SolveOptions())  # type: ignore[arg-type]
+        assert verification is not None
+        assert ncoll.fact_id in verification.proof_dag.numerical_checks
+
+    def test_a_configuration_fact_is_never_filed_as_a_premise(self) -> None:
+        """`minimize_premises` would consider it droppable, and Stage 8 would stop checking it."""
+        from geoforge.generator import area
+
+        facts = (
+            Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "b"), value=Fraction(2)),
+            Fact(kind=FactKind.CONSTANT_LENGTH, args=("b", "c"), value=Fraction(2)),
+            Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "c"), value=Fraction(2)),
+        )
+        ncoll = Fact(kind=FactKind.N_COLLINEAR, args=("a", "b", "c"))
+        result = area.triangle_area(("a", "b", "c"), facts)
+        assert result is not None
+        dag = area.proof_dag(result, (ncoll,))
+        assert ncoll.fact_id in dag.numerical_checks
+        assert ncoll.fact_id not in dag.assumptions

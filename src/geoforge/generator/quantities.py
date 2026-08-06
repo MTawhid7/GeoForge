@@ -1,13 +1,26 @@
 """The quantity-type registry (docs/04 §QTR).
 
 The pipeline is parameterized by quantity types; **nothing outside this module may special-case
-"angle"**. A type declares six things — how goals are proposed, how it behaves under scaling,
-its per-band value palette, its answer policy, its template family, and the figure marks it may
-state — and registering those six enables it end to end.
+"angle"**. A type declares how goals are proposed, how it behaves under scaling, its per-band
+value palette, its answer policy, its template family, the figure marks it may state, how it is
+verified, and how its goal reads as a published answer — and registering those enables it end to
+end.
 
-Phase 1 registers `angle` only. `length`, `ratio` and `area` arrive in P3/P5 (docs/09) and must
-land as registrations here, not as branches elsewhere. The registry is what keeps that promise
-checkable: a test asserts the downstream code paths read these fields rather than the name.
+**Registered: `angle`, `area`.** `length` and `ratio` arrive in P3 (docs/09) and must land as
+registrations here, not as branches elsewhere. The registry is what keeps that promise checkable:
+a test asserts the downstream code paths read these fields rather than the name.
+
+`area` is what proved the promise was worth keeping, and what it cost (docs/10 A3, A4). It is the
+first quantity **no engine can evaluate** — none in the lineage has an area predicate — and
+enabling it required widening four fields rather than editing any stage:
+
+* `goal_extractor` takes a `FigureView` (coordinates *and* certified facts), because an area is
+  computed from what was certified, not measured off the diagram.
+* `verifier` — there is no engine call to make.
+* `format_answer` takes a `Fact`, because an area's value is a surd and cannot be a `Fraction`.
+* `claim_of` — Stages 8 and 9 took a `VertexAngle`, which assumed every goal is an angle.
+
+That is the whole list. No stage of the pipeline branches on a quantity's name.
 """
 
 from __future__ import annotations
@@ -20,7 +33,9 @@ from enum import StrEnum
 from fractions import Fraction
 from functools import lru_cache
 
-from geoforge.config import EXTRACTION, GENERATION
+from geoforge.config import AREA as AREA_CONFIG
+from geoforge.config import EXTRACTION, GENERATION, TRANSLATION, WELLPOSED
+from geoforge.generator.translation.vertex_angles import VertexAngle
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import (
     Fact,
@@ -163,6 +178,49 @@ class Verification:
     """The engine solve, when there was one. None for a layer-verified quantity."""
 
 
+@dataclass(frozen=True, slots=True)
+class Claim:
+    """What a puzzle publishes as its answer, and how to re-measure it in another figure.
+
+    **The seam that lets Stage 8 and Stage 9 be quantity-generic** (docs/10 A4). Both used to
+    take a `VertexAngle`, which encoded three assumptions at once: that a goal is an angle, that
+    its value is degrees, and that re-measuring it means reading three points off a diagram. An
+    area breaks all three. It also *simplifies* the second one — a shoelace area has no mod-pi
+    ambiguity to resolve — so the generalization removes a special case rather than adding one.
+
+    `measure` is what makes the well-posedness gate work: it re-reads the published quantity from
+    a resampled figure, and a value that moves between two figures both satisfying the statement
+    means the puzzle has no answer. Numerics VERIFY here, exactly as everywhere else.
+    """
+
+    subject: tuple[str, ...]
+    """Engine point names the claim is about. The figure must draw all of them."""
+    question: str
+    """What the puzzle asks, e.g. `∠ABC` or `[ABC]`."""
+    exact: str
+    """The answer in the schema's closed exact-value grammar (docs/02)."""
+    display: str
+    """The player-facing rendering, e.g. `40°` or `25√3/4`."""
+    approx: float
+    measure: Callable[[Mapping[str, tuple[float, float]]], float | None]
+    """Re-read this quantity from another figure's coordinates. None when it cannot be read
+    there — a resample to discard, not a failure."""
+    render_tolerance: float
+    """How far the reference diagram may sit from the published value before the puzzle is
+    refused. Absolute, in the quantity's own units."""
+    drift_tolerance: float
+    """How far the value may move between configuration-matching resamples before the statement
+    is judged not to determine it."""
+    angle: VertexAngle | None = None
+    """The vertex-angle reading, when the quantity has one. Stage 9 draws a goal arc from it;
+    a claim without one asks its question in the statement text instead of on the figure."""
+
+
+#: Given the goal fact and the reference diagram, what the puzzle publishes. None when the goal
+#: has no reading in this figure, which Stage 7 counts as `goal_unreadable`.
+ClaimOf = Callable[[Fact, Mapping[str, tuple[float, float]]], "Claim | None"]
+
+
 #: Given a backend, a realized figure and a proposal, decide whether the proposal is true.
 #:
 #: Returns None for "not verified" — the common and correct outcome, meaning the diagram happened
@@ -237,6 +295,13 @@ class QuantityType:
     §QTR signatures that assumed every quantity is a rational engine predicate). An area's value
     lives in `Fact.exact` as a surd and cannot be a `Fraction` at all — which is the entire
     reason the layer exists."""
+    claim_of: ClaimOf
+    """How the goal reads as a published answer (docs/10 A4). Stage 8 re-measures through this
+    and Stage 9 renders from it, so neither has to know what quantity it is holding.
+
+    Required rather than defaulted: a type with no claim reaches Stage 8 and is discarded as
+    `goal_unreadable` on every puzzle it produces — attrition that reads as a hard corpus rather
+    than as a missing registration."""
     verifier: Verifier = verify_with_engine
     """How a proposal of this type is shown to be true (docs/04 §QTR, added 2026-08-06).
 
@@ -357,6 +422,35 @@ def _format_degrees(fact: Fact) -> str:
     return str(degrees.numerator) if degrees.denominator == 1 else str(degrees)
 
 
+def _angle_claim(fact: Fact, coords: Mapping[str, tuple[float, float]]) -> Claim | None:
+    """The goal as a vertex angle. Unchanged behaviour, moved behind the registry seam.
+
+    The published value comes from `angle.degrees` — the *resolved vertex* reading — and not from
+    `fact.value * 180`. The two differ by the supplement whenever the configuration puts the
+    vertex angle on the other side of the directed one (docs/03 §3.5 item 2c), and it is the
+    resolved one the player sees on the figure.
+    """
+    from geoforge.generator.translation.phrases import angle_of
+    from geoforge.generator.translation.vertex_angles import measure
+
+    angle = angle_of(fact, coords)
+    if angle is None or angle.degrees is None:
+        return None
+    degrees = angle.degrees
+    exact = str(degrees.numerator) if degrees.denominator == 1 else str(degrees)
+    return Claim(
+        subject=(angle.p, angle.vertex, angle.q),
+        question=angle.text,
+        exact=exact,
+        display=f"{exact}°",
+        approx=float(degrees),
+        measure=lambda c: measure(c, angle.p, angle.vertex, angle.q),
+        render_tolerance=TRANSLATION.angle_render_tolerance_degrees,
+        drift_tolerance=WELLPOSED.relative_tolerance * 180.0,
+        angle=angle,
+    )
+
+
 ANGLE = QuantityType(
     name="angle",
     fact_kind=FactKind.CONSTANT_ANGLE,
@@ -369,6 +463,7 @@ ANGLE = QuantityType(
     goal_extractor=propose_angles,
     nice_values=_angle_nice_values,
     format_answer=_format_degrees,
+    claim_of=_angle_claim,
 )
 
 
@@ -466,10 +561,14 @@ def verify_area(
             f"area re-derivation disagreed with the proposal: "
             f"{result.fact.fact_id} vs {proposal.fact.fact_id}"
         )
+    # The figure's configuration travels with the derivation. Without it Stage 8 compares the
+    # reference against mirrored resamples and calls the difference underdetermination
+    # (docs/10 §10.10h) -- the area is mod-pi invariant, the sentence naming the angle is not.
+    configuration = tuple(f for f in figure.declared if f.is_configuration)
     return Verification(
         fact=result.fact,
         evidence=result.all_inputs,
-        proof_dag=area_layer.proof_dag(result),
+        proof_dag=area_layer.proof_dag(result, configuration),
     )
 
 
@@ -485,10 +584,60 @@ def _area_nice_values(band: str) -> tuple[int, ...]:
 
 
 def _format_area(fact: Fact) -> str:
-    """Render an exact area. Already canonical: the layer writes `str(simplify(...))`."""
+    """Render an exact area. Already canonical: the layer writes it in the schema's grammar."""
     if fact.exact is None:
         raise ValueError(f"{fact.fact_id} carries no area value")
     return fact.exact
+
+
+def _area_claim(fact: Fact, coords: Mapping[str, tuple[float, float]]) -> Claim | None:
+    """The goal as a region's area, re-measurable by the shoelace formula.
+
+    **Simpler than the angle case, not harder.** A vertex angle has to be resolved against the
+    figure's configuration because a directed angle mod pi admits two readings (docs/03 §3.5
+    item 2c); an area admits one. So this needs no resolution step and cannot fail the way
+    `angle_of` can — it fails only when the figure does not draw the region at all.
+
+    `angle=None`, so Stage 9 asks the question in the statement rather than drawing a goal arc.
+    Shading the region is a genuine improvement and a `Marks` change; asking in text is what the
+    reference puzzles of docs/10 §10.1 do anyway.
+    """
+    import sympy
+
+    from geoforge.generator.area import UnrepresentableArea, display_text, shoelace
+    from geoforge.generator.translation.vertex_angles import label
+
+    if fact.exact is None or len(fact.args) < 3:
+        return None
+    region = tuple(fact.args)
+    try:
+        value = sympy.sympify(fact.exact)
+        if not isinstance(value, sympy.Expr):
+            return None
+        shown = display_text(value)
+    except (UnrepresentableArea, SyntaxError, TypeError, sympy.SympifyError):
+        return None
+    approx = float(value)
+
+    def measure_region(where: Mapping[str, tuple[float, float]]) -> float | None:
+        if not set(region) <= where.keys():
+            return None
+        return shoelace(tuple(where[p] for p in region))
+
+    scale = max(1.0, abs(approx))
+    return Claim(
+        subject=region,
+        question=f"[{''.join(label(p) for p in region)}]",
+        exact=fact.exact,
+        display=shown,
+        approx=approx,
+        measure=measure_region,
+        # Tight, because the layer already checked this exact value against this exact diagram
+        # and raised if it disagreed (docs/10 §10.8). A loose reference tolerance here would be
+        # a second, weaker opinion about something already settled.
+        render_tolerance=AREA_CONFIG.verification_tolerance * scale,
+        drift_tolerance=WELLPOSED.relative_tolerance * scale,
+    )
 
 
 AREA = QuantityType(
@@ -501,6 +650,7 @@ AREA = QuantityType(
     goal_extractor=propose_areas,
     nice_values=_area_nice_values,
     format_answer=_format_area,
+    claim_of=_area_claim,
     verifier=verify_area,
 )
 

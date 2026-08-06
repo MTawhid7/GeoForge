@@ -33,9 +33,9 @@ import numpy as np
 
 from geoforge.config import LAYOUT
 from geoforge.generator.construction import Construction
+from geoforge.generator.quantities import Claim
 from geoforge.generator.traceback import Derivation
 from geoforge.generator.translation import Translation, translate
-from geoforge.generator.translation.vertex_angles import VertexAngle, measure
 from geoforge.generator.wellposed import same_configuration
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import SolveOptions
@@ -66,7 +66,7 @@ def lay_out(
     pruned: Construction,
     derivation: Derivation,
     translation: Translation,
-    goal_angle: VertexAngle,
+    claim: Claim,
     reference_coords: Coords,
     segments: Sequence[Segment],
     seed: int,
@@ -82,7 +82,7 @@ def lay_out(
 
     for coords in _candidates(backend, pruned, reference_coords, drawn, seed):
         considered += 1
-        if not _admissible(backend, coords, derivation, translation, goal_angle):
+        if not _admissible(backend, coords, derivation, translation, claim):
             continue
         rotated = _best_rotation(coords)
         scored.append((_score(rotated, segments), rotated))
@@ -137,7 +137,7 @@ def _admissible(
     coords: Coords,
     derivation: Derivation,
     translation: Translation,
-    goal_angle: VertexAngle,
+    claim: Claim,
 ) -> bool:
     """Whether this drawing still supports the sentences the puzzle ships with.
 
@@ -172,10 +172,16 @@ def _admissible(
         return False
     if [s.text for s in redrawn.steps] != [s.text for s in translation.steps]:
         return False
-    observed = measure(coords, goal_angle.p, goal_angle.vertex, goal_angle.q)
-    if observed is None or goal_angle.degrees is None:
+    # The display figure must show the published answer, whatever quantity it is (docs/10 A4).
+    # `LAYOUT.goal_render_tolerance_degrees` is an angle tolerance and only ever applied to one;
+    # any other quantity uses the tolerance its own claim carries, which is in its own units.
+    observed = claim.measure(coords)
+    if observed is None:
         return False
-    return abs(observed - float(goal_angle.degrees)) <= LAYOUT.goal_render_tolerance_degrees
+    tolerance = (
+        LAYOUT.goal_render_tolerance_degrees if claim.angle is not None else claim.render_tolerance
+    )
+    return abs(observed - claim.approx) <= tolerance
 
 
 # --------------------------------------------------------------------------------------

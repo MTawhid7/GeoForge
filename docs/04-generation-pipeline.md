@@ -67,6 +67,27 @@ format_answer: Callable[[Fact], str]        # was Callable[[Fraction], str]
 An area's value lives in `Fact.exact` as a surd and cannot be a `Fraction` at all, which is the
 entire reason the layer exists (doc 07 T18, T21). Taking the whole fact lets each type read the
 field it stores its value in.
+
+**`claim_of` — the fourth and last field the area work added (2026-08-06):**
+
+```python
+claim_of: ClaimOf        # (goal fact, reference coords) -> Claim | None
+```
+
+Stages 8 and 9, the bank layout and the bank build all took a `VertexAngle`, which bundled three
+assumptions: that a goal is an angle, that its value is degrees, and that re-measuring it means
+reading three points off a diagram. A `Claim` carries the published question, its `exact` and
+`display` forms, its render and drift tolerances, and a `measure(coords)` closure — so Stage 8 can
+re-read the answer from a resampled figure without knowing what quantity it is holding.
+
+`angle` supplies a vertex-angle reading. `area` supplies a shoelace one, which needs **no** mod-π
+resolution — so this generalization *deleted* a special case rather than adding one. A claim whose
+`angle` is None asks its question in the statement text rather than drawing a goal arc.
+
+Returning None is how a goal with no reading in this figure becomes `goal_unreadable` attrition,
+which is why the field is required rather than defaulted: a type registered without one would be
+discarded on every puzzle it produced, and the report would read as a hard corpus rather than as a
+missing registration.
 | `dimension` | Scale behavior | scale-free | ratio: scale-free; length: **scale-pinned** | scale-pinned (dimension 2) |
 | `nice_values` | Given-value palette per band | rationals × π — round for easy, **non-round for the upper bands** (doc 07 T18) | small integers/surds, small fractions | — (derived) |
 | `answer_policy` | Exactness class + input mode (doc 02) | integer degrees, keypad | fraction / decimal+tolerance, exact surd revealed on solve | decimal+tolerance |

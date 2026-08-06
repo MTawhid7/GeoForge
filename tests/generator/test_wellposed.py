@@ -6,16 +6,16 @@ including a real underdetermined puzzle found by the very first batch run, kept 
 
 from __future__ import annotations
 
+import dataclasses
 from fractions import Fraction
 
 import pytest
 
-from geoforge.generator import wellposed
+from geoforge.generator import quantities, wellposed
 from geoforge.generator.construction import Construction, Step
 from geoforge.generator.extract import extract_goals
 from geoforge.generator.traceback import Derivation, derive
 from geoforge.generator.translation import translate
-from geoforge.generator.translation.phrases import angle_of
 from geoforge.generator.wellposed import WellPosedReason
 from geoforge.solvers import get_backend
 from geoforge.solvers.interface import SolverBackend
@@ -57,27 +57,29 @@ def _pipeline(backend: SolverBackend, jgex: str, seed: int, goal_id: str | None 
     for goal in extract_goals(backend, figure, opts, reject_sight_readable=False).goals:
         if goal_id is not None and goal.fact.fact_id != goal_id:
             continue
-        derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, opts)
+        derivation = derive(backend, figure.points, goal.proof_dag, goal.fact, opts)
         assert derivation is not None
         translation = translate(derivation.subdag, coords)
-        angle = angle_of(goal.fact, coords)
-        assert angle is not None
-        return construction, derivation, translation, angle, coords
+        # Through the registry, exactly as Stage 8 does: the gate takes a `Claim`, not a
+        # vertex angle, since docs/10 A4.
+        claim = quantities.get(goal.quantity_type).claim_of(goal.fact, coords)
+        assert claim is not None
+        return construction, derivation, translation, claim, coords
     raise AssertionError("no goal extracted")
 
 
 class TestWellPosedPuzzles:
     def test_thales_is_well_posed(self, backend: SolverBackend) -> None:
-        construction, derivation, translation, angle, coords = _pipeline(backend, THALES, 42)
-        verdict = wellposed.check(backend, construction, derivation, translation, angle, coords, 42)
+        construction, derivation, translation, claim, coords = _pipeline(backend, THALES, 42)
+        verdict = wellposed.check(backend, construction, derivation, translation, claim, coords, 42)
         assert verdict.ok
         assert verdict.samples_accepted >= 1
         assert verdict.reason is None
 
     def test_verdict_reports_how_many_samples_it_used(self, backend: SolverBackend) -> None:
         """A gate that certifies on zero samples certifies nothing."""
-        construction, derivation, translation, angle, coords = _pipeline(backend, THALES, 42)
-        verdict = wellposed.check(backend, construction, derivation, translation, angle, coords, 42)
+        construction, derivation, translation, claim, coords = _pipeline(backend, THALES, 42)
+        verdict = wellposed.check(backend, construction, derivation, translation, claim, coords, 42)
         assert verdict.samples_accepted + verdict.samples_rejected > 0
 
 
@@ -85,7 +87,7 @@ class TestUnderdetermined:
     """The case the gate exists for, and the one that changed docs/04 Stage 8."""
 
     def test_underdetermined_goal_is_caught(self, backend: SolverBackend) -> None:
-        construction, derivation, translation, angle, coords = _pipeline(
+        construction, derivation, translation, claim, coords = _pipeline(
             backend, UNDERDETERMINED, UNDERDETERMINED_SEED, "aconst:b:i:a:b=5/12"
         )
         verdict = wellposed.check(
@@ -93,7 +95,7 @@ class TestUnderdetermined:
             construction,
             derivation,
             translation,
-            angle,
+            claim,
             coords,
             UNDERDETERMINED_SEED,
         )
@@ -126,7 +128,7 @@ class TestUnderdetermined:
     def test_underdetermination_is_not_a_soundness_failure(self, backend: SolverBackend) -> None:
         """docs/07 T13: this is the gate working. Counting it as a build-failing bug would cry
         wolf and bury the one failure that does indict the engine."""
-        construction, derivation, translation, angle, coords = _pipeline(
+        construction, derivation, translation, claim, coords = _pipeline(
             backend, UNDERDETERMINED, UNDERDETERMINED_SEED, "aconst:b:i:a:b=5/12"
         )
         verdict = wellposed.check(
@@ -134,7 +136,7 @@ class TestUnderdetermined:
             construction,
             derivation,
             translation,
-            angle,
+            claim,
             coords,
             UNDERDETERMINED_SEED,
         )
@@ -150,7 +152,7 @@ class TestSoundnessFailure:
         """The one verdict that indicts the engine rather than the puzzle. Simulated by claiming a
         goal value the reference figure does not show — exactly what an unsound derivation would
         hand us."""
-        construction, derivation, translation, angle, coords = _pipeline(backend, THALES, 42)
+        construction, derivation, translation, claim, coords = _pipeline(backend, THALES, 42)
         wrong = Fact(kind=derivation.goal.kind, args=derivation.goal.args, value=Fraction(1, 3))
         corrupted = Derivation(
             goal=wrong,
@@ -159,7 +161,7 @@ class TestSoundnessFailure:
             configuration=derivation.configuration,
             dropped_premises=derivation.dropped_premises,
         )
-        verdict = wellposed.check(backend, construction, corrupted, translation, angle, coords, 42)
+        verdict = wellposed.check(backend, construction, corrupted, translation, claim, coords, 42)
         assert not verdict.ok
         assert verdict.reason is WellPosedReason.ENGINE_CONTRADICTS_DIAGRAM
         assert verdict.is_soundness_failure
@@ -172,13 +174,13 @@ class TestPublishedAnswerMatchesTheFigure:
     ) -> None:
         """If the published answer is not what the shipped figure shows, every later comparison
         is against the wrong number and resampling would never notice."""
-        construction, derivation, translation, angle, coords = _pipeline(backend, THALES, 42)
+        construction, derivation, translation, claim, coords = _pipeline(backend, THALES, 42)
         verdict = wellposed.check(
             backend,
             construction,
             derivation,
             translation,
-            angle.with_value(Fraction(31)),
+            dataclasses.replace(claim, approx=31.0, exact="31", display="31°"),
             coords,
             42,
         )
@@ -192,7 +194,7 @@ class TestConfigurationMatching:
     ) -> None:
         """A configuration flip is a legitimately different figure. Treating it as evidence of
         ill-posedness would reject nearly every good puzzle."""
-        construction, derivation, translation, angle, coords = _pipeline(backend, THALES, 42)
+        construction, derivation, translation, claim, coords = _pipeline(backend, THALES, 42)
         impossible = derivation.configuration + (
             Fact(kind=FactKind.COLLINEAR, args=("a", "b", "c")),
         )
@@ -203,7 +205,7 @@ class TestConfigurationMatching:
             configuration=impossible,
             dropped_premises=derivation.dropped_premises,
         )
-        verdict = wellposed.check(backend, construction, forced, translation, angle, coords, 42)
+        verdict = wellposed.check(backend, construction, forced, translation, claim, coords, 42)
         assert not verdict.ok
         assert verdict.reason is WellPosedReason.TOO_FEW_SAMPLES
         assert verdict.samples_rejected > 0

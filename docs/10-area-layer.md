@@ -1,8 +1,14 @@
 # 10 — The area layer
 
-**Status: design, not built. Written 2026-08-05.** Doc 09 P6 requires a design doc before any build;
-this is it. Everything marked MEASURED has a seed and a number behind it (docs/08 §8.1.8); everything
-marked UNVERIFIED is a known hole, not an oversight.
+**Status: BUILT through A4 (2026-08-06). Written as a design doc 2026-08-05.** `area` is registered
+in the quantity-type registry and produces complete, schema-valid puzzles with irrational answers —
+see §10.10f (registration), §10.10g (readable steps), §10.10h (the first puzzles, and the mod-π
+attrition that bounds the yield). §10.1–§10.9 are the original design and are kept as written;
+where a measurement later contradicted one, the §10.10x entry says so rather than the text being
+quietly edited.
+
+Everything marked MEASURED has a seed and a number behind it (docs/08 §8.1.8); everything marked
+UNVERIFIED is a known hole, not an oversight.
 
 Governs: exact computation of **area, and the dimensional quantities that share its machinery** — arc
 length, perimeter, sector and segment area, curvature. Does **not** govern the engine, which is
@@ -187,8 +193,9 @@ Each step is independently verifiable and each has a kill condition.
 | ~~A2~~ | **DONE 2026-08-05 — module built and tested; see §10.10b.** Its kill condition *fired* and the fix is A1b | ~~the engine does not certify enough lengths per figure to close a triangle~~ **THIS HAPPENED** |
 | ~~A1b~~ | **DONE 2026-08-05 — see §10.10d.** Extended to seven templates and the cevian rule in §10.10e | ~~templated figures fail Stage 8 well-posedness or collapse to one answer~~ **neither happened** |
 | ~~A3~~ | **DONE 2026-08-06 — see §10.10f.** Registered in the QTR; reaches Stage 6. Discarded at Stage 7 for want of a translation table, which is A4 | ~~answers cluster the way ratio's did~~ **6.0% modal share against angle's 36.0%** |
-| A4 | Translation templates for the five area routes and the answer path, then `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
-| A5 | Arc length, perimeter, curvature — all reuse A4's machinery | — |
+| ~~A4~~ | **DONE 2026-08-06 — see §10.10g, §10.10h.** Translation table, the exact-value grammar, and `Claim` replacing `VertexAngle`. 24 schema-valid area puzzles | ~~area steps do not translate~~ **136/136 translate**; the surviving limit is the mod-π *sentence*, §10.10h |
+| A5 | Pin the vertex reading in the templates (§10.10h), then `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
+| A6 | Arc length, perimeter, curvature — all reuse A5's machinery | — |
 
 **Acceptance for the layer as a whole:** ≥1 irrational answer per band; modal answer share below
 angle's 36.0%; every emitted area independently re-checked; determinism unchanged; and a bank built
@@ -547,6 +554,69 @@ same in every configuration-matching resample?" — and for an area it is *simpl
 angle, since the shoelace area needs no mod-π resolution. The work is to give `wellposed` a
 quantity-generic notion of "what this puzzle claims and how to re-measure it", rather than a
 `VertexAngle`. That is A4's second half.
+
+## 10.10h A4 complete: the first area puzzles (2026-08-06)
+
+**24 complete, schema-valid area puzzles**, end to end. The first this project has produced.
+
+```json
+"goal":     {"fact": "area:a:b:c=1*sqrt(3)", "question": "[ABC]",
+             "answer": {"exact": "1*sqrt(3)", "approx": 1.732...}, "display": "√3"}
+"given":    ["AB = 2", "AC = 2", "BC = 2"]
+"solution": [{"rule": "area_heron",
+              "text": "AB = 2, AC = 2 and BC = 2, so Heron's formula gives [ABC] = √3.",
+              "highlights": ["seg:A:B", "seg:A:C", "seg:B:C", "region:ABC"]}]
+```
+
+**What changed: `Claim` replaced `VertexAngle` at four call sites.** Stage 8, Stage 9, the bank
+layout and the bank build all took a `VertexAngle`, which bundled three assumptions — that a goal
+is an angle, that its value is degrees, and that re-measuring it means reading three points off a
+diagram. A `Claim` carries the published question, its exact and display forms, its two tolerances,
+and a `measure(coords)` closure. `angle` supplies a vertex-angle reading; `area` supplies a
+shoelace one, which needs **no** mod-π resolution — so the generalization deleted a special case
+rather than adding one. `claim_of` is the fourth and final §QTR field the area work required.
+
+The goal *mark* is now optional. A quantity with no vertex-angle reading asks its question in the
+statement text instead of drawing an arc that would mean nothing. Shading the region is a `Marks`
+change and a real improvement; it is not needed for a correct puzzle, and the reference puzzles of
+§10.1 ask in text anyway.
+
+`_stated_angles` in `wellposed.py` was dead code — defined, never called — and was deleted rather
+than ported.
+
+### The dominant attrition, diagnosed rather than tuned away
+
+**70 of 94 area goals are discarded as `step_underdetermined`, and the gate is right.**
+
+```
+'∠BAC = 45°, AB = 6 and AC = 2, … [ABC] = 3√2.'
+  becomes
+'∠BAC = 135°, AB = 6 and AC = 2, … [ABC] = 3√2.'
+```
+
+This is the §10.5 mod-π hazard, arriving in the place the section did not predict. The *value* is
+safe exactly as designed — sin θ = sin(π − θ), so both figures have area 3√2 — but the **sentence
+naming the angle is not**. `s_angle b a c 45o` states a directed angle mod π, and the realizer will
+place `c` on either side, so the puzzle would ship a given that is false of a figure satisfying its
+own construction. Rejecting that is the gate working.
+
+Fixing it needs an upstream change, and the measurement says which: **the engine records nothing
+that discriminates the two placements.** On area templates the configuration facts are
+`diff:a:b`, `ncoll:a:b:c` and `sameclock:a:b:c:a:b:c` — the first two hold in both orientations and
+the third is a tautology. This is docs/07 T13 exactly: the engine's numerical checks record what
+its *rules* needed, not a full description of the configuration. So the template has to pin the
+orientation itself; there is nothing to pin it with today.
+
+**A related bug this diagnosis found and fixed.** The layer's routes consume only metric facts, so
+`area.proof_dag` was emitting a DAG with **no configuration facts at all** — and Stage 8's
+`same_configuration` therefore accepted every resample, mirrored ones included. The figure's
+configuration facts now travel with the derivation. The yield is unchanged (24/94 either way,
+because nothing recorded discriminates), but the comparison is now honest, and the emitted puzzle
+states the configuration it depends on.
+
+**26% is the yield of a correct gate**, and it is the right trade against 100% shipping ambiguous
+givens. Raising it is a template change — state the angle so only one vertex reading realizes —
+and belongs with A5 rather than being bought here by loosening a check.
 
 ## 10.11 Deliberately not in scope
 
