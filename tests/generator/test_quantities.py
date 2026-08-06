@@ -23,7 +23,7 @@ from geoforge.generator.quantities import (
     registry,
     snap_to_integer_degrees,
 )
-from geoforge.solvers.types import Fact, FactKind
+from geoforge.solvers.types import Fact, FactKind, ProofDAG
 
 #: A right isosceles triangle: angles 90, 45, 45 at a, b, c.
 RIGHT_ISOSCELES = {"a": (0.0, 0.0), "b": (1.0, 0.0), "c": (0.0, 1.0)}
@@ -53,14 +53,14 @@ class TestRegistry:
         with pytest.raises(ValueError, match="angle"):
             quantities.get("shaded_area")
 
-    def test_phase_one_registers_angle_only(self) -> None:
-        """Guards the roadmap: length/ratio/area (docs/09 P3/P5) must arrive as registrations
-        here, not as branches elsewhere in the pipeline."""
-        assert sorted(registry()) == ["angle"]
+    def test_types_arrive_as_registrations_not_as_branches(self) -> None:
+        """Guards the roadmap: length/ratio (docs/09 P3) must arrive as registrations here, the
+        way `area` did (docs/10 A3), and not as branches elsewhere in the pipeline."""
+        assert sorted(registry()) == ["angle", "area"]
 
     def test_answer_formats_as_degrees(self) -> None:
-        assert ANGLE.format_answer(Fraction(1, 2)) == "90"
-        assert ANGLE.format_answer(Fraction(40, 180)) == "40"
+        assert ANGLE.format_answer(_angle_fact(Fraction(1, 2))) == "90"
+        assert ANGLE.format_answer(_angle_fact(Fraction(40, 180))) == "40"
 
 
 class TestSnapping:
@@ -184,6 +184,20 @@ ANGLE_FIXTURE_FACT = Fact(
     kind=FactKind.CONSTANT_ANGLE, args=("a", "b", "a", "c"), value=Fraction(1, 3)
 )
 
+_EMPTY_DAG = ProofDAG(
+    facts=(),
+    steps=(),
+    assumptions=(),
+    numerical_checks=(),
+    trivial=(),
+    proved_goals=(),
+    unproved_goals=(),
+)
+
+
+def _angle_fact(value: Fraction) -> Fact:
+    return Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "b", "a", "c"), value=value)
+
 
 class TestVerifierSeam:
     """How a proposal is shown true is the TYPE's business (docs/04 §QTR, added 2026-08-06).
@@ -210,7 +224,7 @@ class TestVerifierSeam:
 
         from geoforge.generator.quantities import ANGLE, Verification
 
-        sentinel = Verification(fact=ANGLE_FIXTURE_FACT, evidence=())
+        sentinel = Verification(fact=ANGLE_FIXTURE_FACT, evidence=(), proof_dag=_EMPTY_DAG)
 
         def always(_backend, _figure, _proposal, _opts):  # type: ignore[no-untyped-def]
             return sentinel
@@ -226,7 +240,121 @@ class TestVerifierSeam:
         """`evidence` is not bookkeeping: those are premises minimization must not drop."""
         from geoforge.generator.quantities import Verification
 
-        verification = Verification(fact=ANGLE_FIXTURE_FACT, evidence=(ANGLE_FIXTURE_FACT,))
+        verification = Verification(
+            fact=ANGLE_FIXTURE_FACT, evidence=(ANGLE_FIXTURE_FACT,), proof_dag=_EMPTY_DAG
+        )
         assert verification.evidence == (ANGLE_FIXTURE_FACT,)
         assert verification.result is None
-        assert verification.exact is None
+
+
+class TestAreaRegistration:
+    """`area` is a registration, not a branch (docs/10 A3).
+
+    The claim this class exists to keep honest: enabling a quantity the *engine cannot evaluate*
+    required widening three §QTR signatures — `goal_extractor` to a `FigureView`, a `verifier`
+    field, `format_answer` to a `Fact` — and no `if quantity_type == "area"` anywhere else.
+    """
+
+    EQUILATERAL_FACTS = (
+        Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "b"), value=Fraction(2)),
+        Fact(kind=FactKind.CONSTANT_LENGTH, args=("b", "c"), value=Fraction(2)),
+        Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "c"), value=Fraction(2)),
+    )
+    EQUILATERAL_COORDS = {
+        "a": (0.0, 0.0),
+        "b": (2.0, 0.0),
+        "c": (1.0, math.sqrt(3.0)),
+    }
+
+    def test_area_declares_all_the_qtr_fields(self) -> None:
+        from geoforge.generator.quantities import AREA
+
+        assert AREA.fact_kind is FactKind.AREA
+        assert AREA.is_scale_pinned, "an area has dimension 2 — one given must fix the scale"
+        assert AREA.template_family == "area"
+        assert AREA.marks and AREA.nice_values("easy")
+
+    def test_it_proposes_an_irrational_answer_angle_could_never_reach(self) -> None:
+        """The whole reason the layer exists. `aconst` holds a `Fraction` (docs/07 T18), so no
+        angle puzzle can answer sqrt(3); an equilateral triangle of side 2 has area exactly
+        that, one multiplication from facts the engine hands over for free."""
+        from geoforge.generator.quantities import propose_areas
+
+        proposals = propose_areas(
+            FigureView(coords=self.EQUILATERAL_COORDS, facts=self.EQUILATERAL_FACTS)
+        )
+        assert len(proposals) == 1
+        assert proposals[0].fact.exact == "sqrt(3)"
+        assert proposals[0].fact.value is None, "a surd is not a Fraction, which is the point"
+        assert proposals[0].subject == ("a", "b", "c")
+
+    def test_the_extractor_reads_facts_and_not_coordinates(self) -> None:
+        """Inverted from `angle`, which measures the diagram. Coordinates alone determine an
+        area numerically, and computing one from them would be deriving from numerics."""
+        from geoforge.generator.quantities import propose_areas
+
+        assert propose_areas(FigureView(coords=self.EQUILATERAL_COORDS, facts=())) == ()
+
+    def test_a_diagram_that_disagrees_raises_rather_than_being_skipped(self) -> None:
+        from geoforge.generator.area import AreaVerificationError
+        from geoforge.generator.quantities import propose_areas
+
+        lying = dict(self.EQUILATERAL_COORDS) | {"c": (1.0, 40.0)}
+        with pytest.raises(AreaVerificationError):
+            propose_areas(FigureView(coords=lying, facts=self.EQUILATERAL_FACTS))
+
+    def test_the_verifier_returns_a_derivation_with_no_engine_result(self) -> None:
+        from geoforge.generator.quantities import AREA, propose_areas, verify_area
+        from geoforge.solvers.types import RealizedFigure, SolveOptions
+
+        figure = RealizedFigure(
+            points=tuple((n, x, y) for n, (x, y) in sorted(self.EQUILATERAL_COORDS.items())),
+            declared=self.EQUILATERAL_FACTS,
+        )
+        proposal = propose_areas(FigureView(coords=figure.coords(), facts=figure.declared))[0]
+        verification = AREA.verifier(None, figure, proposal, SolveOptions())  # type: ignore[arg-type]
+        assert verification is not None
+        assert verification.result is None, "no engine has an area predicate"
+        assert verification.proof_dag.steps, "but there is still a derivation to translate"
+        assert set(verification.evidence) == set(self.EQUILATERAL_FACTS)
+        del verify_area  # imported to assert it is what the registry holds, below
+
+    def test_the_registry_holds_the_area_verifier(self) -> None:
+        from geoforge.generator.quantities import AREA, verify_area, verify_with_engine
+
+        assert AREA.verifier is verify_area
+        assert ANGLE.verifier is verify_with_engine
+
+    def test_it_returns_none_when_the_facts_do_not_determine_the_area(self) -> None:
+        """Ordinary attrition, and it must stay distinguishable from a crash."""
+        from geoforge.generator.quantities import AREA, Proposal
+        from geoforge.solvers.types import RealizedFigure, SolveOptions
+
+        figure = RealizedFigure(
+            points=tuple((n, x, y) for n, (x, y) in sorted(self.EQUILATERAL_COORDS.items())),
+            declared=(),
+        )
+        proposal = Proposal(
+            quantity_type="area",
+            fact=Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="sqrt(3)"),
+            subject=("a", "b", "c"),
+            measured=1.732,
+        )
+        assert AREA.verifier(None, figure, proposal, SolveOptions()) is None  # type: ignore[arg-type]
+
+    def test_the_answer_formats_as_the_exact_surd(self) -> None:
+        from geoforge.generator.quantities import AREA
+
+        fact = Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="3*sqrt(3)/4")
+        assert AREA.format_answer(fact) == "3*sqrt(3)/4"
+
+    def test_enumeration_is_restricted_to_points_the_layer_can_reach(self) -> None:
+        """The enumeration is cubic in the point count, so a figure of scaffolding must not
+        cost a triangle-by-triangle sympy pass."""
+        from geoforge.generator.quantities import propose_areas
+
+        crowded = dict(self.EQUILATERAL_COORDS) | {
+            name: (float(i), 7.0) for i, name in enumerate("defghijklmnop")
+        }
+        proposals = propose_areas(FigureView(coords=crowded, facts=self.EQUILATERAL_FACTS))
+        assert [p.subject for p in proposals] == [("a", "b", "c")]

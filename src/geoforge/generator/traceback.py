@@ -293,6 +293,21 @@ def derive(
     if subdag is None:
         return None
 
+    if goal.is_layer:
+        # No engine can express this goal, so "does it still follow without premise X?" is not
+        # a question any backend can answer (docs/10 A3) — `PremiseSpec` refuses the call
+        # outright. Nothing is lost: a layer route reports exactly the facts its formula
+        # dereferences, so every surviving premise is consumed by some step and there is
+        # nothing a greedy pass could drop. `test_a_layer_derivation_is_already_minimal` pins
+        # that, so the day a route starts over-collecting this stops being true out loud.
+        return Derivation(
+            goal=goal,
+            subdag=subdag,
+            premises=subdag.premises,
+            configuration=subdag.configuration,
+            dropped_premises=(),
+        )
+
     outcome = minimize_premises(backend, points, subdag.premises, subdag.configuration, goal, opts)
     dropped = tuple(sorted(set(subdag.premises) - set(outcome.kept)))
 

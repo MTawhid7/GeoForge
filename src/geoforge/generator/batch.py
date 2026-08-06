@@ -365,7 +365,7 @@ def _run_one(
 
     coords = figure.coords()
     for goal_index, goal in enumerate(extraction.goals):
-        derivation = derive(backend, figure.points, goal.result.proof_dag, goal.fact, opts)
+        derivation = derive(backend, figure.points, goal.proof_dag, goal.fact, opts)
         if derivation is None:
             report.discards.append(
                 Discard("traceback", "no_derivation", case_seed, goal.fact.fact_id)
@@ -538,7 +538,15 @@ def _emit(
         declared=declared,
         provenance={
             "generator_version": generator_version(),
-            "engine": f"{goal.result.stats.engine}-{goal.result.stats.engine_version}",
+            # A layer-verified quantity has no engine solve of its own (docs/10 A3). Its
+            # *premises* still came from one, so the field records which engine certified them
+            # and says plainly that the value did not — a bank entry must never imply an engine
+            # vouched for arithmetic it cannot express.
+            "engine": (
+                f"{goal.result.stats.engine}-{goal.result.stats.engine_version}"
+                if goal.result is not None
+                else f"{SOLVER.backend}+{goal.quantity_type}-layer"
+            ),
             "backend": SOLVER.backend,
             "seed": case_seed,
             "construction": construction.to_jgex(),

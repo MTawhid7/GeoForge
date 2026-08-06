@@ -36,6 +36,7 @@ from geoforge.generator.quantities import (
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import (
     Fact,
+    ProofDAG,
     RealizedFigure,
     SolveOptions,
     SolveResult,
@@ -49,10 +50,15 @@ class ExtractedGoal:
 
     proposal: Proposal
     fact: Fact
-    """The engine's canonical form of the goal. Prefer this over `proposal.fact`: the two are
-    the same fact, but only this one is guaranteed to match the ids used in the proof DAG."""
-    result: SolveResult
-    """The goal-mode solve, carrying the traced proof DAG that Stage 6 minimizes."""
+    """The canonical form of the goal. Prefer this over `proposal.fact`: the two are the same
+    fact, but only this one is guaranteed to match the ids used in the proof DAG."""
+    proof_dag: ProofDAG
+    """The derivation Stage 6 minimizes — the engine's trace, or the quantity layer's own
+    decomposition rendered as steps (docs/10 A3). Downstream stages read this and never ask
+    which of the two produced it."""
+    result: SolveResult | None = None
+    """The engine solve, when there was one. None for a layer-verified quantity, whose value no
+    engine can evaluate."""
 
     @property
     def quantity_type(self) -> str:
@@ -64,7 +70,7 @@ class ExtractedGoal:
 
     @property
     def depth(self) -> int:
-        return self.result.proof_dag.depth()
+        return self.proof_dag.depth()
 
     @property
     def distinct_rules(self) -> int:
@@ -86,7 +92,7 @@ class ExtractedGoal:
         about the threshold, not a property of the design — which is why docs/05's filter is
         re-asserted against the sub-DAG downstream rather than trusted from here.
         """
-        return distinct_rules(self.result.proof_dag.steps)
+        return distinct_rules(self.proof_dag.steps)
 
 
 class ExtractionReason(StrEnum):
@@ -220,16 +226,6 @@ def extract_goals(
             rejected.append((proposal.key, ExtractionReason.NOT_VERIFIED))
             continue
 
-        result = verification.result
-        if result is None:
-            # No engine proof DAG for the value. Stage 6 minimizes a DAG, so a layer-verified
-            # quantity cannot reach it yet -- see docs/10. Refused loudly rather than shipped
-            # half-wired, because a silent skip here would look like ordinary attrition.
-            raise NotImplementedError(
-                f"{proposal.quantity_type!r} is layer-verified; Stage 6 needs a proof DAG. "
-                "docs/10 A3 wires this."
-            )
-
         canonical = verification.fact
         if EXTRACTION.exclude_given_goals and canonical.fact_id in given:
             # "Find angle ABC" where ABC = 50 degrees is a stated given is not a puzzle. This
@@ -237,7 +233,12 @@ def extract_goals(
             rejected.append((proposal.key, ExtractionReason.ALREADY_GIVEN))
             continue
 
-        goal = ExtractedGoal(proposal=proposal, fact=canonical, result=result)
+        goal = ExtractedGoal(
+            proposal=proposal,
+            fact=canonical,
+            proof_dag=verification.proof_dag,
+            result=verification.result,
+        )
         if require_interesting and not _is_interesting(goal):
             rejected.append((proposal.key, ExtractionReason.TOO_SHALLOW))
             continue

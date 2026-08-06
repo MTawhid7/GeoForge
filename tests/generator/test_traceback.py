@@ -316,3 +316,59 @@ class TestFigurePruning:
         pruning = prune_figure(_construction(), frozenset({"a", "b", "c"}))
         figure = backend.realize(pruning.construction(_construction()).to_spec(), OPTS)
         assert figure.ok
+
+
+class TestLayerGoals:
+    """Stage 6 over a goal no engine can express (docs/10 A3).
+
+    `minimize_premises` asks the engine "does the goal still follow without premise X?". For an
+    area there is no engine that can be asked — `PremiseSpec` refuses the call outright — so
+    `derive` takes the layer's derivation as given. That is only sound because a layer route
+    reports precisely the facts its formula dereferences, which is what these tests pin.
+    """
+
+    FACTS = (
+        Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "b"), value=Fraction(6)),
+        Fact(kind=FactKind.CONSTANT_LENGTH, args=("a", "c"), value=Fraction(4)),
+        Fact(kind=FactKind.CONSTANT_ANGLE, args=("a", "b", "a", "c"), value=Fraction(1, 3)),
+        Fact(kind=FactKind.MIDPOINT, args=("m", "b", "c")),
+    )
+
+    def _derivation(self):  # type: ignore[no-untyped-def]
+        from geoforge.generator import area
+
+        result = area.triangle_area(("a", "b", "m"), self.FACTS)
+        assert result is not None
+        return result, derive(None, (), area.proof_dag(result), result.fact, OPTS)  # type: ignore[arg-type]
+
+    def test_derive_needs_no_backend_for_a_layer_goal(self) -> None:
+        """Passing None is the assertion: if any engine call crept in, this raises."""
+        _, derivation = self._derivation()
+        assert derivation is not None
+        assert derivation.dropped_premises == ()
+        assert derivation.engine_errors == ()
+
+    def test_a_layer_derivation_is_already_minimal(self) -> None:
+        """Every surviving premise is consumed by some step, so a greedy pass has nothing to
+        drop. The day a route starts over-collecting, this fails instead of silently shipping
+        a puzzle with a given it never uses (docs/05 filter 5)."""
+        result, derivation = self._derivation()
+        assert derivation is not None
+        consumed = {fid for step in derivation.subdag.steps for fid in step.premises}
+        for premise in derivation.premises:
+            assert premise.fact_id in consumed, f"{premise.fact_id} is stated but never used"
+        assert {f.fact_id for f in derivation.premises} == {f.fact_id for f in result.all_inputs}
+
+    def test_the_goal_survives_as_the_subdag_goal(self) -> None:
+        result, derivation = self._derivation()
+        assert derivation is not None
+        assert derivation.subdag.goal == result.fact.fact_id
+        assert derivation.depth == 2, "the median step stands on the SAS step"
+
+    def test_needed_points_covers_the_whole_decomposition(self) -> None:
+        """Stage 6 prunes the drawn figure to these. A parent triangle's vertex that only the
+        *intermediate* area mentions must still be drawn, or the solution refers to a point the
+        player cannot see."""
+        _, derivation = self._derivation()
+        assert derivation is not None
+        assert {"a", "b", "c", "m"} <= derivation.needed_points()

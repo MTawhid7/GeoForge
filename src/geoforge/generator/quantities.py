@@ -26,6 +26,7 @@ from geoforge.solvers.types import (
     Fact,
     FactKind,
     PremiseSpec,
+    ProofDAG,
     RealizedFigure,
     SolveOptions,
     SolveResult,
@@ -150,11 +151,16 @@ class Verification:
     spelling, which is the one that matches the proof DAG's ids."""
     evidence: tuple[Fact, ...]
     """Facts the verification consumed. Premises Stage 6 must keep."""
+    proof_dag: ProofDAG
+    """The derivation, whatever produced it. Stage 6 minimizes this and M4 translates its steps.
+
+    An engine-verified quantity gets the engine's traced DAG; a layer-verified one gets the
+    layer's own decomposition rendered as steps (`area.proof_dag`). Required rather than
+    optional, because a verification with no derivation is a value nobody can be shown how to
+    reach, and shipping one would mean shipping a puzzle with no solution.
+    """
     result: SolveResult | None = None
     """The engine solve, when there was one. None for a layer-verified quantity."""
-    exact: object | None = None
-    """The layer's exact value, when the layer computed it. A SymPy expression for `area`; None
-    for an engine-verified quantity, whose value already lives in `fact`."""
 
 
 #: Given a backend, a realized figure and a proposal, decide whether the proposal is true.
@@ -196,7 +202,12 @@ def verify_with_engine(
     if not result.solved or not result.proof_dag.proved_goals:
         return None
     canonical = result.proof_dag.index()[result.proof_dag.proved_goals[0]]
-    return Verification(fact=canonical, evidence=tuple(figure.declared), result=result)
+    return Verification(
+        fact=canonical,
+        evidence=tuple(figure.declared),
+        proof_dag=result.proof_dag,
+        result=result,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -219,8 +230,13 @@ class QuantityType:
     decide what is true would violate docs/02 invariant 4."""
     nice_values: Callable[[str], tuple[int, ...]]
     """Given-value palette for a difficulty band (docs/04 Stage 2)."""
-    format_answer: Callable[[Fraction], str]
-    """Renders an exact value for `display` (docs/02)."""
+    format_answer: Callable[[Fact], str]
+    """Renders a goal's exact value for `display` (docs/02).
+
+    Takes the whole `Fact` rather than a `Fraction` (widened 2026-08-06, the last of the three
+    §QTR signatures that assumed every quantity is a rational engine predicate). An area's value
+    lives in `Fact.exact` as a surd and cannot be a `Fraction` at all — which is the entire
+    reason the layer exists."""
     verifier: Verifier = verify_with_engine
     """How a proposal of this type is shown to be true (docs/04 §QTR, added 2026-08-06).
 
@@ -333,9 +349,11 @@ def _angle_nice_values(band: str) -> tuple[int, ...]:
     return GENERATION.nice_angle_degrees[band]
 
 
-def _format_degrees(value: Fraction) -> str:
+def _format_degrees(fact: Fact) -> str:
     """Render an exact angle (in units of pi) as degrees."""
-    degrees = value * 180
+    if fact.value is None:
+        raise ValueError(f"{fact.fact_id} carries no angle value")
+    degrees = fact.value * 180
     return str(degrees.numerator) if degrees.denominator == 1 else str(degrees)
 
 
@@ -354,10 +372,143 @@ ANGLE = QuantityType(
 )
 
 
+# --------------------------------------------------------------------------------------
+# area (docs/10 A3)
+# --------------------------------------------------------------------------------------
+#
+# The first quantity no engine can evaluate, and the reason the three §QTR signatures above
+# were widened. It is a registration and nothing else: no stage of the pipeline branches on
+# the name "area", exactly as this module's docstring promises.
+
+
+#: Fact kinds the area layer can consume. A triangle none of whose vertices appear in one of
+#: these has no route to an area, so enumerating it is wasted work — and the enumeration is
+#: cubic in the point count, which is where that would be paid.
+_AREA_INPUT_KINDS: frozenset[FactKind] = frozenset(
+    {
+        FactKind.CONSTANT_LENGTH,
+        FactKind.SQUARED_CONSTANT_LENGTH,
+        FactKind.PERPENDICULAR,
+        FactKind.CONSTANT_ANGLE,
+        FactKind.MIDPOINT,
+        FactKind.COLLINEAR,
+        FactKind.CONSTANT_RATIO,
+    }
+)
+
+
+def propose_areas(view: FigureView) -> tuple[Proposal, ...]:
+    """Propose the area of every triangle the certified facts determine.
+
+    **This extractor reads facts, not coordinates, and that inversion is the point.** `angle`
+    measures the diagram and asks the engine whether the premises force what it saw; there is
+    no such question to ask here, because no engine has an area predicate. So the layer computes
+    from what was certified and the diagram's only role is to reject a wrong answer — which is
+    still numerics verifying rather than deriving (docs/02 invariant 4, docs/10 §10.3).
+
+    A wrong value raises out of here rather than being skipped. `area.verify` is the only thing
+    standing between a mis-certified premise and the bank, since cross-engine validation is
+    structurally blind to this arithmetic (docs/10 §10.8).
+    """
+    from geoforge.generator import area as area_layer
+
+    usable = tuple(f for f in view.facts if f.kind in _AREA_INPUT_KINDS)
+    reachable = {arg for fact in usable for arg in fact.args} & view.coords.keys()
+
+    out: list[Proposal] = []
+    for tri in itertools.combinations(sorted(reachable), 3):
+        result = area_layer.triangle_area(tri, usable)
+        if result is None:
+            continue
+        area_layer.verify(result, view.coords)
+        out.append(
+            Proposal(
+                quantity_type=AREA.name,
+                fact=result.fact,
+                subject=tri,
+                measured=result.approx,
+            )
+        )
+    return tuple(sorted(out))
+
+
+def verify_area(
+    backend: SolverBackend,
+    figure: RealizedFigure,
+    proposal: Proposal,
+    opts: SolveOptions,
+) -> Verification | None:
+    """Re-derive the proposal's area from the certified facts, and hand back the derivation.
+
+    The backend is unused, and deliberately so: an engine that had an opinion here would be an
+    engine with an area predicate, and none of them has one. The `Verifier` signature is uniform
+    so that `extract_goals` needs no branch, not because every verifier needs every argument.
+
+    The recomputation is not a second opinion — it runs the same routes over the same facts. It
+    is how the verifier obtains the *derivation tree*, which a `Proposal` cannot carry: a
+    Proposal holds a `Fact`, and a Fact holds a value rather than an argument. The independent
+    check is the shoelace comparison inside `area.verify`, and it runs on every node.
+    """
+    from geoforge.generator import area as area_layer
+
+    del backend, opts
+    if len(proposal.subject) != 3:
+        raise VerificationError(f"area layer handles triangles; got {proposal.subject}")
+    tri = (proposal.subject[0], proposal.subject[1], proposal.subject[2])
+    result = area_layer.triangle_area(tri, figure.declared)
+    if result is None:
+        return None
+    area_layer.verify(result, figure.coords())
+    if result.fact.fact_id != proposal.fact.fact_id:
+        # Deterministic inputs must give a deterministic value; a divergence means the routes
+        # are order-dependent, which would break reproducibility from the seed (invariant 2).
+        raise VerificationError(
+            f"area re-derivation disagreed with the proposal: "
+            f"{result.fact.fact_id} vs {proposal.fact.fact_id}"
+        )
+    return Verification(
+        fact=result.fact,
+        evidence=result.all_inputs,
+        proof_dag=area_layer.proof_dag(result),
+    )
+
+
+def _area_nice_values(band: str) -> tuple[int, ...]:
+    """Side lengths worth stating on an area figure.
+
+    Small integers, because the answer's interest comes from the surd the geometry introduces —
+    `sqrt(3)/4 * s^2` — not from the arithmetic on `s`. A large given only makes the number
+    uglier without making the puzzle harder.
+    """
+    del band
+    return (1, 2, 3, 4, 5, 6)
+
+
+def _format_area(fact: Fact) -> str:
+    """Render an exact area. Already canonical: the layer writes `str(simplify(...))`."""
+    if fact.exact is None:
+        raise ValueError(f"{fact.fact_id} carries no area value")
+    return fact.exact
+
+
+AREA = QuantityType(
+    name="area",
+    fact_kind=FactKind.AREA,
+    dimension=Dimension.SCALE_PINNED,
+    answer_policy=AnswerPolicy(exactness=Exactness.DECIMAL, input_mode=InputMode.DECIMAL, unit=""),
+    template_family="area",
+    marks=("length_label", "tick"),
+    goal_extractor=propose_areas,
+    nice_values=_area_nice_values,
+    format_answer=_format_area,
+    verifier=verify_area,
+)
+
+
 @lru_cache(maxsize=1)
 def registry() -> Mapping[str, QuantityType]:
     """All registered quantity types, by name."""
-    return {qt.name: qt for qt in (ANGLE,)}
+    return {qt.name: qt for qt in (ANGLE, AREA)}
 
 
 def enabled_types() -> tuple[QuantityType, ...]:

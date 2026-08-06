@@ -139,9 +139,9 @@ def validate(puzzle: Mapping[str, Any], validator: ValidatorBackend | None = Non
 
     # Answer consistency first: it needs no engine, and a mismatch here means the JSON is
     # internally inconsistent regardless of what any engine says about the geometry.
-    if goal.value is None:
+    if not goal.is_valued:
         return verdict(ValidationOutcome.MALFORMED, f"goal {goal.fact_id} carries no value")
-    expected = kind.format_answer(goal.value)
+    expected = kind.format_answer(goal)
     if expected != answer:
         return verdict(
             ValidationOutcome.ANSWER_MISMATCH,
@@ -232,7 +232,7 @@ def corrupt_answer(puzzle: Mapping[str, Any], offset_degrees: int | None = None)
     mutant["goal"]["fact"] = str(shifted.fact_id)
     kind = quantity_type(str(mutant["quantity_type"]))
     assert shifted.value is not None
-    mutant["goal"]["answer"]["exact"] = kind.format_answer(shifted.value)
+    mutant["goal"]["answer"]["exact"] = kind.format_answer(shifted)
     mutant["goal"]["answer"]["display"] = f"{mutant['goal']['answer']['exact']}°"
     # `approx` too, or the mutant is not the self-consistent puzzle this claims to produce —
     # a validator could then catch it on an inconsistency instead of on the geometry, and the

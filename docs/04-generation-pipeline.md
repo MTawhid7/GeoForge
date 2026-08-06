@@ -48,14 +48,25 @@ one was. Two routes now exist:
 | **layer-verified** | our own arithmetic on engine-certified facts, checked against the reference diagram | **no** | `area` — no engine in the lineage has an area predicate (doc 03 §3.7) |
 
 `Verification` carries the canonical `fact`, the `evidence` it consumed (premises Stage 6 must not
-minimize away), an optional engine `result`, and an optional layer-computed `exact` value.
+minimize away), the `proof_dag` Stage 6 minimizes, and an optional engine `result`.
 `VerificationError` stays separate from returning `None`, because "the engine crashed" and "the
 premises do not force this value" are different facts and the attrition report counts them apart.
 
-**Known incomplete, and it fails loudly rather than silently:** Stage 6 minimizes a proof DAG, so a
-layer-verified type has nothing for it to consume yet. `extract_goals` raises `NotImplementedError`
-on a `Verification` with no `result` rather than skipping it — a silent skip would be
-indistinguishable from ordinary attrition in the report. Wiring that is doc 10 step A3.
+`proof_dag` is **required**, not optional. A verification with no derivation is a value nobody can
+be shown how to reach, and shipping one would mean shipping a puzzle with no solution. A
+layer-verified type supplies its own — `area` renders its decomposition tree as proof steps whose
+rule ids are the route names (doc 10 §10.10f) — so every stage after Stage 5 reads one graph and
+never asks which route produced it.
+
+**`format_answer` — widened 2026-08-06, the third and last signature that assumed a rational:**
+
+```python
+format_answer: Callable[[Fact], str]        # was Callable[[Fraction], str]
+```
+
+An area's value lives in `Fact.exact` as a surd and cannot be a `Fraction` at all, which is the
+entire reason the layer exists (doc 07 T18, T21). Taking the whole fact lets each type read the
+field it stores its value in.
 | `dimension` | Scale behavior | scale-free | ratio: scale-free; length: **scale-pinned** | scale-pinned (dimension 2) |
 | `nice_values` | Given-value palette per band | rationals × π — round for easy, **non-round for the upper bands** (doc 07 T18) | small integers/surds, small fractions | — (derived) |
 | `answer_policy` | Exactness class + input mode (doc 02) | integer degrees, keypad | fraction / decimal+tolerance, exact surd revealed on solve | decimal+tolerance |

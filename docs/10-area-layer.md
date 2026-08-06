@@ -185,9 +185,9 @@ Each step is independently verifiable and each has a kill condition.
 |---|---|---|
 | ~~A1~~ | **DONE 2026-08-05 — see §10.10a. Its sampling half is superseded by §10.10b.** | — |
 | ~~A2~~ | **DONE 2026-08-05 — module built and tested; see §10.10b.** Its kill condition *fired* and the fix is A1b | ~~the engine does not certify enough lengths per figure to close a triangle~~ **THIS HAPPENED** |
-| A1b | Area construction **templates** replacing weighted random growth (§10.10b) | templated figures fail Stage 8 well-posedness or collapse to one answer |
-| A3 | Register `area` in the QTR (`goal_extractor`, `dimension`, `nice_values`, `answer_policy`, `templates`, `marks`) and ship one band | answers cluster the way ratio's did — measure modal share before believing otherwise |
-| A4 | `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
+| ~~A1b~~ | **DONE 2026-08-05 — see §10.10d.** Extended to seven templates and the cevian rule in §10.10e | ~~templated figures fail Stage 8 well-posedness or collapse to one answer~~ **neither happened** |
+| ~~A3~~ | **DONE 2026-08-06 — see §10.10f.** Registered in the QTR; reaches Stage 6. Discarded at Stage 7 for want of a translation table, which is A4 | ~~answers cluster the way ratio's did~~ **6.0% modal share against angle's 36.0%** |
+| A4 | Translation templates for the five area routes and the answer path, then `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
 | A5 | Arc length, perimeter, curvature — all reuse A4's machinery | — |
 
 **Acceptance for the layer as a whole:** ≥1 irrational answer per band; modal answer share below
@@ -372,6 +372,126 @@ median, halve the area". Making them hard needs the region *hidden* — asked ab
 solver must first identify — which is the same hide/rediscover mechanism docs/07 T26 records as
 capped at ~1.8% for auxiliary points. Nothing here shows that transfers to regions; it is the next
 thing to measure, not to assume.
+
+## 10.10e The cevian rule, and the seven-template library (2026-08-06)
+
+§10.10d's ceiling was that the construction to discover was always "the midpoint of BC". One rule
+changes it to "the intersection of two medians".
+
+**The rule.** Triangles `ABP` and `ABX` share the base `AB`, so their areas are in the ratio of the
+apexes' distances from `AB`. If `P`, `X`, `Y` are collinear with `Y` on line `AB`, that ratio is
+`PY/XY` — again with no length involved, which is what makes it usable at all, since every length in
+these figures is irrational.
+
+**Why the arithmetic has to be ours, measured rather than assumed.** The engine certifies
+`rconst X P P Y` (`|XP|/|PY| = k`) but **cannot** certify `rconst P Y X Y = 1/(k+1)`: AR chases
+ratios *multiplicatively*, and getting from `XP/PY` to `PY/XY` needs `XY = XP + PY`, an **addition**
+it does not do. MEASURED on a centroid figure — `rconst c g g m 2/1` proves, `rconst g m c m 1/3`
+does not. That single addition is exactly the arithmetic-on-certified-quantities docs/07 T6 permits,
+and it is what unlocks the centroid: `[ABC] = 6√3` → `[ABG] = 2√3` via `area_cevian_split`.
+
+**The configuration assumption, stated rather than hidden.** `PY/XY = 1/(k+1)` assumes `P` lies
+*between* `X` and `Y`; outside that segment the relation differs, and betweenness is a configuration
+fact (docs/07 T2) that is not always certified. The rule is sound because `verify` checks the result
+against the reference diagram and raises on a mismatch — templates are reviewed so their
+configuration is known-good, and a figure from anywhere else fails loudly rather than shipping a
+wrong answer.
+
+**MEASURED, 210 draws over the seven-template library, seed 42:**
+
+| | |
+|---|---|
+| areas computed | **210/210**, zero verification failures |
+| irrational | 144 (**69%**) |
+| auxiliary construction required *by design* (docs/07 T29) | 121 (**58%**) |
+| routes | `median_split` 90, `heron` 33, `cevian_split` 31, `sas` 29, `right_triangle` 27 |
+
+Example of the genre this reaches: show `A B C M N`; state "G is the intersection of lines CM and
+AN"; ask for `[ABG] = 3√2`.
+
+`sas_centroid` is the seventh template, and `cevian_ratio_candidates()` proposes the ratios the
+engine *derives* but never *declares*. Proposing is all it does; the engine decides
+(docs/02 invariant 4).
+
+**An integration gap this surfaced, recorded because the tests now exercise it rather than route
+around it.** The layer needs **derived** facts, not just `figure.declared` — the cevian ratio is
+never declared by any construction. Three `sas_centroid` tests failed for exactly that reason and
+were fixed by enriching through the same path the pipeline must, not by weakening the assertion.
+
+## 10.10f A3 as built (2026-08-06)
+
+`area` is registered in the QTR and reaches Stage 6. The work was almost entirely in **removing the
+registry's assumption that every quantity is an engine predicate**, which is the assumption docs/04
+§QTR exists to prevent and which had gone unnoticed while `angle` was the only registration.
+
+**Three §QTR signatures were widened, in this order, each because the next one blocked:**
+
+| field | was | is | why |
+|---|---|---|---|
+| `goal_extractor` | `Callable[[Coords], ...]` | `Callable[[FigureView], ...]` | an area is computed from *certified facts*; a coordinates-only extractor would have to re-derive geometry from numbers, which docs/02 invariant 4 forbids |
+| — | (none) | `verifier: Verifier` | there is no engine call to make — no engine in the lineage has an area predicate |
+| `format_answer` | `Callable[[Fraction], str]` | `Callable[[Fact], str]` | an area's value is a surd and cannot be a `Fraction` at all, which is the entire reason the layer exists |
+
+**The fact vocabulary.** `FactKind.AREA` and a second value field `Fact.exact: str | None`, holding a
+SymPy expression string. A second field rather than widening `value`, because the two mean different
+things and the difference is the whole point: `value` is what an *engine predicate* can hold, and
+every engine in the lineage holds a rational (docs/07 T18, T21) — which is exactly why no angle
+puzzle can ever answer `√3/2`. `LAYER_KINDS` names the kinds no engine can express, and
+`PremiseSpec.__post_init__` **refuses** one at the seam; a backend handed an area would otherwise
+fail deeper down as an `UnsupportedFactKind` or, worse, a silent `dropped_assumptions` entry.
+
+**The derivation.** Everything after Stage 5 is written against a proof DAG, and an area has no
+*engine* proof. Rather than teach traceback, translation, pruning and scoring about areas, the layer
+emits its own: `AreaResult` gained `region` and `parents` so a decomposition is a tree rather than a
+flattened value, and `area.proof_dag()` renders that tree as `ProofStep`s whose `rule_id` is the
+route name. Those five names — `area_right_triangle`, `area_heron`, `area_sas`, `area_median_split`,
+`area_cevian_split` — are public API under CLAUDE.md's step-`rule` rule from this commit.
+
+**Two consequences that had to be handled rather than deferred:**
+
+1. **Each route now reports precisely the facts it consumed.** The previous `_facts_used` pooled
+   "every fact wholly about this triangle", which is over-collection: those become the puzzle's
+   *stated givens*, and docs/05 filter 5 treats a stated-but-unused given as a build-failing bug
+   rather than as attrition.
+2. **`derive` skips premise minimization for a layer goal.** `minimize_premises` asks the engine
+   "does the goal still follow without premise X?", and there is no engine to ask. Nothing is lost:
+   because of (1), every surviving premise is dereferenced by some step, so a greedy pass has
+   nothing to drop. `test_a_layer_derivation_is_already_minimal` pins that, so the day a route
+   starts over-collecting, this stops being true *out loud*.
+
+`verify` now checks **every node** of the decomposition, not just the answer. A wrong intermediate
+that a later step happens to cancel would otherwise ship a correct number attached to a solution
+that does not hold — and the solution is what the player reads.
+
+**MEASURED, 60 template draws at seed 42, area goals through Stage 6:**
+
+| | |
+|---|---|
+| proposals | 200 |
+| accepted as goals | 136 (the other 64 are `surplus`, the per-construction cap) |
+| `not_verified` / `engine_error` / area verification failures | **0 / 0 / 0** |
+| reached a minimized derivation | **136/136** |
+| derivation depth | 1: 40, 2: 48, 3: 48 |
+
+Every premise set came back exactly the facts the routes dereference. Sample:
+
+```
+[a b n] = 25*sqrt(2)/16   depth 3   area_sas -> area_median_split -> area_median_split
+  premises: aconst a b a c = 3/4; lconst a b = 5; lconst a c = 5; midp m b c; midp n b m
+[a b c] = sqrt(3)         depth 1   area_heron
+  premises: lconst a b = 2; lconst a c = 2; lconst b c = 2
+```
+
+**The four difficulty bands are provably unchanged by the registration**: the seed-42, n=200
+attrition report is identical field-for-field with `area` registered and with it absent. Grown
+angle-profile figures certify too few lengths for the layer to find anything, so `propose_areas`
+returns empty and nothing downstream sees a new candidate.
+
+**Where A3 stops, precisely.** An area goal is proposed, verified, traced and minimized. It is then
+discarded at Stage 7, because `translate` has no template for the five route ids and `angle_of`
+cannot read an area as an answer. That is counted attrition with a named reason, not a crash. A4
+closes it, and the remaining work is the translation table plus generalizing the answer path — not
+another §QTR widening.
 
 ## 10.11 Deliberately not in scope
 
