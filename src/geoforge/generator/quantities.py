@@ -21,7 +21,15 @@ from fractions import Fraction
 from functools import lru_cache
 
 from geoforge.config import EXTRACTION, GENERATION
-from geoforge.solvers.types import Fact, FactKind
+from geoforge.solvers.interface import SolverBackend
+from geoforge.solvers.types import (
+    Fact,
+    FactKind,
+    PremiseSpec,
+    RealizedFigure,
+    SolveOptions,
+    SolveResult,
+)
 
 
 class Dimension(StrEnum):
@@ -110,6 +118,87 @@ class Proposal:
         return f"{self.quantity_type}:{'.'.join(self.subject)}"
 
 
+class VerificationError(Exception):
+    """The verifier could not answer at all — distinct from answering "not verified".
+
+    Kept separate because "the engine crashed" and "the premises do not force this value" are
+    different facts, and Stage 5's attrition report counts them separately (`ENGINE_ERROR` vs
+    `NOT_VERIFIED`). Collapsing them would make a broken backend look like a hard corpus.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class Verification:
+    """Evidence that a proposal is true. What a `verifier` returns on success.
+
+    Two verification routes exist and the registry has to hold both (docs/04 §QTR):
+
+    * **Engine-verified** — the default, and the only one before 2026-08-06. The engine derives
+      the proposal's `fact` symbolically from the figure's premises, and `result` carries the
+      traced proof DAG that Stage 6 minimizes.
+    * **Layer-verified** — for a quantity no engine can *evaluate*. `area` is the first: no
+      engine in the lineage has an area predicate (docs/03 §3.7), so the value is computed by
+      arithmetic on engine-certified facts and checked against the reference diagram
+      (docs/10 §10.8). There is no engine proof DAG for the *value*, so `result` is None.
+
+    `evidence` is what the verification consumed, and it is not optional bookkeeping: those are
+    premises the puzzle must state and Stage 6 must not minimize away.
+    """
+
+    fact: Fact
+    """The goal in its canonical form. For an engine-verified quantity this is the engine's own
+    spelling, which is the one that matches the proof DAG's ids."""
+    evidence: tuple[Fact, ...]
+    """Facts the verification consumed. Premises Stage 6 must keep."""
+    result: SolveResult | None = None
+    """The engine solve, when there was one. None for a layer-verified quantity."""
+    exact: object | None = None
+    """The layer's exact value, when the layer computed it. A SymPy expression for `area`; None
+    for an engine-verified quantity, whose value already lives in `fact`."""
+
+
+#: Given a backend, a realized figure and a proposal, decide whether the proposal is true.
+#:
+#: Returns None for "not verified" — the common and correct outcome, meaning the diagram happened
+#: to show a nice value the premises do not force. Raises `VerificationError` when it could not
+#: decide at all.
+Verifier = Callable[
+    ["SolverBackend", "RealizedFigure", Proposal, "SolveOptions"], "Verification | None"
+]
+
+
+def verify_with_engine(
+    backend: SolverBackend,
+    figure: RealizedFigure,
+    proposal: Proposal,
+    opts: SolveOptions,
+) -> Verification | None:
+    """The default: the engine must derive the proposal symbolically from the premises.
+
+    Extracted unchanged from `extract.extract_goals` when the registry grew a `verifier` field;
+    every quantity the engine can evaluate uses this and nothing else.
+
+    Verification runs through `solve_facts` with the coordinates held fixed. Re-parsing the
+    construction with the goal attached makes the engine's problem builder resample until the
+    goal happens to hold numerically, which turns an under-determined candidate into a hang
+    instead of a rejection (docs/04 Stage 5).
+    """
+    from geoforge.solvers.newclid_backend import UnsupportedFactKind
+
+    spec = PremiseSpec(points=figure.points, premises=figure.declared, goals=(proposal.fact,))
+    try:
+        result = backend.solve_facts(spec, opts)
+    except UnsupportedFactKind as exc:
+        raise VerificationError("backend cannot express this fact kind") from exc
+    except Exception as exc:
+        raise VerificationError(str(exc)) from exc
+
+    if not result.solved or not result.proof_dag.proved_goals:
+        return None
+    canonical = result.proof_dag.index()[result.proof_dag.proved_goals[0]]
+    return Verification(fact=canonical, evidence=tuple(figure.declared), result=result)
+
+
 @dataclass(frozen=True, slots=True)
 class QuantityType:
     """One registered quantity type. The six §QTR fields, plus its fact kind."""
@@ -132,6 +221,12 @@ class QuantityType:
     """Given-value palette for a difficulty band (docs/04 Stage 2)."""
     format_answer: Callable[[Fraction], str]
     """Renders an exact value for `display` (docs/02)."""
+    verifier: Verifier = verify_with_engine
+    """How a proposal of this type is shown to be true (docs/04 §QTR, added 2026-08-06).
+
+    Defaults to the engine, which is right for every quantity the engine can evaluate. A type
+    the engine has no predicate for — `area` is the first — supplies its own, and that is what
+    keeps such a type a *registration* rather than a branch elsewhere in the pipeline."""
 
     @property
     def is_scale_pinned(self) -> bool:

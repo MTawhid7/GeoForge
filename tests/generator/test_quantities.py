@@ -23,7 +23,7 @@ from geoforge.generator.quantities import (
     registry,
     snap_to_integer_degrees,
 )
-from geoforge.solvers.types import FactKind
+from geoforge.solvers.types import Fact, FactKind
 
 #: A right isosceles triangle: angles 90, 45, 45 at a, b, c.
 RIGHT_ISOSCELES = {"a": (0.0, 0.0), "b": (1.0, 0.0), "c": (0.0, 1.0)}
@@ -178,3 +178,55 @@ class TestFigureViewSeam:
         empty = FigureView(coords={}, facts=())
         for quantity_type in enabled_types():
             assert quantity_type.goal_extractor(empty) == ()
+
+
+ANGLE_FIXTURE_FACT = Fact(
+    kind=FactKind.CONSTANT_ANGLE, args=("a", "b", "a", "c"), value=Fraction(1, 3)
+)
+
+
+class TestVerifierSeam:
+    """How a proposal is shown true is the TYPE's business (docs/04 §QTR, added 2026-08-06).
+
+    `angle` uses the engine. A quantity the engine has no predicate for -- `area` is the first,
+    since no engine in the lineage has one (docs/03 §3.7) -- supplies its own verifier, and that
+    is what keeps such a type a registration rather than a branch inside Stage 5.
+    """
+
+    def test_every_registered_type_has_a_verifier(self) -> None:
+        from geoforge.generator.quantities import enabled_types
+
+        for quantity_type in enabled_types():
+            assert callable(quantity_type.verifier)
+
+    def test_angle_uses_the_engine_verifier(self) -> None:
+        from geoforge.generator.quantities import ANGLE, verify_with_engine
+
+        assert ANGLE.verifier is verify_with_engine
+
+    def test_a_type_may_override_the_verifier(self) -> None:
+        """The point of the field: overriding must not require touching the pipeline."""
+        from dataclasses import replace
+
+        from geoforge.generator.quantities import ANGLE, Verification
+
+        sentinel = Verification(fact=ANGLE_FIXTURE_FACT, evidence=())
+
+        def always(_backend, _figure, _proposal, _opts):  # type: ignore[no-untyped-def]
+            return sentinel
+
+        overridden = replace(ANGLE, verifier=always)
+        assert overridden.verifier(None, None, None, None) is sentinel  # type: ignore[arg-type]
+        # The registered type is untouched -- `replace` returns a copy.
+        from geoforge.generator.quantities import verify_with_engine
+
+        assert ANGLE.verifier is verify_with_engine
+
+    def test_verification_carries_evidence_for_stage_six(self) -> None:
+        """`evidence` is not bookkeeping: those are premises minimization must not drop."""
+        from geoforge.generator.quantities import Verification
+
+        verification = Verification(fact=ANGLE_FIXTURE_FACT, evidence=(ANGLE_FIXTURE_FACT,))
+        assert verification.evidence == (ANGLE_FIXTURE_FACT,)
+        assert verification.result is None
+        assert verification.exact is None

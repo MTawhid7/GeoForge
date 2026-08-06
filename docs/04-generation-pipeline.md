@@ -31,6 +31,31 @@ is an addition rather than another signature break. Two properties are asserted 
 than assumed: `angle` ignores `facts` entirely (it reads the diagram, and a version that started
 depending on facts would be a design change, not a refactor), and **every** registered type
 accepts a view — the contract belongs to the registry, not to `angle`.
+
+**`verifier` — a seventh registry field, added 2026-08-06.** How a proposal is shown to be *true*
+is the type's business, not Stage 5's:
+
+```python
+verifier: Verifier = verify_with_engine     # (backend, figure, proposal, opts) -> Verification | None
+```
+
+The registry previously assumed every quantity is an engine predicate, because every registered
+one was. Two routes now exist:
+
+| route | who decides | proof DAG | used by |
+|---|---|---|---|
+| **engine-verified** (default) | `solve_facts` derives the goal from the premises | yes — Stage 6 minimizes it | `angle`, and anything the engine can evaluate |
+| **layer-verified** | our own arithmetic on engine-certified facts, checked against the reference diagram | **no** | `area` — no engine in the lineage has an area predicate (doc 03 §3.7) |
+
+`Verification` carries the canonical `fact`, the `evidence` it consumed (premises Stage 6 must not
+minimize away), an optional engine `result`, and an optional layer-computed `exact` value.
+`VerificationError` stays separate from returning `None`, because "the engine crashed" and "the
+premises do not force this value" are different facts and the attrition report counts them apart.
+
+**Known incomplete, and it fails loudly rather than silently:** Stage 6 minimizes a proof DAG, so a
+layer-verified type has nothing for it to consume yet. `extract_goals` raises `NotImplementedError`
+on a `Verification` with no `result` rather than skipping it — a silent skip would be
+indistinguishable from ordinary attrition in the report. Wiring that is doc 10 step A3.
 | `dimension` | Scale behavior | scale-free | ratio: scale-free; length: **scale-pinned** | scale-pinned (dimension 2) |
 | `nice_values` | Given-value palette per band | rationals × π — round for easy, **non-round for the upper bands** (doc 07 T18) | small integers/surds, small fractions | — (derived) |
 | `answer_policy` | Exactness class + input mode (doc 02) | integer degrees, keypad | fraction / decimal+tolerance, exact surd revealed on solve | decimal+tolerance |

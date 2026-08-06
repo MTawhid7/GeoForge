@@ -26,15 +26,16 @@ from enum import StrEnum
 
 from geoforge.config import EXTRACTION, GENERATION
 from geoforge.generator.quantities import (
+    ANGLE,
     FigureView,
     Proposal,
     QuantityType,
+    VerificationError,
     enabled_types,
 )
 from geoforge.solvers.interface import SolverBackend
 from geoforge.solvers.types import (
     Fact,
-    PremiseSpec,
     RealizedFigure,
     SolveOptions,
     SolveResult,
@@ -172,11 +173,11 @@ def extract_goals(
     shipping: on real output it is the difference between a puzzle and a multiple-choice game.
     """
     from geoforge.generator.degeneracy import degenerate_triples
-    from geoforge.solvers.newclid_backend import UnsupportedFactKind
 
     opts = opts or SolveOptions()
     limit = GENERATION.max_goals_per_construction if max_goals is None else max_goals
     given = {fact.fact_id for fact in figure.declared}
+    registry = {t.name: t for t in (types or enabled_types())}
     flat = degenerate_triples(figure)
 
     proposals = propose(figure, types)[: EXTRACTION.max_candidates_per_construction]
@@ -197,21 +198,39 @@ def extract_goals(
             rejected.append((proposal.key, ExtractionReason.ALREADY_GIVEN))
             continue
 
-        spec = PremiseSpec(points=figure.points, premises=figure.declared, goals=(proposal.fact,))
+        # Dispatch to the type's own verifier (docs/04 §QTR). `angle` uses the engine; a type
+        # the engine has no predicate for supplies its own, which is what keeps such a type a
+        # registration rather than a branch here.
+        verifier = registry.get(proposal.quantity_type, ANGLE).verifier
         try:
-            result = backend.solve_facts(spec, opts)
-        except UnsupportedFactKind:
-            rejected.append((proposal.key, ExtractionReason.UNRENDERABLE))
+            verification = verifier(backend, figure, proposal, opts)
+        except VerificationError as exc:
+            reason = (
+                ExtractionReason.UNRENDERABLE
+                if "fact kind" in str(exc)
+                else ExtractionReason.ENGINE_ERROR
+            )
+            rejected.append((proposal.key, reason))
             continue
         except Exception:
             rejected.append((proposal.key, ExtractionReason.ENGINE_ERROR))
             continue
 
-        if not result.solved or not result.proof_dag.proved_goals:
+        if verification is None:
             rejected.append((proposal.key, ExtractionReason.NOT_VERIFIED))
             continue
 
-        canonical = result.proof_dag.index()[result.proof_dag.proved_goals[0]]
+        result = verification.result
+        if result is None:
+            # No engine proof DAG for the value. Stage 6 minimizes a DAG, so a layer-verified
+            # quantity cannot reach it yet -- see docs/10. Refused loudly rather than shipped
+            # half-wired, because a silent skip here would look like ordinary attrition.
+            raise NotImplementedError(
+                f"{proposal.quantity_type!r} is layer-verified; Stage 6 needs a proof DAG. "
+                "docs/10 A3 wires this."
+            )
+
+        canonical = verification.fact
         if EXTRACTION.exclude_given_goals and canonical.fact_id in given:
             # "Find angle ABC" where ABC = 50 degrees is a stated given is not a puzzle. This
             # is where it gets caught: only now is the fact in the same spelling as the givens.
