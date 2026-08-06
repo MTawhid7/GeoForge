@@ -110,6 +110,39 @@ class TestFactNormalization:
         with pytest.raises(ValueError, match="unknown fact kind"):
             fact_from_id("notakind:a:b")
 
+    def test_layer_facts_round_trip_an_irrational_value(self) -> None:
+        """A layer fact carries a SymPy expression string, not a `Fraction` (docs/10 A3).
+
+        This is the whole reason `exact` exists as a second field: `Fraction('3*sqrt(3)/4')`
+        raises, and an irrational answer is the one thing the engine predicates cannot reach
+        (docs/07 T18, T21). If this round trip ever loses the surd, the bank validator — which
+        sees facts only as ids — validates a different puzzle than the one that shipped.
+        """
+        area = Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="3*sqrt(3)/4")
+        assert area.fact_id == "area:a:b:c=3*sqrt(3)/4"
+        assert fact_from_id(area.fact_id) == area
+        assert area.is_valued and area.is_layer
+        assert area.value is None
+
+    def test_a_layer_fact_without_an_exact_value_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="must carry an exact value"):
+            fact_from_id("area:a:b:c")
+
+    def test_no_engine_may_be_handed_a_layer_fact(self) -> None:
+        """The guard is structural, at the seam, not a convention downstream (docs/10 §10.3).
+
+        No engine in the lineage has an area predicate, so a `PremiseSpec` carrying one is a
+        caller asking the engine a question only the quantity layer can answer. Refused here,
+        where the error still names that mistake; one adapter layer deeper it degrades into an
+        `UnsupportedFactKind` or a silent `dropped_assumptions` entry.
+        """
+        area = Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="sqrt(3)")
+        points = (("a", 0.0, 0.0), ("b", 1.0, 0.0), ("c", 0.0, 1.0))
+        with pytest.raises(ValueError, match="no engine can express"):
+            PremiseSpec(points=points, premises=(area,))
+        with pytest.raises(ValueError, match="no engine can express"):
+            PremiseSpec(points=points, premises=(), goals=(area,))
+
     def test_angle_values_are_exact_in_units_of_pi(self, backend: SolverBackend) -> None:
         result = backend.solve(CORPUS["thales_semicircle"], SolveOptions(seed=42))
         angles = [f for f in result.facts if f.kind is FactKind.CONSTANT_ANGLE]

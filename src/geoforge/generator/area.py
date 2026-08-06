@@ -27,7 +27,15 @@ from fractions import Fraction
 import sympy
 
 from geoforge.config import AREA
-from geoforge.solvers.types import Fact, FactKind
+from geoforge.solvers.types import (
+    Fact,
+    FactId,
+    FactKind,
+    Justification,
+    JustificationKind,
+    ProofDAG,
+    ProofStep,
+)
 
 Coords = Mapping[str, tuple[float, float]]
 
@@ -45,15 +53,29 @@ class AreaVerificationError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class AreaResult:
-    """An exact area, the route that produced it, and the facts it consumed."""
+    """An exact area, the route that produced it, and everything that route stood on.
 
+    **A node in a derivation tree, not a bare value** (docs/10 A3). The recursive routes --
+    `area_median_split`, `area_cevian_split` -- compute one region's area from another's, and
+    an earlier version flattened that chain into a single result with a pooled `inputs` tuple.
+    That threw away the only structure the pipeline downstream of Stage 5 has to work with:
+    Stage 6 minimizes a proof DAG and M4 translates its steps, so a layer whose reasoning is
+    invisible cannot produce a puzzle with a solution. Keeping `parents` is what lets
+    `proof_dag` reconstitute the argument as steps the rest of the pipeline already handles.
+    """
+
+    region: tuple[str, ...]
+    """The polygon this is the area of. Its own identity, and what `verify` checks against."""
     exact: sympy.Expr
     """The exact value. May be irrational -- that is the point of the layer."""
     route: str
     """Which primitive produced it; becomes the solution step's rule id."""
     inputs: tuple[Fact, ...]
-    """The engine facts consumed. These are premises the puzzle must state and Stage 6 must
-    keep, so they are returned rather than discarded."""
+    """The engine facts **this step** consumed -- not its parents' (those are reachable through
+    `parents`). Precise rather than pooled: an over-collected input becomes a given the puzzle
+    states and never uses, which docs/05 filter 5 treats as a bug rather than attrition."""
+    parents: tuple[AreaResult, ...] = ()
+    """Areas this one was computed from. Empty for a direct route."""
 
     @property
     def approx(self) -> float:
@@ -64,17 +86,51 @@ class AreaResult:
         """True when the value is not a rational number -- the answers angle cannot reach."""
         return not sympy.nsimplify(self.exact).is_rational
 
+    @property
+    def fact(self) -> Fact:
+        """This area as a `Fact`, so everything downstream of Stage 5 can hold it."""
+        return Fact(kind=FactKind.AREA, args=self.region, exact=str(self.exact))
+
+    def walk(self) -> tuple[AreaResult, ...]:
+        """This result and every ancestor, deepest first. Deterministic."""
+        out: list[AreaResult] = []
+        for parent in self.parents:
+            out.extend(parent.walk())
+        out.append(self)
+        return tuple(out)
+
+    @property
+    def all_inputs(self) -> tuple[Fact, ...]:
+        """Every engine fact the whole derivation consumed, deduplicated and sorted.
+
+        These are premises the puzzle must state and Stage 6 must not minimize away.
+        """
+        return tuple(sorted({fact for node in self.walk() for fact in node.inputs}))
+
 
 # ----------------------------------------------------------------------------------------
 # Reading certified quantities out of the engine's facts
 # ----------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True, slots=True)
+class Certified[T]:
+    """A quantity the engine certified, together with the fact that certified it.
+
+    The fact travels with the value because a route has to report exactly which premises it
+    consumed (see `AreaResult.inputs`). Reading the value and then re-scanning the fact list to
+    guess the source is how an over-collected input set gets built.
+    """
+
+    value: T
+    fact: Fact
+
+
 def _pair(u: str, v: str) -> frozenset[str]:
     return frozenset((u, v))
 
 
-def certified_lengths(facts: tuple[Fact, ...]) -> dict[frozenset[str], sympy.Expr]:
+def certified_lengths(facts: tuple[Fact, ...]) -> dict[frozenset[str], Certified[sympy.Expr]]:
     """Segment lengths the engine certified, exactly.
 
     `lconst` gives the length; `l2const` gives its **square**, so it yields an irrational side
@@ -82,19 +138,19 @@ def certified_lengths(facts: tuple[Fact, ...]) -> dict[frozenset[str], sympy.Exp
     (docs/07 T21), so l2const is only ever a given -- but a given is exactly what the layer
     needs, and it is the cheapest source of an irrational input we have.
     """
-    out: dict[frozenset[str], sympy.Expr] = {}
+    out: dict[frozenset[str], Certified[sympy.Expr]] = {}
     for fact in facts:
         if fact.value is None or len(fact.args) != 2:
             continue
         key = _pair(*fact.args)
         if fact.kind is FactKind.CONSTANT_LENGTH:
-            out[key] = sympy.nsimplify(_as_exact(fact.value))
+            out[key] = Certified(sympy.nsimplify(_as_exact(fact.value)), fact)
         elif fact.kind is FactKind.SQUARED_CONSTANT_LENGTH and key not in out:
-            out[key] = sympy.sqrt(_as_exact(fact.value))
+            out[key] = Certified(sympy.sqrt(_as_exact(fact.value)), fact)
     return out
 
 
-def certified_right_angles(facts: tuple[Fact, ...]) -> set[tuple[str, frozenset[str]]]:
+def certified_right_angles(facts: tuple[Fact, ...]) -> dict[tuple[str, frozenset[str]], Fact]:
     """Right angles, as (apex, {other two points}).
 
     `perp a b c d` states line ab ⟂ line cd. It pins a triangle's angle only when the two lines
@@ -102,7 +158,7 @@ def certified_right_angles(facts: tuple[Fact, ...]) -> set[tuple[str, frozenset[
     carries no mod-pi ambiguity: a right angle is its own supplement, which is exactly why it is
     also the one angle no directed-angle fixture may use (ONBOARDING gotcha 6).
     """
-    out: set[tuple[str, frozenset[str]]] = set()
+    out: dict[tuple[str, frozenset[str]], Fact] = {}
     for fact in facts:
         if fact.kind is not FactKind.PERPENDICULAR or len(fact.args) != 4:
             continue
@@ -113,11 +169,13 @@ def certified_right_angles(facts: tuple[Fact, ...]) -> set[tuple[str, frozenset[
         apex = shared.pop()
         far = ({a, b} | {c, d}) - {apex}
         if len(far) == 2:
-            out.add((apex, frozenset(far)))
+            out.setdefault((apex, frozenset(far)), fact)
     return out
 
 
-def certified_vertex_angles(facts: tuple[Fact, ...]) -> dict[tuple[str, frozenset[str]], Fraction]:
+def certified_vertex_angles(
+    facts: tuple[Fact, ...],
+) -> dict[tuple[str, frozenset[str]], Certified[Fraction]]:
     """Stated angles, keyed by (apex, {the two far points}), as a fraction of pi.
 
     **The mod-pi hazard lives here** (docs/10 §10.5). `aconst` is a *directed* line-to-line
@@ -130,7 +188,7 @@ def certified_vertex_angles(facts: tuple[Fact, ...]) -> dict[tuple[str, frozense
     segment are NOT invariant and must not call this without resolving against configuration
     facts first.
     """
-    out: dict[tuple[str, frozenset[str]], Fraction] = {}
+    out: dict[tuple[str, frozenset[str]], Certified[Fraction]] = {}
     for fact in facts:
         if fact.kind is not FactKind.CONSTANT_ANGLE or fact.value is None or len(fact.args) != 4:
             continue
@@ -143,7 +201,7 @@ def certified_vertex_angles(facts: tuple[Fact, ...]) -> dict[tuple[str, frozense
         if len(far) != 2:
             continue
         try:
-            out[(apex, frozenset(far))] = Fraction(str(fact.value))
+            out[(apex, frozenset(far))] = Certified(Fraction(str(fact.value)), fact)
         except (ValueError, ZeroDivisionError):
             continue
     return out
@@ -165,30 +223,30 @@ def _as_exact(value: object) -> sympy.Expr:
 
 def _right_angle_area(
     tri: tuple[str, str, str],
-    lengths: dict[frozenset[str], sympy.Expr],
-    rights: set[tuple[str, frozenset[str]]],
-    facts: tuple[Fact, ...],
+    lengths: dict[frozenset[str], Certified[sympy.Expr]],
+    rights: dict[tuple[str, frozenset[str]], Fact],
 ) -> AreaResult | None:
     """(1/2)*leg*leg at a certified right angle. Mod-pi safe: a right angle is unambiguous."""
     for apex in tri:
         others = tuple(p for p in tri if p != apex)
-        if (apex, frozenset(others)) not in rights:
+        right = rights.get((apex, frozenset(others)))
+        if right is None:
             continue
         leg1, leg2 = lengths.get(_pair(apex, others[0])), lengths.get(_pair(apex, others[1]))
         if leg1 is None or leg2 is None:
             continue
         return AreaResult(
-            exact=sympy.simplify(sympy.Rational(1, 2) * leg1 * leg2),
+            region=tri,
+            exact=sympy.simplify(sympy.Rational(1, 2) * leg1.value * leg2.value),
             route="area_right_triangle",
-            inputs=_facts_used(facts, tri),
+            inputs=(right, leg1.fact, leg2.fact),
         )
     return None
 
 
 def _heron(
     tri: tuple[str, str, str],
-    lengths: dict[frozenset[str], sympy.Expr],
-    facts: tuple[Fact, ...],
+    lengths: dict[frozenset[str], Certified[sympy.Expr]],
 ) -> AreaResult | None:
     """Heron's formula from three certified sides. No angle involved, so trivially mod-pi safe."""
     a, b, c = tri
@@ -197,19 +255,18 @@ def _heron(
         return None
     x, y, z = sides
     assert x is not None and y is not None and z is not None
-    s = (x + y + z) / 2
-    value = sympy.simplify(sympy.sqrt(s * (s - x) * (s - y) * (s - z)))
+    s = (x.value + y.value + z.value) / 2
+    value = sympy.simplify(sympy.sqrt(s * (s - x.value) * (s - y.value) * (s - z.value)))
     # A certified-but-degenerate triple gives zero area; that is not a puzzle.
     if value == 0 or not value.is_real:
         return None
-    return AreaResult(exact=value, route="area_heron", inputs=_facts_used(facts, tri))
+    return AreaResult(region=tri, exact=value, route="area_heron", inputs=(x.fact, y.fact, z.fact))
 
 
 def _sas(
     tri: tuple[str, str, str],
-    lengths: dict[frozenset[str], sympy.Expr],
-    angles: dict[tuple[str, frozenset[str]], Fraction],
-    facts: tuple[Fact, ...],
+    lengths: dict[frozenset[str], Certified[sympy.Expr]],
+    angles: dict[tuple[str, frozenset[str]], Certified[Fraction]],
 ) -> AreaResult | None:
     """(1/2)*a*b*sin(C) from two certified sides and the certified angle between them.
 
@@ -226,41 +283,48 @@ def _sas(
         side1, side2 = lengths.get(_pair(apex, others[0])), lengths.get(_pair(apex, others[1]))
         if side1 is None or side2 is None:
             continue
-        radians = sympy.pi * sympy.Rational(theta.numerator, theta.denominator)
-        value = sympy.simplify(sympy.Rational(1, 2) * side1 * side2 * sympy.sin(radians))
+        radians = sympy.pi * sympy.Rational(theta.value.numerator, theta.value.denominator)
+        value = sympy.simplify(
+            sympy.Rational(1, 2) * side1.value * side2.value * sympy.sin(radians)
+        )
         if value == 0:
             return None
-        return AreaResult(exact=sympy.Abs(value), route="area_sas", inputs=_facts_used(facts, tri))
+        return AreaResult(
+            region=tri,
+            exact=sympy.Abs(value),
+            route="area_sas",
+            inputs=(side1.fact, side2.fact, theta.fact),
+        )
     return None
 
 
-def _facts_used(facts: tuple[Fact, ...], tri: tuple[str, str, str]) -> tuple[Fact, ...]:
-    """The certified facts wholly about this triangle. These are premises Stage 6 must keep."""
-    points = set(tri)
-    return tuple(f for f in facts if f.args and set(f.args) <= points)
-
-
-def _midpoint_splits(facts: tuple[Fact, ...]) -> tuple[tuple[str, str, str], ...]:
-    """Certified midpoints, as (m, u, v) meaning m is the midpoint of segment uv."""
+def _midpoint_splits(facts: tuple[Fact, ...]) -> tuple[tuple[tuple[str, str, str], Fact], ...]:
+    """Certified midpoints, as ((m, u, v), fact) meaning m is the midpoint of segment uv."""
     return tuple(
-        (fact.args[0], fact.args[1], fact.args[2])
+        ((fact.args[0], fact.args[1], fact.args[2]), fact)
         for fact in facts
         if fact.kind is FactKind.MIDPOINT and len(fact.args) == 3
     )
 
 
-def _on_line(u: str, v: str, point: str, facts: tuple[Fact, ...]) -> bool:
-    """Whether `point` is certified to lie on line uv -- as an endpoint, by `coll`, or by `midp`."""
-    if point in (u, v):
-        return True
+def _incidence_witness(u: str, v: str, point: str, facts: tuple[Fact, ...]) -> Fact | None:
+    """The fact certifying `point` lies on line uv, or None if nothing does.
+
+    Returns the *witness* rather than a bare yes, because a route that leans on this incidence
+    has to state it: a puzzle whose answer needs "y is on ab" and does not say so is
+    under-determined, and Stage 8 would be the only thing standing between that and the bank.
+
+    An endpoint is not handled here — it is on the line trivially and needs no premise, and the
+    one caller excludes that case before asking.
+    """
     for fact in facts:
         if fact.kind is FactKind.COLLINEAR and {u, v, point} <= set(fact.args):
-            return True
+            return fact
         if fact.kind is FactKind.MIDPOINT and len(fact.args) == 3:
             m, x, y = fact.args
             if m == point and {x, y} == {u, v}:
-                return True
-    return False
+                return fact
+    return None
 
 
 def _cevian_split(
@@ -298,9 +362,14 @@ def _cevian_split(
         base = tuple(q for q in tri if q != apex)
         if len(base) != 2 or y in base or x in base:
             continue
-        if not _on_line(base[0], base[1], y, facts):
+        foot = _incidence_witness(base[0], base[1], y, facts)
+        if foot is None:
             continue
-        if not any(f.kind is FactKind.COLLINEAR and {x, apex, y} <= set(f.args) for f in facts):
+        cevian = next(
+            (f for f in facts if f.kind is FactKind.COLLINEAR and {x, apex, y} <= set(f.args)),
+            None,
+        )
+        if cevian is None:
             continue
         ratio = _as_exact(fact.value)
         if ratio == -1:
@@ -309,9 +378,11 @@ def _cevian_split(
         if parent is None:
             continue
         return AreaResult(
+            region=tri,
             exact=sympy.simplify(parent.exact / (ratio + 1)),
             route="area_cevian_split",
-            inputs=parent.inputs + (fact,),
+            inputs=(fact, cevian, foot),
+            parents=(parent,),
         )
     return None
 
@@ -338,7 +409,7 @@ def _decompose(tri: tuple[str, str, str], facts: tuple[Fact, ...], depth: int) -
     """
     if depth <= 0:
         return None
-    for m, u, v in _midpoint_splits(facts):
+    for (m, u, v), midpoint in _midpoint_splits(facts):
         if m not in tri:
             continue
         rest = tuple(p for p in tri if p != m)
@@ -357,12 +428,11 @@ def _decompose(tri: tuple[str, str, str], facts: tuple[Fact, ...], depth: int) -
             if whole is None:
                 continue
             return AreaResult(
+                region=tri,
                 exact=sympy.simplify(whole.exact / 2),
                 route="area_median_split",
-                inputs=whole.inputs
-                + tuple(
-                    f for f in facts if f.kind is FactKind.MIDPOINT and tuple(f.args) == (m, u, v)
-                ),
+                inputs=(midpoint,),
+                parents=(whole,),
             )
     return None
 
@@ -374,9 +444,9 @@ def _triangle_area(
         return None
     lengths = certified_lengths(facts)
     return (
-        _right_angle_area(tri, lengths, certified_right_angles(facts), facts)
-        or _heron(tri, lengths, facts)
-        or _sas(tri, lengths, certified_vertex_angles(facts), facts)
+        _right_angle_area(tri, lengths, certified_right_angles(facts))
+        or _heron(tri, lengths)
+        or _sas(tri, lengths, certified_vertex_angles(facts))
         or _decompose(tri, facts, depth)
         or _cevian_split(tri, facts, depth)
     )
@@ -407,26 +477,31 @@ def shoelace(points: tuple[tuple[float, float], ...]) -> float:
     return abs(total) / 2
 
 
-def verify(result: AreaResult, tri: tuple[str, str, str], coords: Coords) -> AreaResult:
+def verify(result: AreaResult, coords: Coords) -> AreaResult:
     """Check an exact area against the reference diagram, or raise.
 
     Raising rather than returning False is the point: a mismatch means the layer produced a
     wrong number, and nothing downstream can catch it -- `bank/validate.py` re-derives *engine*
     facts on a second engine and is structurally blind to this arithmetic (docs/10 §10.8).
+
+    **Every node in the derivation is checked, not just the answer.** A wrong intermediate that
+    a later step happens to cancel out would otherwise ship a correct number attached to a
+    solution that does not hold -- and the solution is what the player reads.
     """
-    missing = [p for p in tri if p not in coords]
-    if missing:
-        raise AreaVerificationError(f"{result.route}: no coordinates for {missing}")
-    numeric = shoelace(tuple(coords[p] for p in tri))
-    exact = result.approx
-    if not math.isfinite(exact):
-        raise AreaVerificationError(f"{result.route}: non-finite exact value {result.exact}")
-    if abs(exact - numeric) > AREA.verification_tolerance * max(1.0, numeric):
-        raise AreaVerificationError(
-            f"{result.route} on {tri}: exact {result.exact} = {exact!r} disagrees with the "
-            f"reference diagram's {numeric!r} (tolerance "
-            f"{AREA.verification_tolerance})"
-        )
+    for node in result.walk():
+        missing = [p for p in node.region if p not in coords]
+        if missing:
+            raise AreaVerificationError(f"{node.route}: no coordinates for {missing}")
+        numeric = shoelace(tuple(coords[p] for p in node.region))
+        exact = node.approx
+        if not math.isfinite(exact):
+            raise AreaVerificationError(f"{node.route}: non-finite exact value {node.exact}")
+        if abs(exact - numeric) > AREA.verification_tolerance * max(1.0, numeric):
+            raise AreaVerificationError(
+                f"{node.route} on {node.region}: exact {node.exact} = {exact!r} disagrees with "
+                f"the reference diagram's {numeric!r} (tolerance "
+                f"{AREA.verification_tolerance})"
+            )
     return result
 
 
@@ -435,4 +510,80 @@ def area_of(
 ) -> AreaResult | None:
     """Compute and verify. The entry point; returns None on attrition, raises on a wrong value."""
     result = triangle_area(tri, facts)
-    return None if result is None else verify(result, tri, coords)
+    return None if result is None else verify(result, coords)
+
+
+# ----------------------------------------------------------------------------------------
+# The decomposition as a proof DAG (docs/10 A3)
+# ----------------------------------------------------------------------------------------
+
+
+def proof_dag(result: AreaResult) -> ProofDAG:
+    """Reconstitute the decomposition as a `ProofDAG`, so Stage 6 onward needs no special case.
+
+    This is the hinge of A3. Everything after Stage 5 -- premise minimization, the translator,
+    figure pruning, the difficulty features -- is written against a proof DAG, and an area has
+    no *engine* proof because no engine has an area predicate. The alternative was to teach
+    each of those stages about areas; this instead teaches the area layer to speak their
+    language, and it costs nothing because the layer already knows its own reasoning: each
+    `AreaResult` is one step, its `inputs` are that step's premises, and its `parents` are the
+    intermediate areas it stands on.
+
+    The rule ids are the route names (`area_sas`, `area_median_split`, `area_cevian_split`),
+    which makes them public API under CLAUDE.md's step-`rule` rule -- they need M4 templates
+    before a puzzle built this way can render its solution.
+
+    Justification is `RULE_APPLICATION`, not a new kind. A route *is* a theorem application --
+    "the median halves the area" is a rule with premises and a conclusion -- and inventing a
+    kind for it would only make every consumer grow a branch for the same thing.
+    """
+    nodes = result.walk()
+    facts: dict[FactId, Fact] = {}
+    steps: list[ProofStep] = []
+    assumptions: list[FactId] = []
+    configuration: list[FactId] = []
+
+    for node in nodes:
+        conclusion = node.fact
+        facts[conclusion.fact_id] = conclusion
+        premises: list[FactId] = []
+        for source in (*node.inputs, *(p.fact for p in node.parents)):
+            facts[source.fact_id] = source
+            premises.append(source.fact_id)
+            if source.is_layer:
+                continue  # an intermediate area, concluded by another step
+            target = configuration if source.is_configuration else assumptions
+            if source.fact_id not in target:
+                target.append(source.fact_id)
+        steps.append(
+            ProofStep(
+                conclusion=conclusion.fact_id,
+                premises=tuple(sorted(set(premises))),
+                justification=Justification(
+                    kind=JustificationKind.RULE_APPLICATION,
+                    rule_id=node.route,
+                    rule_name=_ROUTE_NAMES.get(node.route, node.route),
+                ),
+            )
+        )
+
+    return ProofDAG(
+        facts=tuple(sorted(facts.values())),
+        steps=tuple(sorted(steps)),
+        assumptions=tuple(sorted(assumptions)),
+        numerical_checks=tuple(sorted(configuration)),
+        trivial=(),
+        proved_goals=(result.fact.fact_id,),
+        unproved_goals=(),
+    )
+
+
+#: Human descriptions of the routes, seeding M4's templates the way an engine's `rule_name`
+#: does for a DDAR rule (docs/03 §3.5).
+_ROUTE_NAMES: dict[str, str] = {
+    "area_right_triangle": "Half the product of the legs of a right triangle",
+    "area_heron": "Heron's formula from three sides",
+    "area_sas": "Half the product of two sides and the sine of the angle between them",
+    "area_median_split": "A median halves the area of a triangle",
+    "area_cevian_split": "Triangles on a common base have areas in the ratio of their heights",
+}

@@ -77,6 +77,24 @@ class FactKind(StrEnum):
     # Composite
     PYTHAGOREAN_PREMISES = "pythagorean_premises"
     PYTHAGOREAN_CONCLUSIONS = "pythagorean_conclusions"
+    # Regions — no engine in the lineage has this predicate (docs/03 §3.7, docs/10)
+    AREA = "area"
+    """The area of the polygon its args name, in units of the figure's own scale.
+
+    **Not an engine predicate.** Newclid, Yuclid and AG2 DDAR have no area at all, so no
+    backend may be handed one — see `LAYER_KINDS`. It exists here because everything
+    downstream of Stage 5 (traceback, translation, well-posedness, emission) is written
+    against `Fact`, and a quantity that could not *be* a Fact would have to be special-cased
+    in each of them. That is precisely what docs/04 §QTR exists to prevent.
+    """
+
+
+#: Fact kinds computed by a quantity layer rather than derived by an engine (docs/10 §10.3).
+#:
+#: These may appear as a **goal** and as a proof-DAG conclusion, and never as a premise handed
+#: to a backend: there is no predicate to state them in. `PremiseSpec` enforces that, so a
+#: mis-wired layer fails at the seam instead of inside an engine adapter.
+LAYER_KINDS: frozenset[FactKind] = frozenset({FactKind.AREA})
 
 
 #: Facts that describe the figure's *configuration* rather than a metric relation.
@@ -121,11 +139,26 @@ class Fact:
     value: Fraction | None = None
     """Exact value for VALUED_KINDS; None otherwise. Angles are in units of pi (see module
     docstring). Never a float: the exact layer is exact."""
+    exact: str | None = None
+    """Exact value for LAYER_KINDS, as a SymPy expression string, e.g. `'3*sqrt(3)/4'`.
+
+    A second value field rather than widening `value`, because the two mean different things
+    and the difference is load-bearing. `value` is what an *engine predicate* can hold, and
+    every engine in the lineage holds a rational (docs/07 T18, T21) — which is exactly why no
+    angle puzzle can ever answer sqrt(3)/2. `exact` is what a *quantity layer* computed, and
+    its whole reason to exist is that it need not be rational.
+
+    Kept as a string so this module stays free of SymPy: the SAL's data model is the one thing
+    every backend and the bank validator both depend on. The layer that writes the string
+    parses it back; nothing here interprets it.
+    """
 
     @property
     def fact_id(self) -> FactId:
         """Stable, engine-independent identity. Used for all DAG references."""
         base = f"{self.kind.value}:{':'.join(self.args)}"
+        if self.exact is not None:
+            return FactId(f"{base}={self.exact}")
         return FactId(base if self.value is None else f"{base}={self.value}")
 
     @property
@@ -133,8 +166,13 @@ class Fact:
         return self.kind in CONFIGURATION_KINDS
 
     @property
+    def is_layer(self) -> bool:
+        """True when no engine can express this fact — it came from a quantity layer."""
+        return self.kind in LAYER_KINDS
+
+    @property
     def is_valued(self) -> bool:
-        return self.value is not None
+        return self.value is not None or self.exact is not None
 
     def degrees(self) -> Fraction:
         """Angle value in degrees. Only meaningful for CONSTANT_ANGLE."""
@@ -162,6 +200,14 @@ def fact_from_id(fact_id: FactId | str) -> Fact:
         kind = FactKind(tokens[0])
     except ValueError as exc:
         raise ValueError(f"unknown fact kind in {fact_id!r}") from exc
+
+    if kind in LAYER_KINDS:
+        # A layer value is a SymPy expression string, not a Fraction. Parsing it as one would
+        # raise on every irrational area, which is the only kind of area worth generating.
+        if not sep or not raw_value:
+            raise ValueError(f"{fact_id!r} is a layer fact and must carry an exact value")
+        return Fact(kind=kind, args=tuple(tokens[1:]), exact=raw_value)
+
     value = Fraction(raw_value) if sep else None
     if (value is not None) != (kind in VALUED_KINDS):
         raise ValueError(
@@ -329,6 +375,21 @@ class PremiseSpec:
     premises: tuple[Fact, ...]
     goals: tuple[Fact, ...] = ()
     """Empty means saturate, as in `ProblemSpec`."""
+
+    def __post_init__(self) -> None:
+        """Refuse layer facts at the seam, where the mistake is still legible.
+
+        A backend handed `area:a:b:c=3*sqrt(3)/4` has no predicate to render it and would fail
+        somewhere inside an engine adapter, as an `UnsupportedFactKind` or worse a silent drop
+        into `dropped_assumptions`. Raising here names the actual error: the caller asked an
+        engine a question only the quantity layer can answer (docs/10 §10.3).
+        """
+        offenders = [f.fact_id for f in (*self.premises, *self.goals) if f.is_layer]
+        if offenders:
+            raise ValueError(
+                f"no engine can express {offenders}; layer-computed facts "
+                f"({sorted(k.value for k in LAYER_KINDS)}) never reach a backend"
+            )
 
     @property
     def description(self) -> str:

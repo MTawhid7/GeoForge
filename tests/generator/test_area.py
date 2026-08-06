@@ -15,14 +15,17 @@ import sympy
 
 from geoforge.generator.area import (
     AreaVerificationError,
+    Certified,
     area_of,
     certified_lengths,
     certified_right_angles,
     certified_vertex_angles,
+    proof_dag,
     shoelace,
     triangle_area,
+    verify,
 )
-from geoforge.solvers.types import Fact, FactKind
+from geoforge.solvers.types import Fact, FactKind, fact_from_id
 
 
 def lconst(u: str, v: str, value: int | Fraction) -> Fact:
@@ -44,26 +47,32 @@ def aconst(a: str, b: str, c: str, d: str, value: Fraction) -> Fact:
 class TestReadingCertifiedQuantities:
     def test_lconst_and_l2const_both_give_a_length(self) -> None:
         lengths = certified_lengths((lconst("a", "b", 4), l2const("a", "c", 3)))
-        assert lengths[frozenset(("a", "b"))] == 4
+        assert lengths[frozenset(("a", "b"))].value == 4
         # l2const states the SQUARE, so it yields an irrational side directly.
-        assert lengths[frozenset(("a", "c"))] == sympy.sqrt(3)
+        assert lengths[frozenset(("a", "c"))].value == sympy.sqrt(3)
 
     def test_lconst_wins_over_l2const_for_the_same_segment(self) -> None:
         """Both are exact, so either is sound; preferring lconst keeps the value in the form the
         puzzle will state it in."""
         lengths = certified_lengths((l2const("a", "b", 16), lconst("a", "b", 4)))
-        assert lengths[frozenset(("a", "b"))] == 4
+        assert lengths[frozenset(("a", "b"))].value == 4
 
     def test_right_angle_is_keyed_by_its_apex(self) -> None:
-        assert certified_right_angles((perp("a", "b", "a", "c"),)) == {("a", frozenset(("b", "c")))}
+        fact = perp("a", "b", "a", "c")
+        rights = certified_right_angles((fact,))
+        assert rights.keys() == {("a", frozenset(("b", "c")))}
+        # The witnessing fact travels with the angle: a route that uses it has to state it.
+        assert rights[("a", frozenset(("b", "c")))] == fact
 
     def test_perpendicular_lines_that_do_not_meet_at_a_vertex_are_ignored(self) -> None:
         """`perp a b c d` pins a triangle's angle only when the two lines share a point."""
-        assert certified_right_angles((perp("a", "b", "c", "d"),)) == set()
+        assert certified_right_angles((perp("a", "b", "c", "d"),)) == {}
 
     def test_vertex_angle_is_keyed_by_its_apex(self) -> None:
-        angles = certified_vertex_angles((aconst("a", "b", "a", "c", Fraction(1, 3)),))
-        assert angles == {("a", frozenset(("b", "c"))): Fraction(1, 3)}
+        fact = aconst("a", "b", "a", "c", Fraction(1, 3))
+        angles = certified_vertex_angles((fact,))
+        assert angles.keys() == {("a", frozenset(("b", "c")))}
+        assert angles[("a", frozenset(("b", "c")))] == Certified(Fraction(1, 3), fact)
 
 
 class TestPrimitives:
@@ -330,3 +339,137 @@ class TestCevianSplit:
             self.rconst("c", "g", "g", "m", 2),
         )
         assert triangle_area(("a", "b", "g"), facts) is None
+
+
+class TestPreciseInputs:
+    """A route reports what it consumed, not everything lying around (docs/10 A3).
+
+    An earlier version pooled "every fact wholly about this triangle" into `inputs`. That is
+    over-collection, and it is not cosmetic: those facts become the puzzle's stated givens, and
+    docs/05 filter 5 treats a stated-but-unused given as a *bug* that fails the run rather than
+    as attrition. It also inflates the figure, since Stage 6 prunes to the points the surviving
+    facts mention.
+    """
+
+    def test_sas_consumes_two_sides_and_one_angle_and_nothing_else(self) -> None:
+        facts = (
+            lconst("a", "b", 6),
+            lconst("a", "c", 4),
+            aconst("a", "b", "a", "c", Fraction(1, 3)),
+            # Both about this triangle, and neither used: the pooled version swept them in.
+            Fact(kind=FactKind.N_COLLINEAR, args=("a", "b", "c")),
+            aconst("b", "a", "b", "c", Fraction(1, 4)),
+        )
+        result = triangle_area(("a", "b", "c"), facts)
+        assert result is not None and result.route == "area_sas"
+        assert {f.fact_id for f in result.inputs} == {
+            lconst("a", "b", 6).fact_id,
+            lconst("a", "c", 4).fact_id,
+            aconst("a", "b", "a", "c", Fraction(1, 3)).fact_id,
+        }
+
+    def test_a_recursive_route_keeps_its_own_step_separate_from_its_parents(self) -> None:
+        """`inputs` is this step's premises; the parent's live on the parent."""
+        facts = (
+            lconst("a", "b", 6),
+            lconst("a", "c", 4),
+            aconst("a", "b", "a", "c", Fraction(1, 3)),
+            Fact(kind=FactKind.MIDPOINT, args=("m", "b", "c")),
+        )
+        result = triangle_area(("a", "b", "m"), facts)
+        assert result is not None and result.route == "area_median_split"
+        assert [f.kind for f in result.inputs] == [FactKind.MIDPOINT]
+        assert len(result.parents) == 1
+        assert result.parents[0].route == "area_sas"
+        # ...but the whole derivation's premises are still reachable in one place.
+        assert {f.kind for f in result.all_inputs} == {
+            FactKind.MIDPOINT,
+            FactKind.CONSTANT_LENGTH,
+            FactKind.CONSTANT_ANGLE,
+        }
+
+
+class TestProofDAG:
+    """The decomposition, rendered as the structure the rest of the pipeline speaks (docs/10 A3).
+
+    Stage 6 minimizes a proof DAG and M4 translates its steps. An area has no *engine* proof,
+    so the layer emits its own — which is what lets `area` be a registration in the QTR rather
+    than a branch in traceback, translation, pruning and scoring.
+    """
+
+    FACTS = (
+        lconst("a", "b", 6),
+        lconst("a", "c", 4),
+        aconst("a", "b", "a", "c", Fraction(1, 3)),
+        Fact(kind=FactKind.MIDPOINT, args=("m", "b", "c")),
+    )
+
+    def test_each_route_becomes_one_step(self) -> None:
+        result = triangle_area(("a", "b", "m"), self.FACTS)
+        assert result is not None
+        dag = proof_dag(result)
+        # Steps are sorted canonically (by conclusion id) for determinism, not by reading order.
+        assert {s.justification.rule_id for s in dag.steps} == {"area_median_split", "area_sas"}
+        assert dag.proved_goals == (result.fact.fact_id,)
+        assert dag.depth() == 2, "the median step stands on the SAS step"
+
+    def test_the_intermediate_area_is_a_conclusion_and_not_an_assumption(self) -> None:
+        """The parent area is *derived*, so it must not appear in the premise pool — a puzzle
+        that states [ABC] as a given has given away its own answer."""
+        result = triangle_area(("a", "b", "m"), self.FACTS)
+        assert result is not None
+        dag = proof_dag(result)
+        assert not any(fid.startswith("area:") for fid in dag.assumptions)
+        concluded = {s.conclusion for s in dag.steps}
+        assert result.parents[0].fact.fact_id in concluded
+
+    def test_assumptions_are_exactly_the_engine_facts_consumed(self) -> None:
+        result = triangle_area(("a", "b", "m"), self.FACTS)
+        assert result is not None
+        dag = proof_dag(result)
+        assert set(dag.assumptions) == {f.fact_id for f in result.all_inputs}
+
+    def test_configuration_facts_are_separated_from_premises(self) -> None:
+        """`minimize_premises` never drops a configuration fact, and it can only honour that if
+        the DAG puts them in `numerical_checks` (docs/04 Stage 6)."""
+        ncoll = Fact(kind=FactKind.N_COLLINEAR, args=("a", "b", "c"))
+        facts = (*self.FACTS, ncoll)
+        # Force the configuration fact into a route's inputs via the cevian rule, which states
+        # its incidence witness; here the simpler check is that nothing mis-files a config fact.
+        result = triangle_area(("a", "b", "m"), facts)
+        assert result is not None
+        dag = proof_dag(result)
+        assert all(not fact_from_id(fid).is_configuration for fid in dag.assumptions)
+
+    def test_the_dag_survives_a_round_trip_through_fact_ids(self) -> None:
+        """Every fact in a layer DAG must parse back from its id, because the bank validator
+        reads emitted JSON and never sees these objects."""
+        result = triangle_area(("a", "b", "m"), self.FACTS)
+        assert result is not None
+        for fact in proof_dag(result).facts:
+            assert fact_from_id(fact.fact_id) == fact
+
+    def test_a_three_deep_decomposition_produces_three_steps(self) -> None:
+        facts = (
+            *self.FACTS,
+            Fact(kind=FactKind.MIDPOINT, args=("n", "a", "b")),
+        )
+        result = triangle_area(("n", "b", "m"), facts)
+        assert result is not None
+        dag = proof_dag(result)
+        assert len(dag.steps) == 3
+        assert dag.depth() == 3
+
+    def test_verification_checks_every_intermediate_not_just_the_answer(self) -> None:
+        """A wrong intermediate that later cancels would ship a right number with a wrong
+        solution, and the solution is what the player reads."""
+        result = triangle_area(("a", "b", "m"), self.FACTS)
+        assert result is not None
+        good = {"a": (0.0, 0.0), "b": (6.0, 0.0), "c": (2.0, 2.0 * math.sqrt(3.0))}
+        good["m"] = ((good["b"][0] + good["c"][0]) / 2, (good["b"][1] + good["c"][1]) / 2)
+        verify(result, good)  # the honest figure passes
+        # Move only the parent's third vertex: [abm] is untouched, [abc] is not.
+        bad = dict(good)
+        bad["c"] = (2.0, 9.0)
+        with pytest.raises(AreaVerificationError, match="area_sas"):
+            verify(result, bad)
