@@ -249,6 +249,73 @@ def _midpoint_splits(facts: tuple[Fact, ...]) -> tuple[tuple[str, str, str], ...
     )
 
 
+def _on_line(u: str, v: str, point: str, facts: tuple[Fact, ...]) -> bool:
+    """Whether `point` is certified to lie on line uv -- as an endpoint, by `coll`, or by `midp`."""
+    if point in (u, v):
+        return True
+    for fact in facts:
+        if fact.kind is FactKind.COLLINEAR and {u, v, point} <= set(fact.args):
+            return True
+        if fact.kind is FactKind.MIDPOINT and len(fact.args) == 3:
+            m, x, y = fact.args
+            if m == point and {x, y} == {u, v}:
+                return True
+    return False
+
+
+def _cevian_split(
+    tri: tuple[str, str, str], facts: tuple[Fact, ...], depth: int
+) -> AreaResult | None:
+    """Area by ratio when the apex sits on a cevian: [ABP] = [ABX] * PY/XY.
+
+    Triangles ABP and ABX share the base AB, so their areas are in the ratio of the apexes'
+    distances from AB. If P, X and Y are collinear with Y on line AB, that ratio is PY/XY --
+    still no length required.
+
+    **Why the arithmetic is ours and not the engine's.** The engine certifies `rconst X P P Y = k`
+    (|XP|/|PY| = k) but *cannot* certify `rconst P Y X Y = 1/(k+1)`: AR chases ratios
+    multiplicatively, and getting from XP/PY to PY/XY needs XY = XP + PY, an **addition** it does
+    not do. MEASURED on a centroid figure: `rconst c g g m 2/1` proves, `rconst g m c m 1/3` does
+    not. That one addition is exactly the kind of arithmetic-on-certified-quantities docs/07 T6
+    permits, and doing it here is what unlocks the centroid.
+
+    **The configuration assumption, stated rather than hidden.** `PY/XY = 1/(k+1)` assumes P lies
+    *between* X and Y; outside that segment the relation differs. Betweenness is a configuration
+    fact (docs/07 T2) and is not always certified, so this rule is sound only because `verify`
+    checks the result against the reference diagram and raises on a mismatch. Templates are
+    reviewed, so their configuration is known-good; a figure from elsewhere that violates it
+    fails loudly rather than shipping a wrong answer.
+    """
+    if depth <= 0:
+        return None
+    for fact in facts:
+        if fact.kind is not FactKind.CONSTANT_RATIO or fact.value is None or len(fact.args) != 4:
+            continue
+        x, p1, p2, y = fact.args
+        if p1 != p2 or p1 not in tri or x == y:
+            continue
+        apex = p1
+        base = tuple(q for q in tri if q != apex)
+        if len(base) != 2 or y in base or x in base:
+            continue
+        if not _on_line(base[0], base[1], y, facts):
+            continue
+        if not any(f.kind is FactKind.COLLINEAR and {x, apex, y} <= set(f.args) for f in facts):
+            continue
+        ratio = _as_exact(fact.value)
+        if ratio == -1:
+            continue
+        parent = _triangle_area((x, base[0], base[1]), facts, depth - 1)
+        if parent is None:
+            continue
+        return AreaResult(
+            exact=sympy.simplify(parent.exact / (ratio + 1)),
+            route="area_cevian_split",
+            inputs=parent.inputs + (fact,),
+        )
+    return None
+
+
 def _decompose(tri: tuple[str, str, str], facts: tuple[Fact, ...], depth: int) -> AreaResult | None:
     """Area by RATIO against a larger triangle, when a certified midpoint relates the two.
 
@@ -311,6 +378,7 @@ def _triangle_area(
         or _heron(tri, lengths, facts)
         or _sas(tri, lengths, certified_vertex_angles(facts), facts)
         or _decompose(tri, facts, depth)
+        or _cevian_split(tri, facts, depth)
     )
 
 

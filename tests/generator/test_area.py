@@ -265,3 +265,68 @@ class TestDecomposition:
         assert result.route == "area_median_split"
         assert sympy.simplify(result.exact - 3 * sympy.sqrt(3) / 2) == 0
         assert result.is_irrational
+
+
+class TestCevianSplit:
+    """[ABP] = [ABX] * PY/XY when P sits on a cevian (docs/10 §10.5).
+
+    The rule exists because the engine certifies `rconst X P P Y` but cannot certify
+    `rconst P Y X Y`: AR chases ratios multiplicatively and cannot do XY = XP + PY. MEASURED on a
+    centroid figure -- `rconst c g g m 2/1` proves, `rconst g m c m 1/3` does not.
+    """
+
+    BASE = (
+        lconst("a", "b", 6),
+        lconst("a", "c", 4),
+        aconst("a", "b", "a", "c", Fraction(1, 3)),
+    )
+
+    def coll(self, *pts: str) -> Fact:
+        return Fact(kind=FactKind.COLLINEAR, args=pts)
+
+    def midp(self, m: str, u: str, v: str) -> Fact:
+        return Fact(kind=FactKind.MIDPOINT, args=(m, u, v))
+
+    def rconst(self, w: str, x: str, y: str, z: str, value: int) -> Fact:
+        return Fact(kind=FactKind.CONSTANT_RATIO, args=(w, x, y, z), value=Fraction(value))
+
+    def test_centroid_cuts_one_third(self) -> None:
+        facts = (
+            *self.BASE,
+            self.midp("m", "a", "b"),
+            self.coll("c", "g", "m"),
+            self.rconst("c", "g", "g", "m", 2),
+        )
+        whole = triangle_area(("a", "b", "c"), self.BASE)
+        third = triangle_area(("a", "b", "g"), facts)
+        assert whole is not None and third is not None
+        assert third.route == "area_cevian_split"
+        assert sympy.simplify(third.exact - whole.exact / 3) == 0
+
+    def test_the_ratio_fact_is_kept_as_a_consumed_input(self) -> None:
+        facts = (
+            *self.BASE,
+            self.midp("m", "a", "b"),
+            self.coll("c", "g", "m"),
+            self.rconst("c", "g", "g", "m", 2),
+        )
+        result = triangle_area(("a", "b", "g"), facts)
+        assert result is not None
+        assert any(f.kind is FactKind.CONSTANT_RATIO for f in result.inputs)
+
+    def test_it_refuses_when_the_foot_is_not_on_the_base_line(self) -> None:
+        """Y must lie on AB, or the two triangles do not share a base and the ratio is wrong."""
+        facts = (
+            *self.BASE,
+            self.coll("c", "g", "m"),
+            self.rconst("c", "g", "g", "m", 2),
+        )
+        assert triangle_area(("a", "b", "g"), facts) is None
+
+    def test_it_refuses_without_certified_collinearity(self) -> None:
+        facts = (
+            *self.BASE,
+            self.midp("m", "a", "b"),
+            self.rconst("c", "g", "g", "m", 2),
+        )
+        assert triangle_area(("a", "b", "g"), facts) is None

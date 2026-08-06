@@ -2,21 +2,50 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
+
 import numpy as np
 import pytest
 import sympy
 
 from geoforge.generator.area import area_of
+from geoforge.generator.construction import Construction
 from geoforge.generator.templates import (
     TEMPLATE_ANGLES,
     TEMPLATES,
     AreaTemplate,
+    cevian_ratio_candidates,
     draw_area,
     render,
     to_construction,
 )
 from geoforge.solvers.interface import get_backend
-from geoforge.solvers.types import ProblemSpec, SolveOptions
+from geoforge.solvers.types import Fact, FactKind, PremiseSpec, ProblemSpec, SolveOptions
+
+
+def certified_facts(backend, figure, construction: Construction, opts: SolveOptions):
+    """Declared facts plus the cevian ratios the engine DERIVES but never declares.
+
+    `area._cevian_split` needs `rconst X P P Y`, and on a centroid figure the engine proves
+    `rconst c g g m 2/1` without declaring it (docs/10 §10.5). Reading only `figure.declared`
+    therefore misses it -- so the tests exercise the same enrichment the pipeline must do,
+    rather than a path that would never ship.
+    """
+    facts = tuple(figure.declared)
+    for args in cevian_ratio_candidates(construction):
+        for value in (2, 1):
+            candidate = Fact(kind=FactKind.CONSTANT_RATIO, args=args, value=Fraction(value))
+            try:
+                solved = backend.solve_facts(
+                    PremiseSpec(points=figure.points, premises=facts, goals=(candidate,)),
+                    opts,
+                ).solved
+            except Exception:
+                continue
+            if solved:
+                facts = facts + (candidate,)
+                break
+    return facts
 
 
 class TestLibrary:
@@ -84,7 +113,8 @@ class TestAgainstTheEngine:
             ProblemSpec(construction=construction.to_jgex()), SolveOptions(seed=42)
         )
         coords = {name: (x, y) for name, x, y in figure.points}
-        result = area_of(template.region, tuple(figure.declared), coords)
+        facts = certified_facts(backend, figure, construction, SolveOptions(seed=42))
+        result = area_of(template.region, facts, coords)
         assert result is not None, f"{template.name} pinned no computable area: {text}"
         assert result.approx > 0
 
@@ -98,11 +128,13 @@ class TestAgainstTheEngine:
         seen_irrational = False
         for _ in range(6):
             text = render(template, rng, min_length=2, max_length=6)
+            construction = to_construction(text)
             figure = backend.realize(
-                ProblemSpec(construction=to_construction(text).to_jgex()), SolveOptions(seed=42)
+                ProblemSpec(construction=construction.to_jgex()), SolveOptions(seed=42)
             )
             coords = {name: (x, y) for name, x, y in figure.points}
-            result = area_of(template.region, tuple(figure.declared), coords)
+            facts = certified_facts(backend, figure, construction, SolveOptions(seed=42))
+            result = area_of(template.region, facts, coords)
             if result is not None and result.is_irrational:
                 seen_irrational = True
                 break
@@ -125,13 +157,14 @@ class TestWellPosedness:
 
         values: list[sympy.Expr] = []
         for seed in (1, 7, 99, 12345):
-            figure = backend.realize(
-                ProblemSpec(construction=construction.to_jgex()), SolveOptions(seed=seed)
-            )
+            opts = SolveOptions(seed=seed)
+            figure = backend.realize(ProblemSpec(construction=construction.to_jgex()), opts)
             coords = {name: (x, y) for name, x, y in figure.points}
             # area_of verifies against each diagram and raises on disagreement, so reaching the
             # append at all already means the exact value matched that figure's shoelace area.
-            result = area_of(template.region, tuple(figure.declared), coords)
+            result = area_of(
+                template.region, certified_facts(backend, figure, construction, opts), coords
+            )
             if result is not None:
                 values.append(result.exact)
 

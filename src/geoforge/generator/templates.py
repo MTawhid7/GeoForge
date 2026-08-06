@@ -124,6 +124,21 @@ TEMPLATES: tuple[AreaTemplate, ...] = (
         steps_to_solve=3,
         hideable=("m", "n"),
     ),
+    # The best construction in the library to have to discover: the solver is told two midpoints
+    # and an intersection, and must recognise the centroid and that it cuts a third of the area.
+    # Needs the cevian rule in `area.py`, which needs the engine-derived ratio CG/GM = 2 -- see
+    # `cevian_ratio_candidates`.
+    AreaTemplate(
+        name="sas_centroid",
+        clauses=(
+            "a = free a; b = lconst b a {p}; c = s_angle b a c {t}o, lconst c a {q};"
+            " m = midpoint m a b; n = midpoint n b c; g = intersection_ll g c m a n"
+        ),
+        region=("a", "b", "g"),
+        irrational=True,
+        steps_to_solve=3,
+        hideable=("m", "n", "g"),
+    ),
 )
 
 TEMPLATES_BY_NAME: dict[str, AreaTemplate] = {t.name: t for t in TEMPLATES}
@@ -173,6 +188,31 @@ def to_construction(text: str) -> Construction:
             )
         )
     return Construction(steps=tuple(steps))
+
+
+def cevian_ratio_candidates(construction: Construction) -> tuple[tuple[str, str, str, str], ...]:
+    """Ratio facts the area layer needs but the engine does not *declare* -- only derives.
+
+    `area._cevian_split` reads a certified `rconst X P P Y`. On a centroid figure the engine
+    proves `rconst c g g m 2/1` but never declares it, so the caller has to ask for it. This
+    returns the argument tuples worth asking about: for each `intersection_ll` point P, the pairs
+    (X, P, P, Y) where X and Y are the endpoints of a line P was built on.
+
+    Returned as candidates, not facts -- proposing is all this may do, and the engine decides
+    (docs/02 invariant 4).
+    """
+    out: list[tuple[str, str, str, str]] = []
+    for step in construction.steps:
+        if step.construction != "intersection_ll" or len(step.outputs) != 1:
+            continue
+        point = step.outputs[0]
+        others = [a for a in step.all_args if a != point]
+        # `intersection_ll p a b c d` -- two lines, so two (endpoint, endpoint) pairs.
+        for i in range(0, len(others) - 1, 2):
+            x, y = others[i], others[i + 1]
+            out.append((x, point, point, y))
+            out.append((y, point, point, x))
+    return tuple(out)
 
 
 def draw_area(
