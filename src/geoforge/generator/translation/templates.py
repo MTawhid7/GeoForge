@@ -62,6 +62,24 @@ TEMPLATES: dict[str, Template] = {
     # --- segments --------------------------------------------------------------------
     "r51": Template("midpoint_halves", "angle", 1),  # Midpoint splits in two
     "r54": Template("midpoint_definition", "angle", 1),  # Definition of midpoint
+    # --- area (docs/10 A4) -----------------------------------------------------------
+    #
+    # Keyed by *route name* rather than by an engine rule id, because no engine has an area
+    # predicate and so no engine rule fired. The area layer names its own steps
+    # (`area.proof_dag`), and those names are already public API as `solution[].rule`, so
+    # template id and key are deliberately the same string: an alias would give one step two
+    # public names for no gain.
+    #
+    # Tiers are ours, as docs/05 says. The two *direct* formulas are tier 2 — a contestant who
+    # knows ½ab·sin C applies it without insight. The two *ratio* rules are tier 3: they are the
+    # Chou-Gao-Zhang area-method idea (docs/10 §10.10c), they need no length at all, and seeing
+    # that a median halves an area rather than reaching for the median's length is exactly the
+    # step that makes these puzzles work.
+    "area_right_triangle": Template("area_right_triangle", "area", 1),
+    "area_heron": Template("area_heron", "area", 2),
+    "area_sas": Template("area_sas", "area", 2),
+    "area_median_split": Template("area_median_split", "area", 3),
+    "area_cevian_split": Template("area_cevian_split", "area", 3),
 }
 
 #: Rules whose steps are correct but must not appear in player text.

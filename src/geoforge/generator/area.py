@@ -40,6 +40,18 @@ from geoforge.solvers.types import (
 Coords = Mapping[str, tuple[float, float]]
 
 
+class UnrepresentableArea(RuntimeError):
+    """The exact value falls outside the schema's closed exact-value grammar (docs/02).
+
+    The grammar is a sum of `a/b*sqrt(c)` terms, and it is closed on purpose: a value the schema
+    cannot parse is a value nobody can promise the frontend will render or compare correctly. So
+    a cube root or a nested radical is **attrition**, not something to smuggle through as a
+    float. Nothing the current routes produce hits this — ½ab·sin(C) at the template angles and
+    Heron on integer sides both land in quadratic surds — but the day a route reaches further,
+    this is where it stops.
+    """
+
+
 class AreaVerificationError(RuntimeError):
     """An exactly-computed area disagrees with the reference diagram.
 
@@ -77,6 +89,20 @@ class AreaResult:
     parents: tuple[AreaResult, ...] = ()
     """Areas this one was computed from. Empty for a direct route."""
 
+    def __post_init__(self) -> None:
+        """Canonicalize a triangle's vertex order.
+
+        MEASURED: without this, `_decompose` builds its parent as `(apex, near, far)` and emits
+        `[ACB]` where the extractor asked for `[ABC]` — the same region, two `fact_id`s, and so
+        two proof-DAG nodes that never share and two puzzles that are the same puzzle. Sound
+        because area is invariant under permuting a *triangle's* vertices.
+
+        Guarded on `len == 3` rather than applied blindly: for a polygon the vertex order *is*
+        the boundary, and sorting one would silently compute the area of a different shape.
+        """
+        if len(self.region) == 3:
+            object.__setattr__(self, "region", tuple(sorted(self.region)))
+
     @property
     def approx(self) -> float:
         return float(self.exact)
@@ -89,7 +115,13 @@ class AreaResult:
     @property
     def fact(self) -> Fact:
         """This area as a `Fact`, so everything downstream of Stage 5 can hold it."""
-        return Fact(kind=FactKind.AREA, args=self.region, exact=str(self.exact))
+        return Fact(kind=FactKind.AREA, args=self.region, exact=exact_text(self.exact))
+
+    @property
+    def display(self) -> str:
+        """The player-facing rendering, e.g. `25√3/4` (docs/02 keeps this separate from
+        `exact`)."""
+        return display_text(self.exact)
 
     def walk(self) -> tuple[AreaResult, ...]:
         """This result and every ancestor, deepest first. Deterministic."""
@@ -106,6 +138,80 @@ class AreaResult:
         These are premises the puzzle must state and Stage 6 must not minimize away.
         """
         return tuple(sorted({fact for node in self.walk() for fact in node.inputs}))
+
+
+# ----------------------------------------------------------------------------------------
+# Rendering an exact value (docs/02 answer policy)
+# ----------------------------------------------------------------------------------------
+
+
+def _terms(value: sympy.Expr) -> tuple[tuple[sympy.Rational, int], ...]:
+    """Split an exact value into `(rational coefficient, radicand)` terms, radicand 1 for none.
+
+    Raises `UnrepresentableArea` for anything outside the schema's grammar. Doing the check here,
+    structurally on the SymPy expression, rather than by pattern-matching the printed string: a
+    printer change would silently alter what a regex accepts, and this is the boundary between
+    "an exact value" and "a string we hope parses".
+    """
+    out: list[tuple[sympy.Rational, int]] = []
+    for term in sympy.Add.make_args(sympy.expand(value)):
+        coeff, rest = term.as_coeff_Mul()
+        if not coeff.is_Rational:
+            raise UnrepresentableArea(f"{value} has a non-rational coefficient in {term}")
+        if rest == sympy.Integer(1):
+            out.append((sympy.Rational(coeff), 1))
+            continue
+        power: sympy.Pow | None = rest if isinstance(rest, sympy.Pow) else None
+        if (
+            power is None
+            or power.exp != sympy.Rational(1, 2)
+            or not power.base.is_Integer
+            or power.base <= 0
+        ):
+            raise UnrepresentableArea(
+                f"{value} is outside the closed exact-value grammar (docs/02): {term}"
+            )
+        out.append((sympy.Rational(coeff), int(power.base)))
+    return tuple(out)
+
+
+def exact_text(value: sympy.Expr) -> str:
+    """The `exact` string, in the schema's closed grammar (docs/02).
+
+    **Not `str(expr)`.** SymPy prints `25*sqrt(3)/4`, and the grammar's term is
+    `-?\\d+(/\\d+)?(\\*sqrt\\(\\d+\\))?` — coefficient first, radical last — so the same number
+    has to be written `25/4*sqrt(3)`. Getting this wrong would not fail here; it would fail at
+    the schema boundary with a puzzle already built, which is the expensive place to find out.
+
+    This string is also the fact id (`area:a:b:c=25/4*sqrt(3)`), so it has to be canonical: two
+    spellings of one area would be two facts to every consumer that compares ids.
+    """
+    parts: list[str] = []
+    for coeff, radicand in _terms(value):
+        head = str(coeff.p) if coeff.q == 1 else f"{coeff.p}/{coeff.q}"
+        term = head if radicand == 1 else f"{head}*sqrt({radicand})"
+        parts.append(term if not parts or term.startswith("-") else f"+{term}")
+    return "".join(parts)
+
+
+def display_text(value: sympy.Expr) -> str:
+    """The player-facing rendering: `25/4*sqrt(3)` becomes `25√3/4`.
+
+    Separate from `exact_text` because docs/02 keeps `exact`, `approx` and `display` apart —
+    one is for comparison, one is for reading. The denominator trails the radical the way it is
+    written by hand.
+    """
+    parts: list[str] = []
+    for coeff, radicand in _terms(value):
+        sign = "-" if coeff < 0 else ("+" if parts else "")
+        numerator, denominator = abs(coeff.p), coeff.q
+        if radicand == 1:
+            body = str(numerator)
+        else:
+            head = "" if numerator == 1 else str(numerator)
+            body = f"{head}√{radicand}"
+        parts.append(f"{sign}{body}" if denominator == 1 else f"{sign}{body}/{denominator}")
+    return "".join(parts)
 
 
 # ----------------------------------------------------------------------------------------

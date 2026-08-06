@@ -141,3 +141,44 @@ class TestHighlights:
     ) -> None:
         for highlight in phrase_of(kind, args, value).highlights:
             assert HIGHLIGHT_GRAMMAR.match(highlight), f"{highlight!r} is not a legal highlight id"
+
+
+class TestAreaText:
+    """Golden text for the one quantity no engine can evaluate (docs/10 A4).
+
+    Bracket notation because that is what an olympiad solution writes, and because it needs no
+    word for "area" — which keeps the sentence readable when three of them appear in a chain.
+    """
+
+    def area(self, args: tuple[str, ...], exact: str) -> Phrase:
+        result = describe(Fact(kind=FactKind.AREA, args=args, exact=exact), COORDS)
+        assert result is not None
+        return result
+
+    def test_an_irrational_area_reads_as_a_surd(self) -> None:
+        assert self.area(("a", "b", "c"), "25/4*sqrt(3)").text == "[ABC] = 25√3/4"
+
+    def test_a_unit_coefficient_is_not_printed(self) -> None:
+        """`exact` must carry the 1 — the schema's grammar requires a leading integer — but
+        `1√3` is not something a person writes."""
+        assert self.area(("a", "b", "c"), "1*sqrt(3)").text == "[ABC] = √3"
+
+    def test_a_rational_area_reads_as_a_number(self) -> None:
+        assert self.area(("a", "b", "c"), "6").text == "[ABC] = 6"
+        assert self.area(("a", "b", "c"), "3/2").text == "[ABC] = 3/2"
+
+    def test_the_highlight_is_the_region(self) -> None:
+        phrase = self.area(("a", "b", "c"), "3*sqrt(2)")
+        assert phrase.highlights == ("region:ABC",)
+        assert HIGHLIGHT_GRAMMAR.match(phrase.highlights[0])
+
+    def test_a_value_outside_the_grammar_is_unspeakable_rather_than_mangled(self) -> None:
+        """Attrition, not a crash and not a float. A value the schema cannot parse is a value
+        nobody can promise the frontend renders correctly (docs/02)."""
+        assert (
+            describe(Fact(kind=FactKind.AREA, args=("a", "b", "c"), exact="2**(1/3)"), COORDS)
+            is None
+        )
+
+    def test_an_area_with_no_value_is_unspeakable(self) -> None:
+        assert describe(Fact(kind=FactKind.AREA, args=("a", "b", "c")), COORDS) is None

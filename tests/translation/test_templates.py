@@ -84,12 +84,72 @@ class TestLookup:
 
 
 class TestQuantityFamilies:
-    def test_every_template_declares_its_quantity_family(self) -> None:
+    def test_every_template_declares_a_registered_quantity_family(self) -> None:
         """docs/04 §QTR: enabling a quantity type requires its template family to exist."""
+        from geoforge.generator.quantities import registry
+
+        families = {t.template_family for t in registry().values()}
+        assert families == {"angle", "area"}
         for template in TEMPLATES.values():
-            assert template.quantity_family == "angle", (
-                "Phase 1 registers the angle family only; a new family arrives with its type"
+            assert template.quantity_family in families, (
+                f"{template.template_id!r} declares family {template.quantity_family!r}, "
+                "which no registered quantity type claims"
             )
+
+    def test_every_registered_family_has_at_least_one_template(self) -> None:
+        """The other direction, and the one that actually bites: a type registered without a
+        template family reaches Stage 7 and is discarded as `unknown_rule` on every puzzle it
+        produces — attrition that looks like a hard corpus rather than a missing table."""
+        covered = {t.quantity_family for t in TEMPLATES.values()}
+        from geoforge.generator.quantities import registry
+
+        for quantity_type in registry().values():
+            assert quantity_type.template_family in covered, (
+                f"quantity type {quantity_type.name!r} has no templates"
+            )
+
+
+class TestAreaRoutes:
+    """The area layer names its own steps, so the whitelist is keyed by route (docs/10 A4).
+
+    No engine rule fires for an area — there is no area predicate — so `area.proof_dag` supplies
+    the `rule_id` itself. These entries are what let a layer-verified quantity clear the
+    readability gate that every angle puzzle already has to clear.
+    """
+
+    ROUTES = (
+        "area_right_triangle",
+        "area_heron",
+        "area_sas",
+        "area_median_split",
+        "area_cevian_split",
+    )
+
+    def test_every_route_the_layer_can_emit_has_a_template(self) -> None:
+        """Keyed off the layer's own table, not a copy, so a sixth route cannot be added
+        without either a template or a failing test."""
+        from geoforge.generator.area import _ROUTE_NAMES
+
+        assert set(_ROUTE_NAMES) == set(self.ROUTES)
+        for route in _ROUTE_NAMES:
+            template = template_for(route)
+            assert template is not None, f"route {route!r} would be discarded as unknown_rule"
+            assert template.quantity_family == "area"
+
+    def test_the_ratio_rules_outrank_the_direct_formulas(self) -> None:
+        """The tier ordering is a claim about difficulty, so it is asserted rather than left to
+        the table's reading order. Applying half-a-b-sin-C is routine; seeing that a median
+        halves an area — with no length available at all — is the step that carries these
+        puzzles (docs/10 §10.10c)."""
+        assert tier_for("area_median_split") > tier_for("area_sas")
+        assert tier_for("area_cevian_split") > tier_for("area_heron")
+
+    def test_the_route_name_is_the_public_step_rule(self) -> None:
+        """`solution[].rule` is public API (CLAUDE.md). Template id and whitelist key are the
+        same string on purpose: an alias would give one step two public names."""
+        for route in self.ROUTES:
+            template = template_for(route)
+            assert template is not None and template.template_id == route
 
 
 class TestEveryTemplateHasATier:

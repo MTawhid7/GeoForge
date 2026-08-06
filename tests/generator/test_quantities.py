@@ -284,7 +284,9 @@ class TestAreaRegistration:
             FigureView(coords=self.EQUILATERAL_COORDS, facts=self.EQUILATERAL_FACTS)
         )
         assert len(proposals) == 1
-        assert proposals[0].fact.exact == "sqrt(3)"
+        # The schema's exact grammar requires a leading integer, so the coefficient is written
+        # even when it is 1; `display` is what drops it (docs/02).
+        assert proposals[0].fact.exact == "1*sqrt(3)"
         assert proposals[0].fact.value is None, "a surd is not a Fraction, which is the point"
         assert proposals[0].subject == ("a", "b", "c")
 

@@ -20,6 +20,8 @@ from geoforge.generator.area import (
     certified_lengths,
     certified_right_angles,
     certified_vertex_angles,
+    display_text,
+    exact_text,
     proof_dag,
     shoelace,
     triangle_area,
@@ -473,3 +475,77 @@ class TestProofDAG:
         bad["c"] = (2.0, 9.0)
         with pytest.raises(AreaVerificationError, match="area_sas"):
             verify(result, bad)
+
+
+class TestExactAndDisplayText:
+    """`exact` is for comparison, `display` is for reading, and they are not the same string
+    (docs/02 keeps `exact`, `approx` and `display` apart)."""
+
+    CASES = (
+        ("sqrt(3)", "1*sqrt(3)", "√3"),
+        ("3*sqrt(2)", "3*sqrt(2)", "3√2"),
+        ("25*sqrt(3)/4", "25/4*sqrt(3)", "25√3/4"),
+        ("25*sqrt(2)/16", "25/16*sqrt(2)", "25√2/16"),
+        ("6", "6", "6"),
+        ("3/2", "3/2", "3/2"),
+    )
+
+    @pytest.mark.parametrize("source,exact,shown", CASES)
+    def test_rendering(self, source: str, exact: str, shown: str) -> None:
+        value = sympy.sympify(source)
+        assert exact_text(value) == exact
+        assert display_text(value) == shown
+
+    @pytest.mark.parametrize("source,exact,_shown", CASES)
+    def test_exact_text_satisfies_the_schema_grammar(
+        self, source: str, exact: str, _shown: str
+    ) -> None:
+        """The reason `exact_text` exists at all. SymPy prints `25*sqrt(3)/4`; the schema's term
+        is coefficient-first, so the same number must be written `25/4*sqrt(3)`. Getting this
+        wrong fails at the schema boundary with a puzzle already built."""
+        from geoforge.schema import _EXACT_TERM, _split_terms
+
+        assert all(_EXACT_TERM.match(term) for term in _split_terms(exact))
+        assert float(sympy.sympify(exact)) == pytest.approx(float(sympy.sympify(source)))
+
+    def test_a_value_outside_the_closed_grammar_is_refused(self) -> None:
+        from geoforge.generator.area import UnrepresentableArea
+
+        with pytest.raises(UnrepresentableArea):
+            exact_text(sympy.cbrt(2))
+
+    def test_the_fact_carries_the_schema_form_not_sympys(self) -> None:
+        facts = (
+            lconst("a", "b", 5),
+            lconst("a", "c", 5),
+            aconst("a", "b", "a", "c", Fraction(2, 3)),
+        )
+        result = triangle_area(("a", "b", "c"), facts)
+        assert result is not None
+        assert result.fact.exact == "25/4*sqrt(3)"
+        assert result.display == "25√3/4"
+
+
+class TestRegionCanonicalOrder:
+    """MEASURED: without this, `_decompose` emitted `[ACB]` where the extractor asked for
+    `[ABC]` — one region, two fact ids, two DAG nodes that never share, two identical puzzles.
+    """
+
+    def test_a_triangles_vertices_are_sorted(self) -> None:
+        facts = (
+            lconst("a", "b", 6),
+            lconst("a", "c", 2),
+            aconst("a", "b", "a", "c", Fraction(1, 4)),
+            Fact(kind=FactKind.MIDPOINT, args=("m", "b", "c")),
+        )
+        result = triangle_area(("a", "m", "c"), facts)
+        assert result is not None
+        assert result.region == ("a", "c", "m")
+        assert result.parents[0].region == ("a", "b", "c"), "the parent is canonical too"
+
+    def test_the_two_spellings_are_one_fact(self) -> None:
+        facts = (lconst("a", "b", 2), lconst("b", "c", 2), lconst("a", "c", 2))
+        first = triangle_area(("a", "b", "c"), facts)
+        second = triangle_area(("c", "b", "a"), facts)
+        assert first is not None and second is not None
+        assert first.fact.fact_id == second.fact.fact_id

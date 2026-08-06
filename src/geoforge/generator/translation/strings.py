@@ -35,6 +35,18 @@ EN: dict[str, str] = {
     # Segments
     "midpoint_halves": "{premises}, so {conclusion}.",
     "midpoint_definition": "{premises}, so {conclusion}.",
+    # Area (docs/10 A4). The two ratio rules name the insight rather than the arithmetic,
+    # because the arithmetic is the easy half — "a median halves the area" is the step a
+    # solver either sees or does not.
+    "area_right_triangle": "{premises}, so the area is half the product of the legs: "
+    "{conclusion}.",
+    "area_heron": "{premises}, so Heron's formula gives {conclusion}.",
+    "area_sas": "{premises}, so the area is half the product of the two sides and the sine of "
+    "the angle between them: {conclusion}.",
+    "area_median_split": "{premises}, and a median divides a triangle into two of equal area, "
+    "so {conclusion}.",
+    "area_cevian_split": "{premises}, and triangles on the same base have areas in the ratio of "
+    "their heights, so {conclusion}.",
     # Algebraic reasoning (docs/03 §3.5 item 2)
     "combine": "Combining {premises}, we get {conclusion}.",
     "restate": "From {premises} it follows that {conclusion}.",

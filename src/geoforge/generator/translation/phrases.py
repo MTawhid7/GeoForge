@@ -204,6 +204,31 @@ def _equal_ratios(fact: Fact, _: Coords) -> Phrase | None:
     )
 
 
+def _area(fact: Fact, _: Coords) -> Phrase | None:
+    """`[ABC] = 25√3/4` — the bracket notation every olympiad solution writes.
+
+    The value comes from `Fact.exact`, not `Fact.value`: an area is a surd and no engine
+    predicate can hold one (docs/10 §10.10f). Rendering goes through the area layer so that the
+    player-facing form and the schema's `exact` form are produced by one pair of functions and
+    cannot drift apart.
+    """
+    import sympy
+
+    from geoforge.generator.area import UnrepresentableArea, display_text
+
+    if not fact.args or fact.exact is None:
+        return None
+    try:
+        value = sympy.sympify(fact.exact)
+        if not isinstance(value, sympy.Expr):
+            return None
+        shown = display_text(value)
+    except (UnrepresentableArea, SyntaxError, TypeError, sympy.SympifyError):
+        return None
+    region = "".join(label(p) for p in fact.args)
+    return Phrase(f"[{region}] = {shown}", (f"region:{region}",))
+
+
 def _triangle_pair(word: str) -> Renderer:
     def render(fact: Fact, _: Coords) -> Phrase | None:
         if len(fact.args) != 6:
@@ -235,4 +260,5 @@ _HANDLERS: dict[FactKind, Renderer] = {
     FactKind.SIMTRI_REFLECT: _triangle_pair("similar"),
     FactKind.CONTRI_CLOCK: _triangle_pair("congruent"),
     FactKind.CONTRI_REFLECT: _triangle_pair("congruent"),
+    FactKind.AREA: _area,
 }
