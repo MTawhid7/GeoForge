@@ -1,19 +1,26 @@
 # GeoForge — Session Onboarding
 
 **Read this first in every new session.** It is the current state of the project, written from
-what has actually been built and measured — not from plans. Last updated: **2026-08-05**.
+what has actually been built and measured — not from plans. Last updated: **2026-08-06**.
 
-**If work is in flight, read `HANDOVER.md` before this file.** There is uncommitted,
-not-fully-verified work on `feat/generation-rebuild`; `HANDOVER.md` says exactly what state it
-is in and what to verify first.
+**Read `HANDOVER.md` before this file.** It carries the session-to-session context: what was
+last built, what it measured, what to pick up next, and what not to trust without re-checking.
+As of 2026-08-06 the live branch is `feat/area-layer` — committed, fully verified, pushed, and
+**nothing left to finish verifying**.
 
 ---
 
 ## 0. Where the project actually is (read before anything below)
 
-**Phase 1 complete. Phase 2 M1–M3 complete. Phase 2's tail was deferred and the roadmap resequenced
-on 2026-08-04.** Sections 3–7 below still describe Phase 1 accurately and are worth reading, but the
-plan they imply is superseded — go to `docs/09` for the current sequence.
+**Phase 1 complete. Phase 2 M1–M3 complete. P6 (the area layer) built through A5 on 2026-08-06.**
+Sections 3–7 below still describe Phase 1 accurately and are worth reading, but the plan they
+imply is superseded — go to `docs/09` for the current sequence and `docs/10` for the area layer.
+
+**The single most important change since this file was first written:** `area` is a registered
+quantity type, and it is the first quantity **no engine in the lineage can evaluate**. Its
+answers are 96% irrational (`3√3/4`, `25√3/4`) at a 13.4% modal share, against angle's
+rational-only answers at 36.0%. Registering it cost four widened `docs/04 §QTR` signatures and
+**zero branches in any pipeline stage** — the registry's promise, tested and held.
 
 **What happened.** The first playable bank was built, rendered, and solved on a phone. It failed:
 
@@ -37,14 +44,19 @@ plan they imply is superseded — go to `docs/09` for the current sequence.
    was a square. DDAR finds long chains precisely in symmetric configurations humans read at a glance,
    so the old score was anti-correlated where the expert band lives. A **shortcut filter** — re-solve
    the goal under a 2-step budget, discard if it lands — is now a hard gate, not a feature.
-3. **Angle-only is not a product, and no other quantity type rescues it yet** (T5, T21). Every angle
-   answer is eyeball-readable on a to-scale figure — that part stands. The fix does not: `ratio` and
-   `length` were promoted on the strength of `r2const`/`l2const` giving √2 and √3 "with no new engine
-   work", and **M4a measured that and it is false** (T18, reversed). Nothing derives a squared constant;
-   one rule of 93 derives a ratio constant at all, always ½; the reachable ratio answers are {2, ½} at a
-   52.9% modal share, worse than angle's 36.0%. Both types are deferred behind a rule-set change.
-   Guessability is handled by the sight-readable rejection and filter 8's share cap instead. Irrational
-   *angles* remain impossible — `aconst` holds a `Fraction`.
+3. **Angle-only is not a product, and no ENGINE-DERIVED quantity type rescues it** (T5, T21).
+   Every angle answer is eyeball-readable on a to-scale figure — that part stands. `ratio` and
+   `length` were promoted on the strength of `r2const`/`l2const` giving √2 and √3 "with no new
+   engine work", and **M4a measured that and it is false** (T18, reversed). Nothing derives a
+   squared constant; one rule of 93 derives a ratio constant at all, always ½; the reachable
+   ratio answers are {2, ½} at a 52.9% modal share, worse than angle's 36.0%. Both remain
+   deferred behind a rule-set change. Irrational *angles* remain impossible — `aconst` holds a
+   `Fraction`, and no rule extension changes that (T28).
+
+   **What did rescue it was a LAYER-COMPUTED quantity** (2026-08-06, `docs/10`). `area` is
+   bounded by what the engine can *certify* rather than by what it can *evaluate*, and the
+   certification supply is rich. That is the distinction to carry forward: the ceiling measured
+   here is on engine-derived values, not on what a puzzle can ask.
 4. **The bottleneck is now Stage 1** (L4). Random clause growth cannot produce the deliberate
    arrangements that make good puzzles. Configuration archetypes and backward generation are P5.
 

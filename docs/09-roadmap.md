@@ -366,29 +366,49 @@ Everything cheap has been tried. What is left, in the order the measurements jus
 is the only change that alters what a GeoForge puzzle can *ask*, and it is independent of the aux
 problem. See P6.
 
-## P6 — Areas — **design done 2026-08-05 (`docs/10-area-layer.md`); PROMOTED**
+## P6 — Areas — **BUILT through A5, 2026-08-06 (`docs/10-area-layer.md` §10.10a–i)**
 
 ~~Design doc first (required by doc 03 §3.7), and it must **choose between two architectures** before
-any code.~~ **Written, and the choice is made:** (a) the verified decomposition layer is the build;
-(b) the Chou–Gao–Zhang area method stays a candidate to be judged against A2's measured results rather
-than ahead of them, because it is a second engine to own.
+any code.~~ ~~**Written, and the choice is made**~~ **Built.** The verified decomposition layer
+shipped; the Chou–Gao–Zhang area method was never needed and stays a candidate for a future
+*engine* decision rather than a quantity one (doc 10 §10.11).
 
-**Promoted ahead of the remaining P5 auxiliary-construction work**, on evidence rather than appeal.
-P3 and P5 have spent four milestones on proof *structure* and the ceiling is measured: aux is real but
-capped at ~1.8% of goals with five levers tried and none moving it (doc 07 T26), and `aconst` is
-**0-derived** so every angle puzzle is a chase from stated angles. **No rung of doc 01's ladder changes
-what a puzzle can ask.** The area layer is the only planned work that does, and it is independent of
-the aux problem.
+**The acceptance criteria are met, and measured.** 40 template draws at seed 42:
 
-Feasibility is spiked, not assumed: the engine certifies `aconst` and two `lconst` on one triangle, the
-layer computes √3, and shoelace confirms it (doc 10 §10.4). Build order, kill conditions and the
-directed-angle hazard that shapes the primitive set are all in doc 10.
+| AC | target | measured |
+|---|---|---|
+| ≥1 irrational answer per band | ≥1 | **96% of answers irrational** |
+| modal answer share below angle's | < 36.0% | **13.4%** |
+| every emitted area independently re-checked | all | all, and every *intermediate* too (§10.10f) |
+| determinism unchanged | byte-identical | byte-identical, `PYTHONHASHSEED` 0 and 99991 |
+| a bank built without the layer still builds | unchanged | **angle bands byte-identical** to the pre-area baseline |
 
-**AC:** unchanged and still binding — shaded-area puzzles pass all existing gates including cross-engine
-re-certification of every underlying *engine* fact; decomposition steps pass the prose-fidelity check.
-Added by doc 10: ≥1 irrational answer per band, modal answer share below angle's 36.0%, and an
-independent second route re-checking every emitted area — the cross-engine validator cannot see layer
-arithmetic (doc 10 §10.8), which is the one genuinely new blind spot this work introduces.
+**What it cost, and the result worth carrying into P3's `length`/`ratio` work:** registering a
+quantity **no engine can evaluate** required widening four doc 04 §QTR signatures —
+`goal_extractor` to a `FigureView`, a `verifier` field, `format_answer` to take a `Fact`, and a
+`claim_of` field — and **zero branches in any pipeline stage**. The registry's promise held. A
+later quantity type should need none of those widenings again.
+
+**Not done, and not claimed:**
+
+- **Region vocabulary is triangle-only.** Of the target genre (doc 10 §10.1, and the Aggvent 2025
+  calendar), ~14 of 31 puzzles need *polygon* dissection and ~12 need *sectors or segments*.
+  GeoForge can express roughly 0–2 of 31 today. **Polygon regions are the highest-leverage
+  remaining work and need no new engine capability** — the routes, verification, proof-DAG
+  emission and answer path are all built, and `AREA.max_region_vertices` is already in config.
+- **`make bank` has never been run on an area band.** The cross-engine validator re-derives
+  *engine* facts and is structurally blind to layer arithmetic (§10.8) — the one genuinely new
+  blind spot this work introduces, and it is still unexercised at bank scale.
+- **`area_cevian_split` has never fired end to end**: it needs a ratio the engine derives but
+  never declares, and `cevian_ratio_candidates()` is not yet called by the batch runner. A6.
+- **The difficulty is in the wrong place.** Doc 10 §10.3 item 4 named this as the design risk and
+  it landed: the layer is thin as required, but the *figures* are 3–7 point templates with no
+  geometric content, so 100% of the work is the layer's 1–3 arithmetic steps and none is in the
+  engine-certified derivation. Aux-by-design runs at 58% (doc 07 T29) against search's 1.8%
+  ceiling, which is real — but the insight is a named lemma ("a median halves the area").
+  **Shape vocabulary is engineering; insight generation is unsolved.** The one concrete lead is
+  doc 05 §5.3: Stage 8 already computes answer-invariance under resampling and discards it, and
+  invariance is precisely the target genre's punchline.
 
 ## P7 — Formal tier & platform seed (ongoing)
 

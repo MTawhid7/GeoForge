@@ -1,7 +1,8 @@
 # GeoForge — Geometry Puzzle Generator
 
 GeoForge generates an unlimited supply of valid, well-posed, interesting geometry puzzles — find an
-unknown **angle, length, ratio, or shaded area** (quantity types enabled in waves; angles first) — with
+unknown **angle, length, ratio, or shaded area** (quantity types enabled in waves; **angle and area
+are registered**, length and ratio deferred — `docs/04 §QTR`) — with
 machine-verified, human-readable step-by-step solutions, delivered as a static Euclidea-like web app.
 
 **Architecture in one paragraph:** an offline Python pipeline samples random geometric constructions,
@@ -16,7 +17,7 @@ never touch the correctness path.
 
 | Path | Contents |
 |---|---|
-| `docs/` | **Authoritative specification** (01-overview … 09-roadmap). Read the doc for the subsystem you touch |
+| `docs/` | **Authoritative specification** (01-overview … 10-area-layer). Read the doc for the subsystem you touch |
 | `research/` | Frozen research record behind the 2026 build-on-existing-engines pivot |
 | `CLAUDE.md` | Project conventions for Claude Code sessions (kept in sync with docs/08) |
 | `src/geoforge/` | Pipeline code: `solvers/` (engine adapters), `generator/`, `scoring/`, `bank/` *(to be created — see docs/09 P0)* |
