@@ -214,6 +214,22 @@ def display_text(value: sympy.Expr) -> str:
     return "".join(parts)
 
 
+def root_display(square: Fraction) -> str | None:
+    """A squared length rendered as its (positive) side, e.g. 28 -> `2√7`. None if unrenderable.
+
+    Here rather than in the translator because rendering an exact value is this module's job, and
+    keeping the two forms in one place is what stops the player-facing string and the schema's
+    `exact` string drifting apart. It is also the only place that imports SymPy.
+    """
+    if square < 0:
+        return None
+    try:
+        root = sympy.sqrt(sympy.Rational(square.numerator, square.denominator))
+        return display_text(root) if isinstance(root, sympy.Expr) else None
+    except (UnrepresentableArea, TypeError, ValueError):
+        return None
+
+
 # ----------------------------------------------------------------------------------------
 # Reading certified quantities out of the engine's facts
 # ----------------------------------------------------------------------------------------

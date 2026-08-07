@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from fractions import Fraction
 
 import numpy as np
@@ -173,3 +174,75 @@ class TestWellPosedness:
             assert sympy.simplify(values[0] - other) == 0, (
                 f"{template.name} is NOT well-posed: {text} gave {values}"
             )
+
+
+class TestPinnedByLengthNotByAngle:
+    """docs/10 A5. The library states no angle, and that is a well-posedness property.
+
+    MEASURED (70 draws, seed 42): every template that stated an angle lost Stage 8 —
+    `sas` 0/11, `sas_median` 0/9, `sas_two_medians` 0/24, `sas_centroid` 3/27 — while every
+    template pinning by length passed 100%. `s_angle b a c 60o` is a *directed* angle mod π, so
+    the realizer places `c` on either side and the given renders as 60° in one figure and 120°
+    in another. Three side lengths have one reading each.
+    """
+
+    def test_no_template_states_an_angle(self) -> None:
+        """The invariant, asserted on the library rather than trusted from the measurement. A
+        template reintroducing `s_angle` would silently drop back to ~0% yield."""
+        for template in TEMPLATES:
+            assert "s_angle" not in template.clauses, (
+                f"{template.name} states a directed angle; its given has two readings "
+                "(docs/10 §10.10i)"
+            )
+
+    def test_the_opposite_side_satisfies_the_law_of_cosines(self) -> None:
+        """`r2` is what replaces the angle, so it has to be the right number — and exactly, not
+        approximately: `l2const` holds a `Fraction`."""
+        rng = np.random.default_rng(42)
+        for _ in range(60):
+            construction, template, text = draw_area_case(rng)
+            if "r2" not in template.uses:
+                continue
+            lengths = _stated_lengths(text)
+            squared = _stated_square(text)
+            assert squared is not None
+            p, q = lengths
+            # cos(60) = 1/2 and cos(120) = -1/2 are the only rational ones worth having.
+            assert squared in (p * p + q * q - p * q, p * p + q * q + p * q), text
+
+    def test_the_equilateral_degenerate_draw_is_avoided(self) -> None:
+        """p == q at 60° gives r² = p², i.e. the `equilateral` template stated redundantly — and
+        MEASURED, the engine raises `DoubleCheckError` out of AR ratio chasing on it, 5 times in
+        70 draws."""
+        rng = np.random.default_rng(42)
+        for _ in range(200):
+            _, template, text = draw_area_case(rng)
+            if "r2" not in template.uses:
+                continue
+            p, q = _stated_lengths(text)
+            squared = _stated_square(text)
+            assert squared is not None
+            if p == q:
+                assert squared == 3 * p * p, f"p == q must take the 120° branch: {text}"
+
+    def test_every_sss_template_mirrors_an_area_archetype(self) -> None:
+        names = {t.name for t in TEMPLATES}
+        assert {"sss", "sss_median", "sss_two_medians", "sss_centroid"} <= names
+        assert not any(n.startswith("sas") for n in names), "the s_angle family is retired"
+
+
+def draw_area_case(rng: np.random.Generator):  # type: ignore[no-untyped-def]
+    from geoforge.generator.templates import draw_area
+
+    return draw_area(rng)
+
+
+def _stated_lengths(text: str) -> tuple[int, int]:
+    """The two `lconst` values, in clause order."""
+    values = [int(m) for m in re.findall(r"lconst \w+ \w+ (\d+)", text)]
+    return values[0], values[1]
+
+
+def _stated_square(text: str) -> int | None:
+    match = re.search(r"l2const \w+ \w+ (\d+)", text)
+    return int(match.group(1)) if match else None

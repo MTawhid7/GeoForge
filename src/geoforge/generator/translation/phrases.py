@@ -189,6 +189,29 @@ def _constant_length(fact: Fact, _: Coords) -> Phrase | None:
     return Phrase(f"{_seg(a, b)} = {fact.value}", (_seg_highlight(a, b),))
 
 
+def _squared_constant_length(fact: Fact, _: Coords) -> Phrase | None:
+    """`l2const b c 28` reads as `BC = 2√7`, not as `BC² = 28`.
+
+    **A gap in the table until docs/10 A5, and the one that made it worth closing.** `l2const`
+    states a segment's *square*, and nothing derives one (docs/07 T21) — so it only ever appears
+    as a given, and a given with no phrasing makes its whole puzzle unshippable. It went unnoticed
+    while every template pinned its figure with `s_angle`.
+
+    Taking the positive root is exact and unambiguous, and it is what a human would write: an
+    irrational side length stated on the figure is the target genre's own idiom (docs/10 §10.1),
+    where `BC² = 28` is a computer's way of saying it.
+    """
+    from geoforge.generator.area import root_display
+
+    if len(fact.args) != 2 or fact.value is None:
+        return None
+    shown = root_display(fact.value)
+    if shown is None:
+        return None
+    a, b = fact.args
+    return Phrase(f"{_seg(a, b)} = {shown}", (_seg_highlight(a, b),))
+
+
 def _equal_ratios(fact: Fact, _: Coords) -> Phrase | None:
     if len(fact.args) != 8:
         return None
@@ -255,6 +278,7 @@ _HANDLERS: dict[FactKind, Renderer] = {
     FactKind.CYCLIC: _cyclic,
     FactKind.CONSTANT_RATIO: _constant_ratio,
     FactKind.CONSTANT_LENGTH: _constant_length,
+    FactKind.SQUARED_CONSTANT_LENGTH: _squared_constant_length,
     FactKind.EQUAL_RATIOS: _equal_ratios,
     FactKind.SIMTRI_CLOCK: _triangle_pair("similar"),
     FactKind.SIMTRI_REFLECT: _triangle_pair("similar"),

@@ -1,9 +1,11 @@
 # 10 — The area layer
 
-**Status: BUILT through A4 (2026-08-06). Written as a design doc 2026-08-05.** `area` is registered
+**Status: BUILT through A5 (2026-08-06). Written as a design doc 2026-08-05.** `area` is registered
 in the quantity-type registry and produces complete, schema-valid puzzles with irrational answers —
-see §10.10f (registration), §10.10g (readable steps), §10.10h (the first puzzles, and the mod-π
-attrition that bounds the yield). §10.1–§10.9 are the original design and are kept as written;
+see §10.10f (registration), §10.10g (readable steps), §10.10h (the first puzzles), §10.10i
+(templates pinned by side, taking well-posedness from 26% to 100%).
+
+§10.1–§10.9 are the original design and are kept as written;
 where a measurement later contradicted one, the §10.10x entry says so rather than the text being
 quietly edited.
 
@@ -194,8 +196,9 @@ Each step is independently verifiable and each has a kill condition.
 | ~~A1b~~ | **DONE 2026-08-05 — see §10.10d.** Extended to seven templates and the cevian rule in §10.10e | ~~templated figures fail Stage 8 well-posedness or collapse to one answer~~ **neither happened** |
 | ~~A3~~ | **DONE 2026-08-06 — see §10.10f.** Registered in the QTR; reaches Stage 6. Discarded at Stage 7 for want of a translation table, which is A4 | ~~answers cluster the way ratio's did~~ **6.0% modal share against angle's 36.0%** |
 | ~~A4~~ | **DONE 2026-08-06 — see §10.10g, §10.10h.** Translation table, the exact-value grammar, and `Claim` replacing `VertexAngle`. 24 schema-valid area puzzles | ~~area steps do not translate~~ **136/136 translate**; the surviving limit is the mod-π *sentence*, §10.10h |
-| A5 | Pin the vertex reading in the templates (§10.10h), then `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
-| A6 | Arc length, perimeter, curvature — all reuse A5's machinery | — |
+| ~~A5~~ | **DONE 2026-08-06 — see §10.10i.** Templates pin by the opposite side, not by an angle; the `sas_*` family retired | ~~templates cannot pin the vertex reading~~ **26% → 100% well-posed, 96% irrational** |
+| A6 | Wire `cevian_ratio_candidates` into the batch runner so centroid puzzles reach the pipeline (§10.10i), then `Sector`, `Difference`, and the configuration-fact angle resolution of §10.5 | configuration facts do not pin the undirected angle often enough to be worth it |
+| A7 | Arc length, perimeter, curvature — all reuse A6's machinery | — |
 
 **Acceptance for the layer as a whole:** ≥1 irrational answer per band; modal answer share below
 angle's 36.0%; every emitted area independently re-checked; determinism unchanged; and a bank built
@@ -617,6 +620,75 @@ states the configuration it depends on.
 **26% is the yield of a correct gate**, and it is the right trade against 100% shipping ambiguous
 givens. Raising it is a template change — state the angle so only one vertex reading realizes —
 and belongs with A5 rather than being bought here by loosening a check.
+
+## 10.10i A5: pin the triangle by a side, not by an angle (2026-08-06)
+
+§10.10h left the yield at 24/94 and named the cause. The fix was a **template** change, as
+predicted, and it took the yield to **82/82**.
+
+**The measurement that made the fix obvious.** Well-posedness by template, 70 draws at seed 42:
+
+| template | goals | well-posed | rate |
+|---|---|---|---|
+| `equilateral`, `equilateral_median`, `right_legs` | 29 | 29 | **100%** |
+| `sas` | 11 | 0 | 0% |
+| `sas_median` | 9 | 0 | 0% |
+| `sas_two_medians` | 24 | 0 | 0% |
+| `sas_centroid` | 27 | 3 | 11% |
+
+Perfectly separated: **every template that states an angle loses; every template that pins by
+length passes.** Nothing about the *area* is at fault — `s_angle b a c 60o` is a directed angle
+mod π, so the realizer places `c` on either side and the given renders as 60° in one figure and
+120° in another.
+
+**The fix.** The law of cosines gives `r² = p² + q² − 2pq·cos t`, and `l2const` holds a
+`Fraction` — so wherever `cos t` is rational, the triangle can be pinned by the side *opposite*
+the angle and the angle never reaches the statement. Among useful angles that is exactly 60° and
+120° (`cos = ±½`), giving the integer `r² = p² + q² ∓ pq`. Four `sss_*` templates replace the four
+`sas_*` ones, shape for shape.
+
+**`l2const` had no phrase**, which is why this was not already the design: a given with no phrasing
+makes its whole puzzle unshippable, and the gap was invisible while every template used `s_angle`.
+It now renders as the *side*, not the square — `l2const b c 28` reads `BC = 2√7`. That is what a
+person writes, and an irrational side stated on the figure is the target genre's own idiom (§10.1)
+rather than a workaround.
+
+**The `sas_*` family is retired, and for a stronger reason than yield.** `sas_centroid` passed 3 of
+27 — but a statement with two readings that survives Stage 8 survived *by luck*: the gate resamples
+`WELLPOSED.n_samples` times, and the ambiguity is structural. A template that sometimes slips
+through is worse than one that never does. `test_no_template_states_an_angle` asserts the invariant
+on the library so it cannot be reintroduced quietly.
+
+**MEASURED after, 40 draws at seed 42 (against §10.10h's 24/94):**
+
+| | before | after |
+|---|---|---|
+| goals well-posed | 24 / 94 (26%) | **82 / 82 (100%)** |
+| emitted, schema-valid | 24 | **82** |
+| irrational answers | — | **79 (96%)** |
+| distinct answers | — | 21 |
+| modal answer share | — | **13.4%** (angle: 36.0%) |
+
+```
+ANSWER 3√3/4   GIVEN  BC = √37; AB = 3; AC = 4; M is the midpoint of AB; N is the midpoint of BC
+  BC = √37, AB = 3 and AC = 4, so Heron's formula gives [ABC] = 3√3.
+  [ABC] = 3√3 and M is the midpoint of AB, and a median divides a triangle into two of equal
+    area, so [BCM] = 3√3/2.
+  [BCM] = 3√3/2 and N is the midpoint of BC, and a median divides a triangle into two of equal
+    area, so [CMN] = 3√3/4.
+```
+
+**One engine limitation found and guarded.** `p == q` at 60° gives `r² = p²` — the `equilateral`
+template stated redundantly — and the engine raises `DoubleCheckError` out of AR ratio chasing on
+it (MEASURED: 5 times in 70 draws). Those draws take the 120° branch instead, which is a
+legitimate isosceles triangle with an irrational base.
+
+**Not yet exercised end to end: `area_cevian_split`.** The route is tested and `sss_centroid`
+draws fine, but the probe above never produces one, because the cevian rule needs a ratio the
+engine *derives* and never *declares* — `cevian_ratio_candidates()` exists to ask for it and the
+batch runner does not yet call it. So the centroid puzzles, the best construction in the library
+to have to discover, are still not reaching the pipeline. That is the next thing to wire, and it
+is a batch-runner change rather than a layer one.
 
 ## 10.11 Deliberately not in scope
 

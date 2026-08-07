@@ -182,3 +182,44 @@ class TestAreaText:
 
     def test_an_area_with_no_value_is_unspeakable(self) -> None:
         assert describe(Fact(kind=FactKind.AREA, args=("a", "b", "c")), COORDS) is None
+
+
+class TestSquaredLengthText:
+    """`l2const` had no phrase until docs/10 A5, and a given with no phrasing makes its whole
+    puzzle unshippable. It went unnoticed while every area template pinned by `s_angle`.
+    """
+
+    def squared(self, value: int | Fraction) -> Phrase:
+        result = describe(
+            Fact(kind=FactKind.SQUARED_CONSTANT_LENGTH, args=("b", "c"), value=Fraction(value)),
+            COORDS,
+        )
+        assert result is not None
+        return result
+
+    def test_it_reads_as_the_side_not_as_the_square(self) -> None:
+        """`BC = 2√7` is what a person writes; `BC² = 28` is a computer saying the same thing."""
+        assert self.squared(28).text == "BC = 2√7"
+        assert self.squared(3).text == "BC = √3"
+
+    def test_a_perfect_square_reads_as_an_integer(self) -> None:
+        assert self.squared(9).text == "BC = 3"
+
+    def test_a_rational_square_reads_as_a_fraction(self) -> None:
+        assert self.squared(Fraction(9, 4)).text == "BC = 3/2"
+
+    def test_the_highlight_is_the_segment(self) -> None:
+        phrase = self.squared(28)
+        assert phrase.highlights == ("seg:B:C",)
+        assert HIGHLIGHT_GRAMMAR.match(phrase.highlights[0])
+
+    def test_a_negative_square_has_no_phrase(self) -> None:
+        """Not reachable from a realized figure, but the renderer must not invent an imaginary
+        side if one ever arrives."""
+        assert (
+            describe(
+                Fact(kind=FactKind.SQUARED_CONSTANT_LENGTH, args=("b", "c"), value=Fraction(-4)),
+                COORDS,
+            )
+            is None
+        )

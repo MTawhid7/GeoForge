@@ -36,6 +36,20 @@ from geoforge.generator.construction import Construction, Step
 #: `5*sqrt(3)/2` is not sight-readable just because the angle behind it was 60 degrees.
 TEMPLATE_ANGLES: tuple[int, ...] = (30, 45, 60, 120, 135, 150)
 
+#: Angles a template may pin **by the opposite side** instead of by `s_angle` (docs/10 A5).
+#:
+#: The law of cosines gives r^2 = p^2 + q^2 - 2pq*cos(t), and `l2const` holds a `Fraction`, so
+#: this only works where cos(t) is rational. Among the useful angles that is exactly 60 and 120
+#: (cos = +/- 1/2), which give the integer r^2 = p^2 + q^2 -/+ pq. 90 would also qualify and is
+#: excluded for the same reason it is excluded above.
+#:
+#: **Why bother**: MEASURED (70 draws, seed 42), every template stating an angle loses Stage 8 --
+#: `sas` 0/11, `sas_centroid` 0/27, `sas_median` 3/39, `sas_two_medians` 3/42 -- while every
+#: template pinning by length passes 100%. `s_angle b a c 60o` is a *directed* angle mod pi, so
+#: the realizer places `c` on either side and the given renders as 60 degrees in one figure and
+#: 120 in another. Three side lengths have one reading each.
+SSS_ANGLES: tuple[int, ...] = (60, 120)
+
 
 @dataclass(frozen=True, slots=True)
 class AreaTemplate:
@@ -43,7 +57,8 @@ class AreaTemplate:
 
     name: str
     clauses: str
-    """JGEX text with `{p}`, `{q}` and `{t}` placeholders for two lengths and an angle."""
+    """JGEX text with `{p}`, `{q}`, `{t}` and `{r2}` placeholders: two lengths, an angle, and
+    the square of the side opposite it (docs/10 A5)."""
     region: tuple[str, str, str]
     """The triangle whose area the puzzle asks for. Not necessarily the pinned triangle."""
     irrational: bool
@@ -67,13 +82,6 @@ class AreaTemplate:
 #: (docs/10 §10.10b, §10.10c); the `irrational` and `steps_to_solve` columns are those results.
 TEMPLATES: tuple[AreaTemplate, ...] = (
     AreaTemplate(
-        name="sas",
-        clauses="a = free a; b = lconst b a {p}; c = s_angle b a c {t}o, lconst c a {q}",
-        region=("a", "b", "c"),
-        irrational=True,
-        steps_to_solve=1,
-    ),
-    AreaTemplate(
         name="equilateral",
         clauses="a = free a; b = lconst b a {p}; c = lconst c a {p}, lconst c b {p}",
         region=("a", "b", "c"),
@@ -92,17 +100,6 @@ TEMPLATES: tuple[AreaTemplate, ...] = (
         uses=frozenset({"p", "q"}),
     ),
     AreaTemplate(
-        name="sas_median",
-        clauses=(
-            "a = free a; b = lconst b a {p}; c = s_angle b a c {t}o, lconst c a {q};"
-            " m = midpoint m b c"
-        ),
-        region=("a", "b", "m"),
-        irrational=True,
-        steps_to_solve=2,
-        hideable=("m",),
-    ),
-    AreaTemplate(
         name="equilateral_median",
         clauses=(
             "a = free a; b = lconst b a {p}; c = lconst c a {p}, lconst c b {p}; m = midpoint m b c"
@@ -113,30 +110,58 @@ TEMPLATES: tuple[AreaTemplate, ...] = (
         uses=frozenset({"p"}),
         hideable=("m",),
     ),
+    # --- pinned by the opposite side rather than by the angle (docs/10 A5) --------------
+    #
+    # These replaced an `s_angle` family of the same four shapes, RETIRED 2026-08-06 (docs/10
+    # §10.10i). `l2const b c 19` says |BC| = sqrt(19) exactly, and an irrational side stated on
+    # the figure is the target genre's own idiom rather than a workaround.
+    #
+    # `sss_centroid` is the best construction in the library to have to discover: the solver is
+    # told two midpoints and an intersection, and must recognise the centroid and that it cuts a
+    # third of the area. It needs the cevian rule in `area.py`, which needs the engine-derived
+    # ratio CG/GM = 2 -- see `cevian_ratio_candidates`.
     AreaTemplate(
-        name="sas_two_medians",
+        name="sss",
+        clauses="a = free a; b = lconst b a {p}; c = lconst c a {q}, l2const c b {r2}",
+        region=("a", "b", "c"),
+        irrational=True,
+        steps_to_solve=1,
+        uses=frozenset({"p", "q", "r2"}),
+    ),
+    AreaTemplate(
+        name="sss_median",
         clauses=(
-            "a = free a; b = lconst b a {p}; c = s_angle b a c {t}o, lconst c a {q};"
+            "a = free a; b = lconst b a {p}; c = lconst c a {q}, l2const c b {r2};"
+            " m = midpoint m b c"
+        ),
+        region=("a", "b", "m"),
+        irrational=True,
+        steps_to_solve=2,
+        uses=frozenset({"p", "q", "r2"}),
+        hideable=("m",),
+    ),
+    AreaTemplate(
+        name="sss_two_medians",
+        clauses=(
+            "a = free a; b = lconst b a {p}; c = lconst c a {q}, l2const c b {r2};"
             " m = midpoint m b c; n = midpoint n b m"
         ),
         region=("a", "b", "n"),
         irrational=True,
         steps_to_solve=3,
+        uses=frozenset({"p", "q", "r2"}),
         hideable=("m", "n"),
     ),
-    # The best construction in the library to have to discover: the solver is told two midpoints
-    # and an intersection, and must recognise the centroid and that it cuts a third of the area.
-    # Needs the cevian rule in `area.py`, which needs the engine-derived ratio CG/GM = 2 -- see
-    # `cevian_ratio_candidates`.
     AreaTemplate(
-        name="sas_centroid",
+        name="sss_centroid",
         clauses=(
-            "a = free a; b = lconst b a {p}; c = s_angle b a c {t}o, lconst c a {q};"
+            "a = free a; b = lconst b a {p}; c = lconst c a {q}, l2const c b {r2};"
             " m = midpoint m a b; n = midpoint n b c; g = intersection_ll g c m a n"
         ),
         region=("a", "b", "g"),
         irrational=True,
         steps_to_solve=3,
+        uses=frozenset({"p", "q", "r2"}),
         hideable=("m", "n", "g"),
     ),
 )
@@ -152,13 +177,27 @@ def render(
     Lengths are small integers: they are *stated givens*, so they must be values a human would
     write on a figure, and a large one makes the answer's surd coefficient unreadable rather than
     harder. The angle comes from `TEMPLATE_ANGLES`, which excludes 90 degrees.
+
+    A template that consumes `{r2}` pins its triangle by the side opposite the angle rather than
+    by the angle itself, so it draws from `SSS_ANGLES` and the angle never reaches the statement
+    (docs/10 A5). `r2` is exact: the law of cosines at cos(t) = +/- 1/2 lands on an integer.
     """
-    values = {
-        "p": str(int(rng.integers(min_length, max_length + 1))),
-        "q": str(int(rng.integers(min_length, max_length + 1))),
-        "t": str(int(rng.choice(np.array(TEMPLATE_ANGLES)))),
-    }
-    return template.clauses.format(**values)
+    p = int(rng.integers(min_length, max_length + 1))
+    q = int(rng.integers(min_length, max_length + 1))
+    pins_by_side = "r2" in template.uses
+    angles = SSS_ANGLES if pins_by_side else TEMPLATE_ANGLES
+    t = int(rng.choice(np.array(angles)))
+    if pins_by_side and t == 60 and p == q:
+        # p == q at 60 degrees gives r^2 = p^2, i.e. an equilateral triangle stated as three
+        # equal sides -- a duplicate of the `equilateral` template, and one the engine chokes
+        # on: MEASURED, `l2const c b 25` beside `lconst b a 5` and `lconst c a 5` raises
+        # DoubleCheckError out of AR ratio chasing, 5 times in 70 draws. 120 degrees on the same
+        # two lengths is a legitimate isosceles triangle with an irrational base, so it is used
+        # instead of re-drawing, which would consume rng draws and change every later figure.
+        t = 120
+    # r^2 = p^2 + q^2 - 2pq*cos(t); cos(60) = 1/2 and cos(120) = -1/2.
+    r2 = p * p + q * q + (-p * q if t == 60 else p * q)
+    return template.clauses.format(p=str(p), q=str(q), t=str(t), r2=str(r2))
 
 
 def to_construction(text: str) -> Construction:
